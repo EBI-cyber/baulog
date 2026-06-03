@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { HardHat } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 
 export default function Login() {
@@ -28,6 +29,11 @@ export default function Login() {
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 max-w-md mx-auto">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full">
+        <div className="flex justify-center mb-4">
+          <div className="w-16 h-16 rounded-3xl btn-grad shadow-glow flex items-center justify-center">
+            <HardHat className="w-8 h-8" strokeWidth={2.2} />
+          </div>
+        </div>
         <h1 className="text-5xl font-extrabold grad-text text-center">BauLog</h1>
         <p className="text-white/45 text-center mt-1 mb-8">{mode === 'in' ? 'Willkommen zurück' : 'Konto erstellen'}</p>
         <form onSubmit={submit} className="glass rounded-3xl p-5 space-y-3">

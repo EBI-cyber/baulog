@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Mic, Square } from 'lucide-react'
 
 // Spracherkennung (Web Speech API) — transkribiert live auf Deutsch. Beste Unterstützung: Chrome/Android.
 export default function VoiceInput({ onText }) {
@@ -28,8 +29,9 @@ export default function VoiceInput({ onText }) {
 
   return (
     <button type="button" onClick={toggle}
-      className={'rounded-xl px-3 py-2 text-sm font-semibold ' + (rec ? 'bg-ember text-white animate-pulse' : 'bg-white/10 text-white')}>
-      {rec ? '⏹ Stopp' : '🎤 Diktieren'}
+      className={'rounded-xl px-3 py-2 text-sm font-semibold inline-flex items-center gap-1.5 ' + (rec ? 'bg-ember text-white animate-pulse' : 'bg-white/10 text-white')}>
+      {rec ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+      {rec ? 'Stopp' : 'Diktieren'}
     </button>
   )
 }

@@ -18,11 +18,13 @@ function Splash() {
     </div>
   )
 }
-function WithNav({ children }) {
+function Layout({ children }) {
   return (
-    <div className="min-h-[100dvh] flex flex-col max-w-md mx-auto">
-      <div className="flex-1">{children}</div>
+    <div className="md:flex min-h-[100dvh]">
       <Nav />
+      <main className="flex-1 min-w-0 pb-28 md:pb-12">
+        <div className="max-w-6xl mx-auto w-full">{children}</div>
+      </main>
     </div>
   )
 }
@@ -53,12 +55,14 @@ function Shell() {
 
   return (
     <RoleContext.Provider value={role}>
-      <Routes>
-        <Route path="/" element={<WithNav><Projekte /></WithNav>} />
-        <Route path="/projekt/:id" element={<ProjektDetail />} />
-        <Route path="/auswertung" element={<WithNav><Dashboard /></WithNav>} />
-        <Route path="/einstellungen" element={<WithNav><Einstellungen /></WithNav>} />
-      </Routes>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Projekte />} />
+          <Route path="/projekt/:id" element={<ProjektDetail />} />
+          <Route path="/auswertung" element={<Dashboard />} />
+          <Route path="/einstellungen" element={<Einstellungen />} />
+        </Routes>
+      </Layout>
     </RoleContext.Provider>
   )
 }

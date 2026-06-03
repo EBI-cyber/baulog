@@ -12,11 +12,37 @@ import { sharePdf } from '../lib/share'
 import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
 import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
+import IconChip from '../ui/IconChip'
+import {
+  ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
+  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X,
+} from 'lucide-react'
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
+const ENTRY_ICON = { zeit: Clock, material: Package, foto: Camera, tagebuch: NotebookPen, menge: Ruler, maschine: Wrench }
+
+function StatTile({ icon, label, value, grad, big }) {
+  return (
+    <div className="glass rounded-3xl p-4 flex items-center gap-3 min-w-0">
+      <IconChip icon={icon} size={big ? 'w-11 h-11' : 'w-9 h-9'} iconClass={big ? 'w-5 h-5' : 'w-[18px] h-[18px]'} />
+      <div className="min-w-0">
+        <div className="text-white/40 text-xs truncate">{label}</div>
+        <div className={(big ? 'text-2xl' : 'text-base') + ' font-bold truncate ' + (grad ? 'grad-text' : '')}>{value}</div>
+      </div>
+    </div>
+  )
+}
+
+function ActionTile({ icon, label, span, onClick }) {
+  return (
+    <button onClick={onClick} className={'glass card-hover rounded-2xl p-3 flex flex-col items-center gap-2 text-xs font-medium active:scale-[0.98] ' + (span || '')}>
+      <IconChip icon={icon} />{label}
+    </button>
+  )
+}
 
 function EntryRow({ e, rate, onDelete, hideCost }) {
-  const icon = { zeit: '⏱️', material: '💶', foto: '📸', tagebuch: '📓', menge: '📐', maschine: '🔧' }[e.type] || '•'
+  const I = ENTRY_ICON[e.type] || Clock
   let main = '', sub = ''
   if (e.type === 'zeit') { main = hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ' · ' + (e.gewerk || '')); sub = hideCost ? '' : euro((e.minutes / 60) * (rate || 0)) + ' Lohn' }
   else if (e.type === 'menge') { main = (e.leistung || 'Menge') + ': ' + e.menge + ' ' + (e.einheit || ''); sub = e.gewerk || '' }
@@ -25,13 +51,13 @@ function EntryRow({ e, rate, onDelete, hideCost }) {
   else if (e.type === 'foto') { main = e.note || 'Foto'; sub = e.leistung || e.gewerk || '' }
   else if (e.type === 'tagebuch') { main = (e.text || '').slice(0, 70); sub = e.gewerk || '' }
   return (
-    <div className="glass rounded-2xl p-3 flex items-center gap-3">
-      {e.type === 'foto' && e.dataUrl ? <img src={e.dataUrl} alt="" className="w-12 h-12 rounded-lg object-cover" /> : <div className="text-xl w-8 text-center">{icon}</div>}
+    <div className="glass card-hover rounded-2xl p-3 flex items-center gap-3">
+      {e.type === 'foto' && e.dataUrl ? <img src={e.dataUrl} alt="" className="w-11 h-11 rounded-xl object-cover shrink-0" /> : <IconChip icon={I} size="w-11 h-11" />}
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{main}</div>
         <div className="text-white/40 text-xs truncate">{dmyhm(e.createdAt)}{sub ? ' · ' + sub : ''}</div>
       </div>
-      <button onClick={onDelete} className="text-white/30 px-1">✕</button>
+      <button onClick={onDelete} className="text-white/30 hover:text-ember transition p-1"><X className="w-[18px] h-[18px]" /></button>
     </div>
   )
 }
@@ -65,12 +91,13 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
     else if (type === 'tagebuch') { if (!text.trim()) return; onSave({ type: 'tagebuch', gewerk, text: text.trim() }) }
   }
   const title = { zeit: 'Zeit erfassen', menge: 'Menge / Leistung', material: 'Material / Kosten', maschine: 'Maschine / Werkzeug', foto: 'Foto aufnehmen', tagebuch: 'Tagebuch-Eintrag' }[type]
+  const TitleIcon = { zeit: Clock, menge: Ruler, material: Package, maschine: Wrench, foto: Camera, tagebuch: NotebookPen }[type] || Clock
   const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-end z-20" onClick={onClose}>
-      <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="text-lg font-bold">{title}</div>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-20" onClick={onClose}>
+      <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={TitleIcon} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> {title}</div>
         <select value={gewerk} onChange={(e) => changeGewerk(e.target.value)} className={inp}>
           {gewerkeOpts.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
@@ -117,15 +144,15 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
               <VoiceInput onText={setText} />
               <button type="button" disabled={dinBusy || !text.trim()}
                 onClick={async () => { try { setDinBusy(true); const out = await dinText(text); if (out) setText(out) } catch (err) { alert(err.message) } finally { setDinBusy(false) } }}
-                className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40">
-                {dinBusy ? '…' : '✨ Nach DIN'}
+                className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40 inline-flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" />{dinBusy ? '…' : 'Nach DIN'}
               </button>
             </div>
             <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Diktieren per Mikro oder tippen, dann optional nach DIN formulieren…" rows={5} className={inp} />
           </>
         )}
 
-        <button onClick={save} className="w-full rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink">Speichern</button>
+        <button onClick={save} className="w-full rounded-2xl py-3 font-bold btn-grad">Speichern</button>
       </div>
     </div>
   )
@@ -172,13 +199,13 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-end z-30" onClick={onClose}>
-      <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3 max-h-[92dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="text-lg font-bold">Abschluss: {ctx.leistung || ctx.gewerk}</div>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
+      <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[92dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={Sparkles} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Abschluss: {ctx.leistung || ctx.gewerk}</div>
         <div className="text-white/50 text-sm">Sprich frei: <b>Wie viel {ctx.einheit ? '(' + ctx.einheit + ')' : ''}? Was verbraucht? Welches Werkzeug?</b></div>
         <div className="flex gap-2">
           <VoiceInput onText={setTranscript} />
-          <button type="button" disabled={busy || !transcript.trim()} onClick={auswerten} className="rounded-xl px-3 py-2 text-sm font-semibold bg-gradient-to-r from-amber to-ember text-ink disabled:opacity-40">{busy ? '…' : '✨ Auswerten'}</button>
+          <button type="button" disabled={busy || !transcript.trim()} onClick={auswerten} className="rounded-xl px-3 py-2 text-sm font-semibold btn-grad disabled:opacity-40 inline-flex items-center gap-1.5"><Sparkles className="w-4 h-4" />{busy ? '…' : 'Auswerten'}</button>
         </div>
         <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={3} placeholder="z.B. 12 Quadratmeter verlegt, 5 Sack Kleber, Fliesenschneider benutzt" className={inp} />
 
@@ -213,7 +240,7 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
               ))}
               {p.maschinen.length === 0 && <div className="text-white/30 text-xs">– kein Werkzeug erkannt –</div>}
             </div>
-            <button onClick={save} className="w-full rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink">Übernehmen & Kalkulation fertig</button>
+            <button onClick={save} className="w-full rounded-2xl py-3 font-bold btn-grad">Übernehmen & Kalkulation fertig</button>
           </div>
         )}
         <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Überspringen</button>
@@ -245,9 +272,9 @@ function TeamSheet({ projektToken, gewerke, onClose }) {
   async function del(e) { try { await removeMember(projektToken, e); await reload() } catch (err) { alert(err.message) } }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-end z-30" onClick={onClose}>
-      <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="text-lg font-bold">👷 Team für dieses Projekt</div>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
+      <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={Users} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Team für dieses Projekt</div>
         <div className="text-white/45 text-sm">Mitarbeiter sehen <b>keine Kosten</b> und nur ihre zugewiesenen Gewerke. Sie müssen sich mit derselben E-Mail in BauLog registrieren.</div>
 
         <div className="bg-white/5 border border-white/10 rounded-2xl p-3 space-y-2">
@@ -256,10 +283,10 @@ function TeamSheet({ projektToken, gewerke, onClose }) {
           <div className="flex flex-wrap gap-1.5">
             {gewerke.map((g) => (
               <button key={g} type="button" onClick={() => setPickGewerke((l) => toggle(l, g))}
-                className={'px-2.5 py-1 rounded-full text-xs border ' + (pickGewerke.includes(g) ? 'bg-amber text-ink border-amber font-semibold' : 'border-white/15 text-white/60')}>{g}</button>
+                className={'px-2.5 py-1 rounded-full text-xs border transition ' + (pickGewerke.includes(g) ? 'bg-amber text-ink border-amber font-semibold' : 'border-white/15 text-white/60 hover:border-white/30')}>{g}</button>
             ))}
           </div>
-          <button onClick={add} disabled={busy} className="w-full rounded-xl py-2 font-semibold bg-gradient-to-r from-amber to-ember text-ink disabled:opacity-40">{busy ? '…' : '+ Mitarbeiter zuweisen'}</button>
+          <button onClick={add} disabled={busy} className="w-full rounded-xl py-2.5 font-semibold btn-grad disabled:opacity-40 inline-flex items-center justify-center gap-2"><UserPlus className="w-4 h-4" strokeWidth={2} />{busy ? '…' : 'Mitarbeiter zuweisen'}</button>
         </div>
 
         <div className="space-y-2 pt-1">
@@ -268,9 +295,9 @@ function TeamSheet({ projektToken, gewerke, onClose }) {
           {members && members.map((m) => (
             <div key={m.email} className="glass rounded-2xl p-3">
               <div className="flex items-center gap-3">
-                <div className="text-xl">🧑‍🔧</div>
+                <IconChip icon={HardHat} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                 <div className="flex-1 min-w-0 truncate text-sm">{m.email}</div>
-                <button onClick={() => del(m.email)} className="text-white/30 px-1">✕</button>
+                <button onClick={() => del(m.email)} className="text-white/30 hover:text-ember transition p-1"><X className="w-[18px] h-[18px]" /></button>
               </div>
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {gewerke.map((g) => (
@@ -367,90 +394,96 @@ export default function ProjektDetail() {
   const leistungenG = leistungenFor(s, gewerk)
 
   return (
-    <div className="min-h-[100dvh] flex flex-col max-w-md mx-auto pb-28">
-      <header className="px-5 pt-8 pb-3 flex items-center gap-3">
-        <button onClick={() => nav('/')} className="glass w-9 h-9 rounded-full text-lg leading-none">‹</button>
-        <div className="min-w-0">
-          <div className="font-bold text-lg truncate">{projekt.name}</div>
-          <div className="text-white/40 text-xs truncate">{[projekt.customer, projekt.address].filter(Boolean).join(' · ')}</div>
+    <div className="px-5 md:px-8 pt-8 md:pt-10">
+      <header className="flex items-center gap-3 mb-5">
+        <button onClick={() => nav('/')} className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"><ChevronLeft className="w-5 h-5" /></button>
+        <div className="min-w-0 flex-1">
+          <div className="font-bold text-xl md:text-2xl truncate">{projekt.name}</div>
+          <div className="text-white/40 text-xs md:text-sm truncate">{[projekt.customer, projekt.address].filter(Boolean).join(' · ')}</div>
         </div>
         {!isWorker && (
-          <div className="ml-auto flex gap-2">
-            <button onClick={() => setTeam(true)} className="glass w-9 h-9 rounded-full text-base leading-none" title="Team">👷</button>
-            <button onClick={() => setNachweis(true)} className="glass w-9 h-9 rounded-full text-base leading-none" title="Leistungsnachweis">🧾</button>
+          <div className="flex gap-2 shrink-0">
+            <button onClick={() => setTeam(true)} title="Team" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Users className="w-5 h-5" /></button>
+            <button onClick={() => setNachweis(true)} title="Leistungsnachweis" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><FileText className="w-5 h-5" /></button>
           </div>
         )}
       </header>
 
-      {isWorker ? (
-        <div className="px-5">
-          <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Erfasste Stunden</div><div className="text-2xl font-bold">{hrs(t.minutes)}</div></div>
-        </div>
-      ) : (
-        <>
-          <div className="px-5 grid grid-cols-2 gap-2">
-            <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Stunden</div><div className="text-2xl font-bold">{hrs(t.minutes)}</div></div>
-            <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Selbstkosten</div><div className="text-2xl font-bold grad-text">{euro(t.total)}</div></div>
-          </div>
-          <div className="px-5 mt-2 grid grid-cols-3 gap-2">
-            <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Lohn</div><div className="font-bold text-sm">{euro(t.laborCost)}</div></div>
-            <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Material</div><div className="font-bold text-sm">{euro(t.materialCost)}</div></div>
-            <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Maschine</div><div className="font-bold text-sm">{euro(t.maschineCost)}</div></div>
-          </div>
-        </>
-      )}
-
-      <div className="px-5 mt-3">
-        <div className="glass rounded-3xl p-5">
-          <div className="text-white/50 text-xs mb-2">Zeit-Timer</div>
-          {timer ? (
-            <>
-              <div className={'text-4xl font-extrabold text-center tabular-nums ' + (paused ? 'text-white/40' : '')}>{clock(workedMs)}</div>
-              <div className="text-center text-white/40 text-xs mb-3">{timer.gewerk}{timer.leistung ? ' · ' + timer.leistung : ''}{paused ? ' · ⏸ Pause läuft' : ''}</div>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={pauseResume} className={'rounded-2xl py-4 font-bold active:scale-[0.98] transition ' + (paused ? 'bg-gradient-to-r from-amber to-ember text-ink' : 'bg-white/10 text-white')}>{paused ? '▶ Weiter' : '⏸ Pause'}</button>
-                <button onClick={stopTimer} className="rounded-2xl py-4 font-bold bg-ember text-white active:scale-[0.98] transition">⏹ Stopp</button>
-              </div>
-            </>
+      <div className="lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
+        <div className="lg:col-span-5 space-y-3">
+          {isWorker ? (
+            <StatTile icon={Clock} label="Erfasste Stunden" value={hrs(t.minutes)} big />
           ) : (
             <>
-              <div className="mb-2 p-2 rounded-xl bg-white/5 border border-white/10">
-                <div className="flex gap-2 items-center">
-                  <VoiceInput onText={setSetupText} />
-                  <button type="button" disabled={setupBusy || !setupText.trim()} onClick={kiSetup} className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40">{setupBusy ? '…' : '✨ KI-Setup'}</button>
-                  <span className="text-white/40 text-xs flex-1 leading-tight">kurz sagen, was du machst</span>
-                </div>
-                {setupText && <div className="text-white/50 text-xs mt-1 truncate">„{setupText}"</div>}
+              <div className="grid grid-cols-2 gap-3">
+                <StatTile icon={Clock} label="Stunden" value={hrs(t.minutes)} big />
+                <StatTile icon={Wallet} label="Selbstkosten" value={euro(t.total)} grad big />
               </div>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <select value={gewerk} onChange={(e) => { setGewerk(e.target.value); setLeistung('') }} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
-                  {gewerkeList.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-                <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
-                  <option value="">— allgemein —</option>
-                  {leistungenG.map((l) => <option key={l.name} value={l.name}>{l.name}</option>)}
-                </select>
+              <div className="grid grid-cols-3 gap-2">
+                <StatTile icon={BadgeEuro} label="Lohn" value={euro(t.laborCost)} />
+                <StatTile icon={Package} label="Material" value={euro(t.materialCost)} />
+                <StatTile icon={Wrench} label="Maschine" value={euro(t.maschineCost)} />
               </div>
-              <button onClick={startTimer} className="w-full rounded-2xl py-5 font-bold text-xl bg-gradient-to-r from-amber to-ember text-ink shadow-glow active:scale-[0.98] transition">▶ Start</button>
             </>
           )}
+
+          <div className="glass rounded-3xl p-5">
+            <div className="text-white/45 text-[11px] mb-3 uppercase tracking-wider font-semibold">Zeit-Timer</div>
+            {timer ? (
+              <>
+                <div className={'text-5xl font-extrabold text-center tabular-nums ' + (paused ? 'text-white/35' : '')}>{clock(workedMs)}</div>
+                <div className="text-center text-white/40 text-xs mt-1 mb-4 flex items-center justify-center gap-1.5">
+                  <span>{timer.gewerk}{timer.leistung ? ' · ' + timer.leistung : ''}</span>
+                  {paused && <span className="inline-flex items-center gap-1 text-amber font-semibold"><Pause className="w-3.5 h-3.5" /> Pause</span>}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={pauseResume} className={'rounded-2xl py-4 font-bold inline-flex items-center justify-center gap-2 active:scale-[0.98] transition ' + (paused ? 'btn-grad' : 'bg-white/10 text-white')}>
+                    {paused ? <><Play className="w-5 h-5" /> Weiter</> : <><Pause className="w-5 h-5" /> Pause</>}
+                  </button>
+                  <button onClick={stopTimer} className="rounded-2xl py-4 font-bold bg-ember text-white inline-flex items-center justify-center gap-2 active:scale-[0.98] transition"><Square className="w-5 h-5" /> Stopp</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-2 p-2 rounded-xl bg-white/5 border border-white/10">
+                  <div className="flex gap-2 items-center">
+                    <VoiceInput onText={setSetupText} />
+                    <button type="button" disabled={setupBusy || !setupText.trim()} onClick={kiSetup} className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40 inline-flex items-center gap-1.5"><Sparkles className="w-4 h-4" />{setupBusy ? '…' : 'KI-Setup'}</button>
+                    <span className="text-white/40 text-xs flex-1 leading-tight">kurz sagen, was du machst</span>
+                  </div>
+                  {setupText && <div className="text-white/50 text-xs mt-1 truncate">„{setupText}"</div>}
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <select value={gewerk} onChange={(e) => { setGewerk(e.target.value); setLeistung('') }} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
+                    {gewerkeList.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
+                    <option value="">— allgemein —</option>
+                    {leistungenG.map((l) => <option key={l.name} value={l.name}>{l.name}</option>)}
+                  </select>
+                </div>
+                <button onClick={startTimer} className="w-full rounded-2xl py-5 font-bold text-xl btn-grad shadow-glow active:scale-[0.98] transition inline-flex items-center justify-center gap-2"><Play className="w-6 h-6" strokeWidth={2.3} /> Start</button>
+              </>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <ActionTile icon={Ruler} label="Menge" onClick={() => setSheet('menge')} />
+            {!isWorker && <ActionTile icon={Wrench} label="Maschine" onClick={() => setSheet('maschine')} />}
+            {!isWorker && <ActionTile icon={Package} label="Material" onClick={() => setSheet('material')} />}
+            <ActionTile icon={Camera} label="Foto" onClick={() => setSheet('foto')} />
+            <ActionTile icon={NotebookPen} label="Tagebuch" onClick={() => setSheet('tagebuch')} />
+          </div>
+          <button onClick={() => setSheet('zeit')} className="text-white/50 text-sm inline-flex items-center gap-1 hover:text-white/70 transition"><Plus className="w-4 h-4" /> Zeit manuell erfassen</button>
         </div>
-      </div>
 
-      <div className="px-5 mt-3 grid grid-cols-2 gap-2">
-        <button onClick={() => setSheet('menge')} className="glass rounded-2xl py-3 text-sm">📐<div>Menge/Leistung</div></button>
-        {!isWorker && <button onClick={() => setSheet('maschine')} className="glass rounded-2xl py-3 text-sm">🔧<div>Maschine</div></button>}
-        {!isWorker && <button onClick={() => setSheet('material')} className="glass rounded-2xl py-3 text-sm">💶<div>Material</div></button>}
-        <button onClick={() => setSheet('foto')} className="glass rounded-2xl py-3 text-sm">📸<div>Foto</div></button>
-        <button onClick={() => setSheet('tagebuch')} className="glass rounded-2xl py-3 text-sm col-span-2">📓<div>Tagebuch</div></button>
-      </div>
-      <div className="px-5 mt-2">
-        <button onClick={() => setSheet('zeit')} className="text-white/50 text-sm">+ Zeit manuell erfassen</button>
-      </div>
-
-      <div className="px-5 mt-4 space-y-2">
-        <div className="text-white/50 text-sm">Einträge ({eintraege.length})</div>
-        {eintraege.map((e) => <EntryRow key={e.id} e={e} rate={projekt.hourlyRate} hideCost={isWorker} onDelete={() => remove(e.id)} />)}
+        <div className="lg:col-span-7 mt-5 lg:mt-0">
+          <div className="text-white/50 text-sm mb-2 font-medium">Einträge ({eintraege.length})</div>
+          <div className="space-y-2">
+            {eintraege.length === 0 && <div className="glass rounded-2xl p-5 text-white/35 text-sm">Noch keine Einträge — starte den Timer oder erfasse eine Leistung.</div>}
+            {eintraege.map((e) => <EntryRow key={e.id} e={e} rate={projekt.hourlyRate} hideCost={isWorker} onDelete={() => remove(e.id)} />)}
+          </div>
+        </div>
       </div>
 
       {sheet && (
@@ -466,16 +499,16 @@ export default function ProjektDetail() {
       {team && <TeamSheet projektToken={projekt.token} gewerke={s.gewerke} onClose={() => setTeam(false)} />}
 
       {nachweis && (
-        <div className="fixed inset-0 bg-black/60 flex items-end z-30" onClick={() => setNachweis(false)}>
-          <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
-            <div className="text-lg font-bold">Leistungsnachweis erstellen</div>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={() => setNachweis(false)}>
+          <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+            <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={FileText} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Leistungsnachweis erstellen</div>
             <label className="flex items-center justify-between py-2">
               <span className="text-white/70">Mit Selbstkosten (intern)</span>
               <input type="checkbox" checked={mitKosten} onChange={(e) => setMitKosten(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
             </label>
             <div className="text-white/40 text-xs">Aus = ohne Kosten (für den Kunden). Enthält Leistungen, Mengen, Stunden, Bautagebuch & Fotos.</div>
             <button onClick={async () => { const doc = buildLeistungsnachweis(projekt, eintraege, s, { mitKosten }); await sharePdf(doc, nachweisFilename(projekt)); setNachweis(false) }}
-              className="w-full rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink">PDF erzeugen & teilen</button>
+              className="w-full rounded-2xl py-3 font-bold btn-grad">PDF erzeugen & teilen</button>
           </div>
         </div>
       )}

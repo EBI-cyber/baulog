@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Camera } from 'lucide-react'
 
 // Live-Kamera (Rückkamera) mit Auslöser; Fallback auf Datei-Auswahl wenn nicht verfügbar
 export default function CameraCapture({ onCapture }) {
@@ -48,7 +49,7 @@ export default function CameraCapture({ onCapture }) {
   return (
     <div>
       <video ref={videoRef} playsInline muted className="w-full rounded-xl bg-black aspect-[3/4] object-cover" />
-      <button onClick={snap} className="w-full mt-2 rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink active:scale-[0.98] transition">📷 Aufnehmen</button>
+      <button onClick={snap} className="w-full mt-2 rounded-2xl py-3 font-bold btn-grad active:scale-[0.98] transition inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" strokeWidth={2} /> Aufnehmen</button>
     </div>
   )
 }
