@@ -15,8 +15,22 @@ import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } fro
 import IconChip from '../ui/IconChip'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
-  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator,
+  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send,
 } from 'lucide-react'
+
+async function sendInvite(projektName, email) {
+  const url = location.origin + import.meta.env.BASE_URL
+  const text =
+    'Hi! Ich habe dich in BauLog dem Projekt „' + (projektName || 'Projekt') + '" zugewiesen.\n\n' +
+    '1) Öffne ' + url + '\n' +
+    '2) Registriere dich mit genau dieser E-Mail: ' + email + '\n' +
+    '3) Geh auf Einstellungen → „Sync"\n\n' +
+    'Danach siehst du das Projekt und kannst deine Zeiten erfassen.'
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Einladung zu BauLog', text }); return }
+  } catch (e) { if (e && e.name === 'AbortError') return }
+  location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent('Einladung zu BauLog') + '&body=' + encodeURIComponent(text)
+}
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
 const ENTRY_ICON = { zeit: Clock, material: Package, foto: Camera, tagebuch: NotebookPen, menge: Ruler, maschine: Wrench }
@@ -249,7 +263,7 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
   )
 }
 
-function TeamSheet({ projektToken, gewerke, onClose }) {
+function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
   const [members, setMembers] = useState(null)
   const [email, setEmail] = useState('')
   const [pickGewerke, setPickGewerke] = useState([])
@@ -267,7 +281,7 @@ function TeamSheet({ projektToken, gewerke, onClose }) {
     try {
       setBusy(true); setErr(''); setOk('')
       await addMember(projektToken, e, pickGewerke)
-      setOk(e + ' zugewiesen. Der Mitarbeiter muss sich mit dieser E-Mail registrieren und dann „Sync" drücken.')
+      setOk(e + ' zugewiesen. Schick ihm die Einladung (✈) — er registriert sich mit dieser E-Mail und drückt „Sync".')
       setEmail(''); setPickGewerke([]); await reload()
     } catch (er) { setErr(er.message) } finally { setBusy(false) }
   }
@@ -303,9 +317,10 @@ function TeamSheet({ projektToken, gewerke, onClose }) {
           {members && members.length === 0 && <div className="text-white/35 text-sm">Noch keine Mitarbeiter zugewiesen.</div>}
           {members && members.map((m) => (
             <div key={m.email} className="glass rounded-2xl p-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <IconChip icon={HardHat} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                 <div className="flex-1 min-w-0 truncate text-sm">{m.email}</div>
+                <button onClick={() => sendInvite(projektName, m.email)} title="Einladung senden" className="text-amber/80 hover:text-amber transition p-1.5 rounded-lg border border-white/10"><Send className="w-[18px] h-[18px]" /></button>
                 <button onClick={() => del(m.email)} className="text-white/30 hover:text-ember transition p-1"><X className="w-[18px] h-[18px]" /></button>
               </div>
               <div className="flex flex-wrap gap-1.5 mt-2">
@@ -532,7 +547,7 @@ export default function ProjektDetail() {
           onSaved={async (entries) => { for (const e of entries) await addEintrag({ projektId: Number(id), ...e }); setAbschluss(null); await load() }} />
       )}
 
-      {team && <TeamSheet projektToken={projekt.token} gewerke={s.gewerke} onClose={() => setTeam(false)} />}
+      {team && <TeamSheet projektToken={projekt.token} projektName={projekt.name} gewerke={s.gewerke} onClose={() => setTeam(false)} />}
 
       {nachweis && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={() => setNachweis(false)}>
