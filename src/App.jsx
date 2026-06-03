@@ -2,6 +2,8 @@ import { HashRouter, Routes, Route } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { syncAll } from './lib/cloud'
+import { listProjekte } from './lib/db'
+import { RoleContext } from './lib/role'
 import Nav from './components/Nav'
 import Projekte from './screens/Projekte'
 import ProjektDetail from './screens/ProjektDetail'
@@ -28,11 +30,20 @@ function WithNav({ children }) {
 function Shell() {
   const { loading, user, isCloudReady } = useAuth()
   const [ready, setReady] = useState(false)
+  const [role, setRole] = useState('owner')
   useEffect(() => {
     let active = true
     if (!user) { setReady(true); return }
     setReady(false)
-    ;(async () => { try { await syncAll() } catch {} ; if (active) setReady(true) })()
+    ;(async () => {
+      try { await syncAll() } catch {}
+      try {
+        const all = await listProjekte()
+        const owns = all.some((p) => p.owner && p.owner === user.id)
+        if (active) setRole(!owns && all.length > 0 ? 'worker' : 'owner')
+      } catch {}
+      if (active) setReady(true)
+    })()
     return () => { active = false }
   }, [user])
 
@@ -41,12 +52,14 @@ function Shell() {
   if (!ready) return <Splash />
 
   return (
-    <Routes>
-      <Route path="/" element={<WithNav><Projekte /></WithNav>} />
-      <Route path="/projekt/:id" element={<ProjektDetail />} />
-      <Route path="/auswertung" element={<WithNav><Dashboard /></WithNav>} />
-      <Route path="/einstellungen" element={<WithNav><Einstellungen /></WithNav>} />
-    </Routes>
+    <RoleContext.Provider value={role}>
+      <Routes>
+        <Route path="/" element={<WithNav><Projekte /></WithNav>} />
+        <Route path="/projekt/:id" element={<ProjektDetail />} />
+        <Route path="/auswertung" element={<WithNav><Dashboard /></WithNav>} />
+        <Route path="/einstellungen" element={<WithNav><Einstellungen /></WithNav>} />
+      </Routes>
+    </RoleContext.Provider>
   )
 }
 

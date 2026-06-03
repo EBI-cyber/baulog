@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { loadSettings, saveSettings, EINHEITEN, mergeDinKatalog } from '../lib/settings'
 import { useAuth } from '../lib/auth'
 import { syncAll } from '../lib/cloud'
+import { useRole } from '../lib/role'
 
 export default function Einstellungen() {
   const { user, isCloudReady, signOut } = useAuth()
+  const isWorker = useRole() === 'worker'
   const [s, setS] = useState(loadSettings())
   const [msg, setMsg] = useState(false)
   const upd = (k, v) => setS((p) => ({ ...p, [k]: v }))
@@ -23,6 +25,29 @@ export default function Einstellungen() {
     saveSettings(clean); setS(clean); setMsg(true); setTimeout(() => setMsg(false), 1500)
   }
   const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+
+  if (isWorker) {
+    return (
+      <div className="px-6 pt-10 pb-6">
+        <h2 className="text-2xl font-bold mb-4">Einstellungen</h2>
+        {isCloudReady && (
+          <div className="glass rounded-3xl p-4 mb-3 flex items-center justify-between">
+            <div>
+              <div className="text-white/60 font-semibold">Angemeldet</div>
+              <div className="text-white/40 text-xs">{user?.email}</div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={async () => { try { await syncAll(); alert('Synchronisiert ✓') } catch { alert('Sync-Fehler') } }} className="text-amber text-sm px-2 py-1 rounded-lg border border-white/10">Sync</button>
+              <button onClick={signOut} className="text-white/60 text-sm px-2 py-1 rounded-lg border border-white/10">Abmelden</button>
+            </div>
+          </div>
+        )}
+        <div className="glass rounded-3xl p-4 text-white/45 text-sm">
+          Mitarbeiter-Ansicht: Du erfasst nur deine Zeiten in den freigegebenen Projekten. Kalkulation & Firmendaten verwaltet dein Chef.
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="px-6 pt-10 pb-6">

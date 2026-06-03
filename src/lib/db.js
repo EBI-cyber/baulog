@@ -45,6 +45,7 @@ export async function listEintraege(projektId) {
 }
 export async function deleteEintrag(id) { return db.eintraege.delete(Number(id)) }
 export async function allEintraege() { return db.eintraege.toArray() }
+export async function projektMap() { const ps = await db.projekte.toArray(); const m = {}; ps.forEach((p) => { m[p.token] = p.owner }); return m }
 
 // --- Cloud-Sync-Helfer ---
 export async function pendingProjekte() { return (await db.projekte.toArray()).filter((p) => !p.synced) }

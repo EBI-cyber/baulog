@@ -1,7 +1,7 @@
 import { supabase, isCloudReady } from './supabase'
 import {
   pendingProjekte, pendingEintraege, markProjektSynced, markEintragSynced,
-  upsertProjekteFromCloud, upsertEintraegeFromCloud,
+  upsertProjekteFromCloud, upsertEintraegeFromCloud, projektMap,
 } from './db'
 
 async function hasSession() {
@@ -40,7 +40,11 @@ export async function syncAll() {
   }
   const pEint = await pendingEintraege()
   if (pEint.length) {
-    const { error } = await supabase.from('bau_eintraege').upsert(pEint.map(eintToRow), { onConflict: 'token' })
+    const map = await projektMap()
+    const { data: sess } = await supabase.auth.getSession()
+    const myId = sess && sess.session ? sess.session.user.id : null
+    const rows = pEint.map((e) => { const r = eintToRow(e); r.owner = map[e.projektToken] || myId; return r })
+    const { error } = await supabase.from('bau_eintraege').upsert(rows, { onConflict: 'token' })
     if (!error) for (const e of pEint) await markEintragSynced(e.token)
   }
   const { data: projs } = await supabase.from('bau_projekte').select('*')

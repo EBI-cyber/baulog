@@ -5,9 +5,12 @@ import { listProjekte, createProjekt, allEintraege } from '../lib/db'
 import { loadSettings } from '../lib/settings'
 import { projektTotals } from '../lib/calc'
 import { euro, hrs } from '../lib/format'
+import { useRole } from '../lib/role'
 
 export default function Projekte() {
   const nav = useNavigate()
+  const role = useRole()
+  const isWorker = role === 'worker'
   const s = loadSettings()
   const [projekte, setProjekte] = useState([])
   const [eintraege, setEintraege] = useState([])
@@ -32,13 +35,13 @@ export default function Projekte() {
       <header className="px-6 pt-10 pb-4 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-extrabold grad-text">BauLog</h1>
-          <p className="text-white/45 text-sm">Bautagebuch · Stunden · Kosten</p>
+          <p className="text-white/45 text-sm">{isWorker ? 'Meine Projekte · Zeiterfassung' : 'Bautagebuch · Stunden · Kosten'}</p>
         </div>
-        <button onClick={() => setCreating(true)} className="rounded-2xl px-4 py-2 font-bold bg-gradient-to-r from-amber to-ember text-ink active:scale-95 transition">+ Projekt</button>
+        {!isWorker && <button onClick={() => setCreating(true)} className="rounded-2xl px-4 py-2 font-bold bg-gradient-to-r from-amber to-ember text-ink active:scale-95 transition">+ Projekt</button>}
       </header>
 
       <main className="px-6 space-y-3">
-        {projekte.length === 0 && <div className="text-white/40 text-sm">Noch keine Projekte. Leg dein erstes Sanierungsprojekt an.</div>}
+        {projekte.length === 0 && <div className="text-white/40 text-sm">{isWorker ? 'Noch keine Projekte freigegeben. Dein Chef muss dich einem Projekt zuweisen.' : 'Noch keine Projekte. Leg dein erstes Sanierungsprojekt an.'}</div>}
         {projekte.map((p) => {
           const t = totalsFor(p.id, p.hourlyRate)
           return (
@@ -48,7 +51,7 @@ export default function Projekte() {
               <div className="text-white/45 text-sm">{[p.customer, p.address].filter(Boolean).join(' · ') || '—'}</div>
               <div className="flex gap-4 mt-3 text-sm">
                 <div><span className="text-white/40">Stunden </span><b>{hrs(t.minutes)}</b></div>
-                <div><span className="text-white/40">Selbstkosten </span><b className="grad-text">{euro(t.total)}</b></div>
+                {!isWorker && <div><span className="text-white/40">Selbstkosten </span><b className="grad-text">{euro(t.total)}</b></div>}
               </div>
             </motion.button>
           )

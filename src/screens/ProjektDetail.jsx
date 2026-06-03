@@ -9,16 +9,18 @@ import VoiceInput from '../components/VoiceInput'
 import { dinText, parseSetup, parseAbschluss } from '../lib/ai'
 import { buildLeistungsnachweis, nachweisFilename } from '../lib/pdf'
 import { sharePdf } from '../lib/share'
+import { useRole } from '../lib/role'
+import { listMembers, addMember, removeMember } from '../lib/team'
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
 
-function EntryRow({ e, rate, onDelete }) {
+function EntryRow({ e, rate, onDelete, hideCost }) {
   const icon = { zeit: '⏱️', material: '💶', foto: '📸', tagebuch: '📓', menge: '📐', maschine: '🔧' }[e.type] || '•'
   let main = '', sub = ''
-  if (e.type === 'zeit') { main = hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ' · ' + (e.gewerk || '')); sub = euro((e.minutes / 60) * (rate || 0)) + ' Lohn' }
+  if (e.type === 'zeit') { main = hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ' · ' + (e.gewerk || '')); sub = hideCost ? '' : euro((e.minutes / 60) * (rate || 0)) + ' Lohn' }
   else if (e.type === 'menge') { main = (e.leistung || 'Menge') + ': ' + e.menge + ' ' + (e.einheit || ''); sub = e.gewerk || '' }
-  else if (e.type === 'material') { main = e.label + ' (' + e.qty + '×)' + (e.leistung ? ' · ' + e.leistung : ''); sub = euro((e.qty || 0) * (e.unitCost || 0)) }
-  else if (e.type === 'maschine') { main = (e.maschine || 'Maschine') + ' · ' + hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ''); sub = euro((e.minutes / 60) * (e.satz || 0)) }
+  else if (e.type === 'material') { main = e.label + ' (' + e.qty + '×)' + (e.leistung ? ' · ' + e.leistung : ''); sub = hideCost ? '' : euro((e.qty || 0) * (e.unitCost || 0)) }
+  else if (e.type === 'maschine') { main = (e.maschine || 'Maschine') + ' · ' + hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ''); sub = hideCost ? '' : euro((e.minutes / 60) * (e.satz || 0)) }
   else if (e.type === 'foto') { main = e.note || 'Foto'; sub = e.leistung || e.gewerk || '' }
   else if (e.type === 'tagebuch') { main = (e.text || '').slice(0, 70); sub = e.gewerk || '' }
   return (
@@ -218,10 +220,52 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
   )
 }
 
+function TeamSheet({ projektToken, onClose }) {
+  const [members, setMembers] = useState(null)
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+  const reload = async () => { try { setMembers(await listMembers(projektToken)) } catch { setMembers([]) } }
+  useEffect(() => { reload() }, [projektToken])
+  async function add() {
+    const e = email.trim().toLowerCase()
+    if (!e || !e.includes('@')) { alert('Bitte gültige E-Mail eingeben.'); return }
+    try { setBusy(true); await addMember(projektToken, e); setEmail(''); await reload() }
+    catch (err) { alert(err.message) } finally { setBusy(false) }
+  }
+  async function del(e) { try { await removeMember(projektToken, e); await reload() } catch (err) { alert(err.message) } }
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-end z-30" onClick={onClose}>
+      <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3 max-h-[88dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-bold">👷 Team für dieses Projekt</div>
+        <div className="text-white/45 text-sm">Mitarbeiter erfassen hier nur ihre Zeiten und sehen <b>keine Kosten</b>. Sie müssen sich mit derselben E-Mail in BauLog registrieren.</div>
+        <div className="flex gap-2">
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" placeholder="mitarbeiter@mail.de" className={inp} />
+          <button onClick={add} disabled={busy} className="rounded-xl px-4 font-semibold bg-gradient-to-r from-amber to-ember text-ink disabled:opacity-40">{busy ? '…' : '+'}</button>
+        </div>
+        <div className="space-y-2 pt-1">
+          {members === null && <div className="text-white/35 text-sm">Lade…</div>}
+          {members && members.length === 0 && <div className="text-white/35 text-sm">Noch keine Mitarbeiter zugewiesen.</div>}
+          {members && members.map((m) => (
+            <div key={m} className="glass rounded-2xl p-3 flex items-center gap-3">
+              <div className="text-xl">🧑‍🔧</div>
+              <div className="flex-1 min-w-0 truncate text-sm">{m}</div>
+              <button onClick={() => del(m)} className="text-white/30 px-1">✕</button>
+            </div>
+          ))}
+        </div>
+        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Schließen</button>
+      </div>
+    </div>
+  )
+}
+
 export default function ProjektDetail() {
   const { id } = useParams()
   const nav = useNavigate()
   const s = loadSettings()
+  const isWorker = useRole() === 'worker'
+  const [team, setTeam] = useState(false)
   const [projekt, setProjekt] = useState(null)
   const [eintraege, setEintraege] = useState([])
   const [timer, setTimer] = useState(null)
@@ -251,7 +295,7 @@ export default function ProjektDetail() {
     await addEintrag({ projektId: Number(id), type: 'zeit', gewerk: timer.gewerk, leistung: timer.leistung || '', minutes: mins })
     const ctx = { gewerk: timer.gewerk, leistung: timer.leistung || '', einheit: einheitOf(s, timer.gewerk, timer.leistung || ''), maschinen: s.maschinen, workMinutes: mins }
     localStorage.removeItem(TIMERKEY(id)); setTimer(null); await load()
-    setAbschluss(ctx)
+    if (!isWorker) setAbschluss(ctx)
   }
   async function kiSetup() {
     if (!setupText.trim()) return
@@ -273,18 +317,31 @@ export default function ProjektDetail() {
           <div className="font-bold text-lg truncate">{projekt.name}</div>
           <div className="text-white/40 text-xs truncate">{[projekt.customer, projekt.address].filter(Boolean).join(' · ')}</div>
         </div>
-        <button onClick={() => setNachweis(true)} className="glass w-9 h-9 rounded-full ml-auto text-base leading-none" title="Leistungsnachweis">🧾</button>
+        {!isWorker && (
+          <div className="ml-auto flex gap-2">
+            <button onClick={() => setTeam(true)} className="glass w-9 h-9 rounded-full text-base leading-none" title="Team">👷</button>
+            <button onClick={() => setNachweis(true)} className="glass w-9 h-9 rounded-full text-base leading-none" title="Leistungsnachweis">🧾</button>
+          </div>
+        )}
       </header>
 
-      <div className="px-5 grid grid-cols-2 gap-2">
-        <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Stunden</div><div className="text-2xl font-bold">{hrs(t.minutes)}</div></div>
-        <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Selbstkosten</div><div className="text-2xl font-bold grad-text">{euro(t.total)}</div></div>
-      </div>
-      <div className="px-5 mt-2 grid grid-cols-3 gap-2">
-        <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Lohn</div><div className="font-bold text-sm">{euro(t.laborCost)}</div></div>
-        <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Material</div><div className="font-bold text-sm">{euro(t.materialCost)}</div></div>
-        <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Maschine</div><div className="font-bold text-sm">{euro(t.maschineCost)}</div></div>
-      </div>
+      {isWorker ? (
+        <div className="px-5">
+          <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Erfasste Stunden</div><div className="text-2xl font-bold">{hrs(t.minutes)}</div></div>
+        </div>
+      ) : (
+        <>
+          <div className="px-5 grid grid-cols-2 gap-2">
+            <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Stunden</div><div className="text-2xl font-bold">{hrs(t.minutes)}</div></div>
+            <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Selbstkosten</div><div className="text-2xl font-bold grad-text">{euro(t.total)}</div></div>
+          </div>
+          <div className="px-5 mt-2 grid grid-cols-3 gap-2">
+            <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Lohn</div><div className="font-bold text-sm">{euro(t.laborCost)}</div></div>
+            <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Material</div><div className="font-bold text-sm">{euro(t.materialCost)}</div></div>
+            <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Maschine</div><div className="font-bold text-sm">{euro(t.maschineCost)}</div></div>
+          </div>
+        </>
+      )}
 
       <div className="px-5 mt-3">
         <div className="glass rounded-3xl p-5">
@@ -322,8 +379,8 @@ export default function ProjektDetail() {
 
       <div className="px-5 mt-3 grid grid-cols-2 gap-2">
         <button onClick={() => setSheet('menge')} className="glass rounded-2xl py-3 text-sm">📐<div>Menge/Leistung</div></button>
-        <button onClick={() => setSheet('maschine')} className="glass rounded-2xl py-3 text-sm">🔧<div>Maschine</div></button>
-        <button onClick={() => setSheet('material')} className="glass rounded-2xl py-3 text-sm">💶<div>Material</div></button>
+        {!isWorker && <button onClick={() => setSheet('maschine')} className="glass rounded-2xl py-3 text-sm">🔧<div>Maschine</div></button>}
+        {!isWorker && <button onClick={() => setSheet('material')} className="glass rounded-2xl py-3 text-sm">💶<div>Material</div></button>}
         <button onClick={() => setSheet('foto')} className="glass rounded-2xl py-3 text-sm">📸<div>Foto</div></button>
         <button onClick={() => setSheet('tagebuch')} className="glass rounded-2xl py-3 text-sm col-span-2">📓<div>Tagebuch</div></button>
       </div>
@@ -333,7 +390,7 @@ export default function ProjektDetail() {
 
       <div className="px-5 mt-4 space-y-2">
         <div className="text-white/50 text-sm">Einträge ({eintraege.length})</div>
-        {eintraege.map((e) => <EntryRow key={e.id} e={e} rate={projekt.hourlyRate} onDelete={() => remove(e.id)} />)}
+        {eintraege.map((e) => <EntryRow key={e.id} e={e} rate={projekt.hourlyRate} hideCost={isWorker} onDelete={() => remove(e.id)} />)}
       </div>
 
       {sheet && (
@@ -345,6 +402,8 @@ export default function ProjektDetail() {
         <AbschlussSheet s={s} ctx={abschluss} onClose={() => setAbschluss(null)}
           onSaved={async (entries) => { for (const e of entries) await addEintrag({ projektId: Number(id), ...e }); setAbschluss(null); await load() }} />
       )}
+
+      {team && <TeamSheet projektToken={projekt.token} onClose={() => setTeam(false)} />}
 
       {nachweis && (
         <div className="fixed inset-0 bg-black/60 flex items-end z-30" onClick={() => setNachweis(false)}>
