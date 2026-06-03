@@ -26,9 +26,17 @@ async function sendInvite(projektName, email) {
     '2) Registriere dich mit genau dieser E-Mail: ' + email + '\n' +
     '3) Geh auf Einstellungen → „Sync"\n\n' +
     'Danach siehst du das Projekt und kannst deine Zeiten erfassen.'
+  // Handy: natives Teilen (WhatsApp, Mail, …)
   try {
     if (navigator.share) { await navigator.share({ title: 'Einladung zu BauLog', text }); return }
   } catch (e) { if (e && e.name === 'AbortError') return }
+  // PC: Text in die Zwischenablage kopieren -> in WhatsApp/Mail einfügen
+  try {
+    await navigator.clipboard.writeText(text)
+    alert('Einladungstext kopiert ✓\n\nFüg ihn jetzt in WhatsApp oder deine E-Mail ein und schick ihn an:\n' + email)
+    return
+  } catch {}
+  // Notfalls: Mailprogramm öffnen
   location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent('Einladung zu BauLog') + '&body=' + encodeURIComponent(text)
 }
 
