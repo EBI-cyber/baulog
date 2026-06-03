@@ -110,7 +110,7 @@ function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
             <div className="flex gap-2">
               <VoiceInput onText={setText} />
               <button type="button" disabled={dinBusy || !text.trim()}
-                onClick={async () => { try { setDinBusy(true); const out = await dinText(text, s.openaiKey); if (out) setText(out) } catch (err) { alert(err.message) } finally { setDinBusy(false) } }}
+                onClick={async () => { try { setDinBusy(true); const out = await dinText(text); if (out) setText(out) } catch (err) { alert(err.message) } finally { setDinBusy(false) } }}
                 className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40">
                 {dinBusy ? '…' : '✨ Nach DIN'}
               </button>
@@ -143,7 +143,7 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
   async function auswerten() {
     try {
       setBusy(true)
-      const r = await parseAbschluss(transcript, ctx, s.openaiKey)
+      const r = await parseAbschluss(transcript, ctx)
       setP({
         menge: r.menge != null ? String(r.menge) : '',
         einheit: r.einheit || ctx.einheit || '',
@@ -247,13 +247,13 @@ export default function ProjektDetail() {
     await addEintrag({ projektId: Number(id), type: 'zeit', gewerk: timer.gewerk, leistung: timer.leistung || '', minutes: mins })
     const ctx = { gewerk: timer.gewerk, leistung: timer.leistung || '', einheit: einheitOf(s, timer.gewerk, timer.leistung || ''), maschinen: s.maschinen, workMinutes: mins }
     localStorage.removeItem(TIMERKEY(id)); setTimer(null); await load()
-    if (s.openaiKey) setAbschluss(ctx)
+    setAbschluss(ctx)
   }
   async function kiSetup() {
     if (!setupText.trim()) return
     try {
       setSetupBusy(true)
-      const r = await parseSetup(setupText, s.gewerke, s.leistungskatalog, s.openaiKey)
+      const r = await parseSetup(setupText, s.gewerke, s.leistungskatalog)
       if (r.gewerk && s.gewerke.includes(r.gewerk)) setGewerk(r.gewerk)
       if (r.leistung) setLeistung(r.leistung)
     } catch (e) { alert(e.message) } finally { setSetupBusy(false) }

@@ -97,9 +97,8 @@ export default function Einstellungen() {
       </div>
 
       <div className="glass rounded-3xl p-4 mt-3">
-        <div className="text-white/60 font-semibold mb-1">KI-Texte (optional)</div>
-        <div className="text-white/35 text-xs mb-2">Aktiviert „✨ Nach DIN" im Tagebuch (diktieren → DIN-gerechte Leistungsbeschreibung). OpenAI API-Key von platform.openai.com. Wird nur lokal auf diesem Gerät gespeichert.</div>
-        <input value={s.openaiKey} onChange={(e) => upd('openaiKey', e.target.value)} type="password" placeholder="sk-..." className={inp} />
+        <div className="text-white/60 font-semibold mb-1">KI-Texte</div>
+        <div className="text-white/35 text-xs">„✨ Nach DIN", KI-Setup & KI-Abschluss laufen jetzt <b>serverseitig sicher</b> — kein Key mehr nötig auf dem Gerät.</div>
       </div>
 
       <button onClick={save} className="w-full mt-4 rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink">
