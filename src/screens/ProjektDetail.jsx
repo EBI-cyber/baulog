@@ -11,7 +11,7 @@ import { buildLeistungsnachweis, nachweisFilename } from '../lib/pdf'
 import { sharePdf } from '../lib/share'
 import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
-import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke, inviteWorker } from '../lib/team'
+import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
 import IconChip from '../ui/IconChip'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
@@ -20,24 +20,19 @@ import {
 
 async function sendInvite(projektName, email) {
   const url = location.origin + import.meta.env.BASE_URL
+  const subject = 'Einladung zu BauLog'
   const text =
     'Hi! Ich habe dich in BauLog dem Projekt „' + (projektName || 'Projekt') + '" zugewiesen.\n\n' +
     '1) Öffne ' + url + '\n' +
     '2) Registriere dich mit genau dieser E-Mail: ' + email + '\n' +
     '3) Geh auf Einstellungen → „Sync"\n\n' +
     'Danach siehst du das Projekt und kannst deine Zeiten erfassen.'
-  // Handy: natives Teilen (WhatsApp, Mail, …)
-  try {
-    if (navigator.share) { await navigator.share({ title: 'Einladung zu BauLog', text }); return }
-  } catch (e) { if (e && e.name === 'AbortError') return }
-  // PC: Text in die Zwischenablage kopieren -> in WhatsApp/Mail einfügen
-  try {
-    await navigator.clipboard.writeText(text)
-    alert('Einladungstext kopiert ✓\n\nFüg ihn jetzt in WhatsApp oder deine E-Mail ein und schick ihn an:\n' + email)
-    return
-  } catch {}
-  // Notfalls: Mailprogramm öffnen
-  location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent('Einladung zu BauLog') + '&body=' + encodeURIComponent(text)
+  // Sicherheitsnetz: Text in die Zwischenablage (falls kein Mailprogramm reagiert)
+  try { await navigator.clipboard.writeText(text) } catch {}
+  // E-Mail direkt öffnen — Empfänger, Betreff & Text sind schon ausgefüllt
+  window.location.href = 'mailto:' + encodeURIComponent(email) +
+    '?subject=' + encodeURIComponent(subject) +
+    '&body=' + encodeURIComponent(text)
 }
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
@@ -289,16 +284,7 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
     try {
       setBusy(true); setErr(''); setOk('')
       await addMember(projektToken, e, pickGewerke)
-      let note = e + ' zugewiesen.'
-      try {
-        const r = await inviteWorker(e, projektName)
-        note += r && r.already
-          ? ' Konto besteht schon — er kann sich direkt anmelden.'
-          : ' Einladungs-Mail wurde automatisch verschickt ✉'
-      } catch {
-        note += ' (Auto-Mail nicht möglich — nutze den ✈-Knopf zum Senden.)'
-      }
-      setOk(note)
+      setOk(e + ' zugewiesen ✓ — klick rechts auf ✈, um ihm die Einladung per E-Mail zu schicken (Empfänger & Text sind schon ausgefüllt).')
       setEmail(''); setPickGewerke([]); await reload()
     } catch (er) { setErr(er.message) } finally { setBusy(false) }
   }
