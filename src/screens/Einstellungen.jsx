@@ -11,6 +11,9 @@ export default function Einstellungen() {
   const updKat = (i, k, v) => setS((p) => ({ ...p, leistungskatalog: p.leistungskatalog.map((l, idx) => (idx === i ? { ...l, [k]: v } : l)) }))
   const addKat = () => setS((p) => ({ ...p, leistungskatalog: [...p.leistungskatalog, { gewerk: p.gewerke[0] || 'Sonstiges', name: '', einheit: 'm²' }] }))
   const delKat = (i) => setS((p) => ({ ...p, leistungskatalog: p.leistungskatalog.filter((_, idx) => idx !== i) }))
+  const updMasch = (i, k, v) => setS((p) => ({ ...p, maschinen: p.maschinen.map((m, idx) => (idx === i ? { ...m, [k]: v } : m)) }))
+  const addMasch = () => setS((p) => ({ ...p, maschinen: [...(p.maschinen || []), { name: '', satz: 0 }] }))
+  const delMasch = (i) => setS((p) => ({ ...p, maschinen: p.maschinen.filter((_, idx) => idx !== i) }))
   const save = () => {
     const clean = { ...s, gewerke: s.gewerke.filter((g) => g.trim()) }
     saveSettings(clean); setS(clean); setMsg(true); setTimeout(() => setMsg(false), 1500)
@@ -62,6 +65,19 @@ export default function Einstellungen() {
           ))}
         </div>
         <button onClick={addKat} className="text-sm text-amber mt-2">+ Leistung hinzufügen</button>
+      </div>
+
+      <div className="glass rounded-3xl p-4 mt-3">
+        <div className="text-white/60 font-semibold mb-1">Maschinen-Stundensätze</div>
+        <div className="text-white/35 text-xs mb-3">Für Verschleiß/Instandhaltung. Erscheinen bei 🔧 Maschine zur Auswahl und fließen in die Selbstkosten/EP.</div>
+        {(s.maschinen || []).map((m, i) => (
+          <div key={i} className="flex gap-2 mb-2 items-center">
+            <input value={m.name} onChange={(e) => updMasch(i, 'name', e.target.value)} placeholder="Maschine / Werkzeug" className={inp} />
+            <input value={m.satz} onChange={(e) => updMasch(i, 'satz', e.target.value)} inputMode="decimal" placeholder="€/h" className="w-20 text-right bg-white/5 border border-white/10 rounded-xl px-2 py-2 outline-none focus:border-amber" />
+            <button onClick={() => delMasch(i)} className="text-white/40 px-1 text-lg leading-none">✕</button>
+          </div>
+        ))}
+        <button onClick={addMasch} className="text-sm text-amber">+ Maschine hinzufügen</button>
       </div>
 
       <div className="glass rounded-3xl p-4 mt-3">

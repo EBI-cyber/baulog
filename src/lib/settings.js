@@ -61,6 +61,16 @@ export const defaultSettings = {
     'Trockenbau', 'Fenstermontage', 'Maler', 'Sonstiges',
   ],
   leistungskatalog: defaultKatalog,
+  maschinen: [
+    { name: 'Fliesenschneider', satz: 4 },
+    { name: 'Bohr-/Stemmhammer', satz: 8 },
+    { name: 'Rührwerk / Mischer', satz: 3 },
+    { name: 'Kernbohrgerät', satz: 15 },
+    { name: 'Estrich-/Mischpumpe', satz: 20 },
+    { name: 'Bautrockner', satz: 6 },
+    { name: 'Nass-/Trockensauger', satz: 2 },
+    { name: 'Akku-Geräte (div.)', satz: 1 },
+  ],
   openaiKey: '', // optional, falls KI-Texte ohne Edge Function genutzt werden
   company: '',
   owner: '',
@@ -71,6 +81,7 @@ export function loadSettings() {
     const m = { ...defaultSettings, ...JSON.parse(localStorage.getItem(KEY) || '{}') }
     if (!Array.isArray(m.gewerke) || !m.gewerke.length) m.gewerke = defaultSettings.gewerke
     if (!Array.isArray(m.leistungskatalog) || !m.leistungskatalog.length) m.leistungskatalog = defaultKatalog
+    if (!Array.isArray(m.maschinen)) m.maschinen = defaultSettings.maschinen
     return m
   } catch {
     return { ...defaultSettings }

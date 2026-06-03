@@ -11,11 +11,12 @@ import { dinText } from '../lib/ai'
 const TIMERKEY = (id) => 'baulog.timer.' + id
 
 function EntryRow({ e, rate, onDelete }) {
-  const icon = { zeit: '⏱️', material: '💶', foto: '📸', tagebuch: '📓', menge: '📐' }[e.type] || '•'
+  const icon = { zeit: '⏱️', material: '💶', foto: '📸', tagebuch: '📓', menge: '📐', maschine: '🔧' }[e.type] || '•'
   let main = '', sub = ''
   if (e.type === 'zeit') { main = hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ' · ' + (e.gewerk || '')); sub = euro((e.minutes / 60) * (rate || 0)) + ' Lohn' }
   else if (e.type === 'menge') { main = (e.leistung || 'Menge') + ': ' + e.menge + ' ' + (e.einheit || ''); sub = e.gewerk || '' }
   else if (e.type === 'material') { main = e.label + ' (' + e.qty + '×)' + (e.leistung ? ' · ' + e.leistung : ''); sub = euro((e.qty || 0) * (e.unitCost || 0)) }
+  else if (e.type === 'maschine') { main = (e.maschine || 'Maschine') + ' · ' + hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ''); sub = euro((e.minutes / 60) * (e.satz || 0)) }
   else if (e.type === 'foto') { main = e.note || 'Foto'; sub = e.leistung || e.gewerk || '' }
   else if (e.type === 'tagebuch') { main = (e.text || '').slice(0, 70); sub = e.gewerk || '' }
   return (
@@ -40,6 +41,7 @@ function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
   const [note, setNote] = useState(''); const [dataUrl, setDataUrl] = useState('')
   const [text, setText] = useState('')
   const [dinBusy, setDinBusy] = useState(false)
+  const [maschine, setMaschine] = useState(s.maschinen && s.maschinen[0] ? s.maschinen[0].name : '')
 
   function changeGewerk(g) {
     setGewerk(g)
@@ -52,10 +54,11 @@ function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
     if (type === 'zeit') { if (!minutes) return; onSave({ type: 'zeit', gewerk, leistung, minutes: Number(minutes) || 0 }) }
     else if (type === 'menge') { if (!leistung || !menge) return; onSave({ type: 'menge', gewerk, leistung, einheit, menge: Number(menge) || 0 }) }
     else if (type === 'material') { if (!label.trim()) return; onSave({ type: 'material', gewerk, leistung, label: label.trim(), qty: Number(qty) || 1, unitCost: Number(unitCost) || 0 }) }
+    else if (type === 'maschine') { if (!maschine || !minutes) return; const m = (s.maschinen || []).find((x) => x.name === maschine); onSave({ type: 'maschine', gewerk, leistung, maschine, minutes: Number(minutes) || 0, satz: m ? Number(m.satz) || 0 : 0 }) }
     else if (type === 'foto') { if (!dataUrl) return; onSave({ type: 'foto', gewerk, leistung, dataUrl, note: note.trim() }) }
     else if (type === 'tagebuch') { if (!text.trim()) return; onSave({ type: 'tagebuch', gewerk, text: text.trim() }) }
   }
-  const title = { zeit: 'Zeit erfassen', menge: 'Menge / Leistung', material: 'Material / Kosten', foto: 'Foto aufnehmen', tagebuch: 'Tagebuch-Eintrag' }[type]
+  const title = { zeit: 'Zeit erfassen', menge: 'Menge / Leistung', material: 'Material / Kosten', maschine: 'Maschine / Werkzeug', foto: 'Foto aufnehmen', tagebuch: 'Tagebuch-Eintrag' }[type]
   const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
 
   return (
@@ -86,6 +89,14 @@ function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
               <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder="Menge" className={inp} />
               <input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} inputMode="decimal" placeholder="EK €/Stk" className={inp} />
             </div>
+          </>
+        )}
+        {type === 'maschine' && (
+          <>
+            <select value={maschine} onChange={(e) => setMaschine(e.target.value)} className={inp}>
+              {(s.maschinen || []).map((m) => <option key={m.name} value={m.name}>{m.name} ({m.satz} €/h)</option>)}
+            </select>
+            <input value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" placeholder="Minuten (Werkzeug-Einsatz)" className={inp} />
           </>
         )}
         {type === 'foto' && (
@@ -158,8 +169,11 @@ export default function ProjektDetail() {
       <div className="px-5 grid grid-cols-2 gap-2">
         <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Stunden</div><div className="text-2xl font-bold">{hrs(t.minutes)}</div></div>
         <div className="glass rounded-3xl p-4"><div className="text-white/40 text-xs">Selbstkosten</div><div className="text-2xl font-bold grad-text">{euro(t.total)}</div></div>
-        <div className="glass rounded-2xl p-3 text-sm"><span className="text-white/40">Lohn </span><b>{euro(t.laborCost)}</b></div>
-        <div className="glass rounded-2xl p-3 text-sm"><span className="text-white/40">Material </span><b>{euro(t.materialCost)}</b></div>
+      </div>
+      <div className="px-5 mt-2 grid grid-cols-3 gap-2">
+        <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Lohn</div><div className="font-bold text-sm">{euro(t.laborCost)}</div></div>
+        <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Material</div><div className="font-bold text-sm">{euro(t.materialCost)}</div></div>
+        <div className="glass rounded-2xl p-3"><div className="text-white/40 text-xs">Maschine</div><div className="font-bold text-sm">{euro(t.maschineCost)}</div></div>
       </div>
 
       <div className="px-5 mt-3">
@@ -190,9 +204,10 @@ export default function ProjektDetail() {
 
       <div className="px-5 mt-3 grid grid-cols-2 gap-2">
         <button onClick={() => setSheet('menge')} className="glass rounded-2xl py-3 text-sm">📐<div>Menge/Leistung</div></button>
+        <button onClick={() => setSheet('maschine')} className="glass rounded-2xl py-3 text-sm">🔧<div>Maschine</div></button>
         <button onClick={() => setSheet('material')} className="glass rounded-2xl py-3 text-sm">💶<div>Material</div></button>
         <button onClick={() => setSheet('foto')} className="glass rounded-2xl py-3 text-sm">📸<div>Foto</div></button>
-        <button onClick={() => setSheet('tagebuch')} className="glass rounded-2xl py-3 text-sm">📓<div>Tagebuch</div></button>
+        <button onClick={() => setSheet('tagebuch')} className="glass rounded-2xl py-3 text-sm col-span-2">📓<div>Tagebuch</div></button>
       </div>
       <div className="px-5 mt-2">
         <button onClick={() => setSheet('zeit')} className="text-white/50 text-sm">+ Zeit manuell erfassen</button>
