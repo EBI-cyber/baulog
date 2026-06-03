@@ -10,7 +10,8 @@ import { dinText, parseSetup, parseAbschluss } from '../lib/ai'
 import { buildLeistungsnachweis, nachweisFilename } from '../lib/pdf'
 import { sharePdf } from '../lib/share'
 import { useRole } from '../lib/role'
-import { listMembers, addMember, removeMember } from '../lib/team'
+import { useAuth } from '../lib/auth'
+import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
 
@@ -35,7 +36,8 @@ function EntryRow({ e, rate, onDelete, hideCost }) {
   )
 }
 
-function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
+function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
+  const gewerkeOpts = gewerkeList && gewerkeList.length ? gewerkeList : s.gewerke
   const [gewerk, setGewerk] = useState(defaultGewerk)
   const leistungen = leistungenFor(s, gewerk)
   const [leistung, setLeistung] = useState(leistungen[0] ? leistungen[0].name : '')
@@ -70,7 +72,7 @@ function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
       <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="text-lg font-bold">{title}</div>
         <select value={gewerk} onChange={(e) => changeGewerk(e.target.value)} className={inp}>
-          {s.gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
+          {gewerkeOpts.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
         {type !== 'tagebuch' && (
           <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className={inp}>
@@ -220,37 +222,63 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
   )
 }
 
-function TeamSheet({ projektToken, onClose }) {
+function TeamSheet({ projektToken, gewerke, onClose }) {
   const [members, setMembers] = useState(null)
   const [email, setEmail] = useState('')
+  const [pickGewerke, setPickGewerke] = useState([])
   const [busy, setBusy] = useState(false)
   const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
   const reload = async () => { try { setMembers(await listMembers(projektToken)) } catch { setMembers([]) } }
   useEffect(() => { reload() }, [projektToken])
+  const toggle = (list, g) => (list.includes(g) ? list.filter((x) => x !== g) : [...list, g])
+
   async function add() {
     const e = email.trim().toLowerCase()
     if (!e || !e.includes('@')) { alert('Bitte gültige E-Mail eingeben.'); return }
-    try { setBusy(true); await addMember(projektToken, e); setEmail(''); await reload() }
+    try { setBusy(true); await addMember(projektToken, e, pickGewerke); setEmail(''); setPickGewerke([]); await reload() }
     catch (err) { alert(err.message) } finally { setBusy(false) }
   }
+  async function saveGewerke(m, g) {
+    try { await setMemberGewerke(projektToken, m.email, g); setMembers((ms) => ms.map((x) => (x.email === m.email ? { ...x, gewerke: g } : x))) }
+    catch (err) { alert(err.message) }
+  }
   async function del(e) { try { await removeMember(projektToken, e); await reload() } catch (err) { alert(err.message) } }
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end z-30" onClick={onClose}>
-      <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3 max-h-[88dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="text-lg font-bold">👷 Team für dieses Projekt</div>
-        <div className="text-white/45 text-sm">Mitarbeiter erfassen hier nur ihre Zeiten und sehen <b>keine Kosten</b>. Sie müssen sich mit derselben E-Mail in BauLog registrieren.</div>
-        <div className="flex gap-2">
+        <div className="text-white/45 text-sm">Mitarbeiter sehen <b>keine Kosten</b> und nur ihre zugewiesenen Gewerke. Sie müssen sich mit derselben E-Mail in BauLog registrieren.</div>
+
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-3 space-y-2">
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" placeholder="mitarbeiter@mail.de" className={inp} />
-          <button onClick={add} disabled={busy} className="rounded-xl px-4 font-semibold bg-gradient-to-r from-amber to-ember text-ink disabled:opacity-40">{busy ? '…' : '+'}</button>
+          <div className="text-white/50 text-xs">Gewerke (leer = alle erlaubt):</div>
+          <div className="flex flex-wrap gap-1.5">
+            {gewerke.map((g) => (
+              <button key={g} type="button" onClick={() => setPickGewerke((l) => toggle(l, g))}
+                className={'px-2.5 py-1 rounded-full text-xs border ' + (pickGewerke.includes(g) ? 'bg-amber text-ink border-amber font-semibold' : 'border-white/15 text-white/60')}>{g}</button>
+            ))}
+          </div>
+          <button onClick={add} disabled={busy} className="w-full rounded-xl py-2 font-semibold bg-gradient-to-r from-amber to-ember text-ink disabled:opacity-40">{busy ? '…' : '+ Mitarbeiter zuweisen'}</button>
         </div>
+
         <div className="space-y-2 pt-1">
           {members === null && <div className="text-white/35 text-sm">Lade…</div>}
           {members && members.length === 0 && <div className="text-white/35 text-sm">Noch keine Mitarbeiter zugewiesen.</div>}
           {members && members.map((m) => (
-            <div key={m} className="glass rounded-2xl p-3 flex items-center gap-3">
-              <div className="text-xl">🧑‍🔧</div>
-              <div className="flex-1 min-w-0 truncate text-sm">{m}</div>
-              <button onClick={() => del(m)} className="text-white/30 px-1">✕</button>
+            <div key={m.email} className="glass rounded-2xl p-3">
+              <div className="flex items-center gap-3">
+                <div className="text-xl">🧑‍🔧</div>
+                <div className="flex-1 min-w-0 truncate text-sm">{m.email}</div>
+                <button onClick={() => del(m.email)} className="text-white/30 px-1">✕</button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {gewerke.map((g) => (
+                  <button key={g} type="button" onClick={() => saveGewerke(m, toggle(m.gewerke, g))}
+                    className={'px-2.5 py-1 rounded-full text-xs border ' + (m.gewerke.includes(g) ? 'bg-amber/80 text-ink border-amber font-semibold' : 'border-white/15 text-white/45')}>{g}</button>
+                ))}
+              </div>
+              {m.gewerke.length === 0 && <div className="text-white/30 text-[11px] mt-1">Alle Gewerke erlaubt</div>}
             </div>
           ))}
         </div>
@@ -265,7 +293,9 @@ export default function ProjektDetail() {
   const nav = useNavigate()
   const s = loadSettings()
   const isWorker = useRole() === 'worker'
+  const { user } = useAuth()
   const [team, setTeam] = useState(false)
+  const [allowedGewerke, setAllowedGewerke] = useState([])
   const [projekt, setProjekt] = useState(null)
   const [eintraege, setEintraege] = useState([])
   const [timer, setTimer] = useState(null)
@@ -281,17 +311,44 @@ export default function ProjektDetail() {
 
   const load = async () => { setProjekt(await getProjekt(id)); setEintraege(await listEintraege(id)) }
   useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); if (t) setTimer(JSON.parse(t)) }, [id])
-  useEffect(() => { if (!timer) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [timer])
+  useEffect(() => { if (!timer || timer.pauseStartTs) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [timer])
+  // Mitarbeiter: nur zugewiesene Gewerke laden
+  useEffect(() => {
+    if (!isWorker || !projekt || !user) return
+    let active = true
+    ;(async () => {
+      try {
+        const g = await myGewerke(projekt.token, user.email)
+        if (active && g.length) { setAllowedGewerke(g); setGewerk((cur) => (g.includes(cur) ? cur : g[0])) }
+      } catch {}
+    })()
+    return () => { active = false }
+  }, [isWorker, projekt, user])
 
   if (!projekt) return <div className="p-10 text-white/40">Lade…</div>
   const t = projektTotals(eintraege, projekt.hourlyRate)
+  const gewerkeList = isWorker && allowedGewerke.length ? allowedGewerke : s.gewerke
+  const paused = Boolean(timer && timer.pauseStartTs)
+  const workedMs = timer ? Math.max(0, now - timer.startTs - (timer.pausedMs || 0) - (timer.pauseStartTs ? now - timer.pauseStartTs : 0)) : 0
 
   function startTimer() {
-    const tm = { gewerk, leistung, startTs: Date.now() }
+    const tm = { gewerk, leistung, startTs: Date.now(), pausedMs: 0, pauseStartTs: null }
     localStorage.setItem(TIMERKEY(id), JSON.stringify(tm)); setTimer(tm); setNow(Date.now())
   }
+  function pauseResume() {
+    setTimer((tm) => {
+      if (!tm) return tm
+      const next = tm.pauseStartTs
+        ? { ...tm, pausedMs: (tm.pausedMs || 0) + (Date.now() - tm.pauseStartTs), pauseStartTs: null }
+        : { ...tm, pauseStartTs: Date.now() }
+      localStorage.setItem(TIMERKEY(id), JSON.stringify(next))
+      return next
+    })
+    setNow(Date.now())
+  }
   async function stopTimer() {
-    const mins = Math.max(1, Math.round((Date.now() - timer.startTs) / 60000))
+    const ms = Math.max(0, Date.now() - timer.startTs - (timer.pausedMs || 0) - (timer.pauseStartTs ? Date.now() - timer.pauseStartTs : 0))
+    const mins = Math.max(1, Math.round(ms / 60000))
     await addEintrag({ projektId: Number(id), type: 'zeit', gewerk: timer.gewerk, leistung: timer.leistung || '', minutes: mins })
     const ctx = { gewerk: timer.gewerk, leistung: timer.leistung || '', einheit: einheitOf(s, timer.gewerk, timer.leistung || ''), maschinen: s.maschinen, workMinutes: mins }
     localStorage.removeItem(TIMERKEY(id)); setTimer(null); await load()
@@ -301,8 +358,8 @@ export default function ProjektDetail() {
     if (!setupText.trim()) return
     try {
       setSetupBusy(true)
-      const r = await parseSetup(setupText, s.gewerke, s.leistungskatalog)
-      if (r.gewerk && s.gewerke.includes(r.gewerk)) setGewerk(r.gewerk)
+      const r = await parseSetup(setupText, gewerkeList, s.leistungskatalog)
+      if (r.gewerk && gewerkeList.includes(r.gewerk)) setGewerk(r.gewerk)
       if (r.leistung) setLeistung(r.leistung)
     } catch (e) { alert(e.message) } finally { setSetupBusy(false) }
   }
@@ -348,9 +405,12 @@ export default function ProjektDetail() {
           <div className="text-white/50 text-xs mb-2">Zeit-Timer</div>
           {timer ? (
             <>
-              <div className="text-4xl font-extrabold text-center tabular-nums">{clock(now - timer.startTs)}</div>
-              <div className="text-center text-white/40 text-xs mb-3">{timer.gewerk}{timer.leistung ? ' · ' + timer.leistung : ''}</div>
-              <button onClick={stopTimer} className="w-full rounded-2xl py-4 font-bold bg-ember text-white active:scale-[0.98] transition">⏹ Stopp & speichern</button>
+              <div className={'text-4xl font-extrabold text-center tabular-nums ' + (paused ? 'text-white/40' : '')}>{clock(workedMs)}</div>
+              <div className="text-center text-white/40 text-xs mb-3">{timer.gewerk}{timer.leistung ? ' · ' + timer.leistung : ''}{paused ? ' · ⏸ Pause läuft' : ''}</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={pauseResume} className={'rounded-2xl py-4 font-bold active:scale-[0.98] transition ' + (paused ? 'bg-gradient-to-r from-amber to-ember text-ink' : 'bg-white/10 text-white')}>{paused ? '▶ Weiter' : '⏸ Pause'}</button>
+                <button onClick={stopTimer} className="rounded-2xl py-4 font-bold bg-ember text-white active:scale-[0.98] transition">⏹ Stopp</button>
+              </div>
             </>
           ) : (
             <>
@@ -364,7 +424,7 @@ export default function ProjektDetail() {
               </div>
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <select value={gewerk} onChange={(e) => { setGewerk(e.target.value); setLeistung('') }} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
-                  {s.gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
+                  {gewerkeList.map((g) => <option key={g} value={g}>{g}</option>)}
                 </select>
                 <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
                   <option value="">— allgemein —</option>
@@ -394,7 +454,7 @@ export default function ProjektDetail() {
       </div>
 
       {sheet && (
-        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} onClose={() => setSheet(null)}
+        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} onClose={() => setSheet(null)}
           onSave={async (data) => { await addEintrag({ projektId: Number(id), ...data }); setSheet(null); await load() }} />
       )}
 
@@ -403,7 +463,7 @@ export default function ProjektDetail() {
           onSaved={async (entries) => { for (const e of entries) await addEintrag({ projektId: Number(id), ...e }); setAbschluss(null); await load() }} />
       )}
 
-      {team && <TeamSheet projektToken={projekt.token} onClose={() => setTeam(false)} />}
+      {team && <TeamSheet projektToken={projekt.token} gewerke={s.gewerke} onClose={() => setTeam(false)} />}
 
       {nachweis && (
         <div className="fixed inset-0 bg-black/60 flex items-end z-30" onClick={() => setNachweis(false)}>

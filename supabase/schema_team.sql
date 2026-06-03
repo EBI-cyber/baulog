@@ -6,9 +6,12 @@ create table if not exists public.bau_members (
   owner        uuid not null default auth.uid() references auth.users(id) on delete cascade,
   projekt_token text not null,
   member_email text not null,
+  gewerke      text[] not null default '{}',
   created_at   timestamptz not null default now(),
   unique (projekt_token, member_email)
 );
+-- Falls Tabelle schon existierte: Spalte nachrüsten (leer = alle Gewerke erlaubt)
+alter table public.bau_members add column if not exists gewerke text[] not null default '{}';
 
 -- Hilfsfunktionen (security definer -> umgehen RLS, keine Rekursion)
 create or replace function public.is_project_member(p_token text) returns boolean
