@@ -6,7 +6,7 @@ import { projektTotals } from '../lib/calc'
 import { euro, hrs, dmyhm, clock } from '../lib/format'
 import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
-import { dinText } from '../lib/ai'
+import { dinText, parseSetup, parseAbschluss } from '../lib/ai'
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
 
@@ -125,6 +125,97 @@ function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
   )
 }
 
+function matchMaschine(s, name) {
+  if (!name) return ''
+  const list = s.maschinen || []
+  const exact = list.find((m) => m.name.toLowerCase() === String(name).toLowerCase())
+  if (exact) return exact.name
+  const partial = list.find((m) => m.name.toLowerCase().includes(String(name).toLowerCase()) || String(name).toLowerCase().includes(m.name.toLowerCase()))
+  return partial ? partial.name : name
+}
+
+function AbschlussSheet({ s, ctx, onClose, onSaved }) {
+  const [transcript, setTranscript] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [p, setP] = useState(null)
+  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+
+  async function auswerten() {
+    try {
+      setBusy(true)
+      const r = await parseAbschluss(transcript, ctx, s.openaiKey)
+      setP({
+        menge: r.menge != null ? String(r.menge) : '',
+        einheit: r.einheit || ctx.einheit || '',
+        materials: (r.materials || []).map((m) => ({ label: m.label || '', qty: String(m.qty ?? 1), unitCost: String(m.unitCost ?? 0) })),
+        maschinen: (r.maschinen || []).map((m) => ({ name: matchMaschine(s, m.name), minutes: String(m.minutes ?? ctx.workMinutes ?? 0) })),
+        beschreibung: r.beschreibung || '',
+      })
+    } catch (e) { alert(e.message) } finally { setBusy(false) }
+  }
+  const setMat = (i, k, v) => setP((x) => ({ ...x, materials: x.materials.map((m, idx) => (idx === i ? { ...m, [k]: v } : m)) }))
+  const setMas = (i, k, v) => setP((x) => ({ ...x, maschinen: x.maschinen.map((m, idx) => (idx === i ? { ...m, [k]: v } : m)) }))
+
+  async function save() {
+    const entries = []
+    if (p.menge) entries.push({ type: 'menge', gewerk: ctx.gewerk, leistung: ctx.leistung, einheit: p.einheit, menge: Number(p.menge) || 0 })
+    for (const m of p.materials) if (m.label.trim()) entries.push({ type: 'material', gewerk: ctx.gewerk, leistung: ctx.leistung, label: m.label.trim(), qty: Number(m.qty) || 1, unitCost: Number(m.unitCost) || 0 })
+    for (const mm of p.maschinen) if (mm.name) { const mr = (s.maschinen || []).find((x) => x.name === mm.name); entries.push({ type: 'maschine', gewerk: ctx.gewerk, leistung: ctx.leistung, maschine: mm.name, minutes: Number(mm.minutes) || 0, satz: mr ? Number(mr.satz) || 0 : 0 }) }
+    if (p.beschreibung && p.beschreibung.trim()) entries.push({ type: 'tagebuch', gewerk: ctx.gewerk, text: p.beschreibung.trim() })
+    await onSaved(entries)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-end z-30" onClick={onClose}>
+      <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3 max-h-[92dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-bold">Abschluss: {ctx.leistung || ctx.gewerk}</div>
+        <div className="text-white/50 text-sm">Sprich frei: <b>Wie viel {ctx.einheit ? '(' + ctx.einheit + ')' : ''}? Was verbraucht? Welches Werkzeug?</b></div>
+        <div className="flex gap-2">
+          <VoiceInput onText={setTranscript} />
+          <button type="button" disabled={busy || !transcript.trim()} onClick={auswerten} className="rounded-xl px-3 py-2 text-sm font-semibold bg-gradient-to-r from-amber to-ember text-ink disabled:opacity-40">{busy ? '…' : '✨ Auswerten'}</button>
+        </div>
+        <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={3} placeholder="z.B. 12 Quadratmeter verlegt, 5 Sack Kleber, Fliesenschneider benutzt" className={inp} />
+
+        {p && (
+          <div className="space-y-3 pt-2 border-t border-white/10">
+            <div className="flex gap-2 items-center">
+              <span className="text-white/50 text-sm w-16">Menge</span>
+              <input value={p.menge} onChange={(e) => setP({ ...p, menge: e.target.value })} inputMode="decimal" className={inp} />
+              <span className="text-white/60 w-10 text-center">{p.einheit}</span>
+            </div>
+            <div>
+              <div className="text-white/50 text-sm mb-1">Material (EK €)</div>
+              {p.materials.map((m, i) => (
+                <div key={i} className="flex gap-2 mb-1">
+                  <input value={m.label} onChange={(e) => setMat(i, 'label', e.target.value)} placeholder="Material" className="flex-1 bg-white/5 rounded-lg px-2 py-1 text-sm" />
+                  <input value={m.qty} onChange={(e) => setMat(i, 'qty', e.target.value)} inputMode="decimal" className="w-12 text-center bg-white/5 rounded-lg px-1 py-1 text-sm" />
+                  <input value={m.unitCost} onChange={(e) => setMat(i, 'unitCost', e.target.value)} inputMode="decimal" placeholder="€" className="w-16 text-right bg-white/5 rounded-lg px-1 py-1 text-sm" />
+                </div>
+              ))}
+              {p.materials.length === 0 && <div className="text-white/30 text-xs">– kein Material erkannt –</div>}
+            </div>
+            <div>
+              <div className="text-white/50 text-sm mb-1">Maschinen (Min)</div>
+              {p.maschinen.map((m, i) => (
+                <div key={i} className="flex gap-2 mb-1">
+                  <select value={m.name} onChange={(e) => setMas(i, 'name', e.target.value)} className="flex-1 bg-white/5 rounded-lg px-2 py-1 text-sm">
+                    <option value="">—</option>
+                    {(s.maschinen || []).map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
+                  </select>
+                  <input value={m.minutes} onChange={(e) => setMas(i, 'minutes', e.target.value)} inputMode="numeric" className="w-16 text-center bg-white/5 rounded-lg px-1 py-1 text-sm" />
+                </div>
+              ))}
+              {p.maschinen.length === 0 && <div className="text-white/30 text-xs">– kein Werkzeug erkannt –</div>}
+            </div>
+            <button onClick={save} className="w-full rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink">Übernehmen & Kalkulation fertig</button>
+          </div>
+        )}
+        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Überspringen</button>
+      </div>
+    </div>
+  )
+}
+
 export default function ProjektDetail() {
   const { id } = useParams()
   const nav = useNavigate()
@@ -136,6 +227,9 @@ export default function ProjektDetail() {
   const [sheet, setSheet] = useState(null)
   const [gewerk, setGewerk] = useState(s.gewerke[0])
   const [leistung, setLeistung] = useState('')
+  const [setupText, setSetupText] = useState('')
+  const [setupBusy, setSetupBusy] = useState(false)
+  const [abschluss, setAbschluss] = useState(null)
 
   const load = async () => { setProjekt(await getProjekt(id)); setEintraege(await listEintraege(id)) }
   useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); if (t) setTimer(JSON.parse(t)) }, [id])
@@ -151,7 +245,18 @@ export default function ProjektDetail() {
   async function stopTimer() {
     const mins = Math.max(1, Math.round((Date.now() - timer.startTs) / 60000))
     await addEintrag({ projektId: Number(id), type: 'zeit', gewerk: timer.gewerk, leistung: timer.leistung || '', minutes: mins })
+    const ctx = { gewerk: timer.gewerk, leistung: timer.leistung || '', einheit: einheitOf(s, timer.gewerk, timer.leistung || ''), maschinen: s.maschinen, workMinutes: mins }
     localStorage.removeItem(TIMERKEY(id)); setTimer(null); await load()
+    if (s.openaiKey) setAbschluss(ctx)
+  }
+  async function kiSetup() {
+    if (!setupText.trim()) return
+    try {
+      setSetupBusy(true)
+      const r = await parseSetup(setupText, s.gewerke, s.leistungskatalog, s.openaiKey)
+      if (r.gewerk && s.gewerke.includes(r.gewerk)) setGewerk(r.gewerk)
+      if (r.leistung) setLeistung(r.leistung)
+    } catch (e) { alert(e.message) } finally { setSetupBusy(false) }
   }
   async function remove(eid) { await deleteEintrag(eid); await load() }
   const leistungenG = leistungenFor(s, gewerk)
@@ -187,6 +292,14 @@ export default function ProjektDetail() {
             </>
           ) : (
             <>
+              <div className="mb-2 p-2 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex gap-2 items-center">
+                  <VoiceInput onText={setSetupText} />
+                  <button type="button" disabled={setupBusy || !setupText.trim()} onClick={kiSetup} className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40">{setupBusy ? '…' : '✨ KI-Setup'}</button>
+                  <span className="text-white/40 text-xs flex-1 leading-tight">kurz sagen, was du machst</span>
+                </div>
+                {setupText && <div className="text-white/50 text-xs mt-1 truncate">„{setupText}"</div>}
+              </div>
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <select value={gewerk} onChange={(e) => { setGewerk(e.target.value); setLeistung('') }} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
                   {s.gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
@@ -221,6 +334,11 @@ export default function ProjektDetail() {
       {sheet && (
         <AddSheet s={s} type={sheet} defaultGewerk={gewerk} onClose={() => setSheet(null)}
           onSave={async (data) => { await addEintrag({ projektId: Number(id), ...data }); setSheet(null); await load() }} />
+      )}
+
+      {abschluss && (
+        <AbschlussSheet s={s} ctx={abschluss} onClose={() => setAbschluss(null)}
+          onSaved={async (entries) => { for (const e of entries) await addEintrag({ projektId: Number(id), ...e }); setAbschluss(null); await load() }} />
       )}
     </div>
   )
