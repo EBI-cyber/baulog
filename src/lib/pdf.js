@@ -1,7 +1,8 @@
 import { jsPDF } from 'jspdf'
 
 const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' EUR'
-const hh = (min) => ((Number(min) || 0) / 60).toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' h'
+const hh = (min) => ((Number(min) || 0) / 60).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' h'
+const num = (n) => (Number(n) || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 })
 const dmy = (d) => { try { return new Date(d).toLocaleDateString('de-DE') } catch { return '' } }
 
 export function buildLeistungsnachweis(projekt, eintraege, s, opts = {}) {
@@ -47,10 +48,12 @@ export function buildLeistungsnachweis(projekt, eintraege, s, opts = {}) {
   }
   const rows = Object.values(groups)
 
+  // Spalten: Leistung | Menge | Stunden | EP (€/Einh) | Selbstkosten
+  const cMenge = 248, cStd = 312, cEP = 372
   doc.setFont('helvetica', 'bold').setFontSize(11).text('Ausgeführte Leistungen', M, y); y += 16
   doc.setFontSize(9)
-  doc.text('Leistung', M, y); doc.text('Menge', 320, y); doc.text('Stunden', 390, y)
-  if (mitKosten) doc.text('Selbstkosten', R, y, { align: 'right' })
+  doc.text('Leistung', M, y); doc.text('Menge', cMenge, y); doc.text('Stunden', cStd, y)
+  if (mitKosten) { doc.text('EP €/Einh.', cEP, y); doc.text('Selbstkosten', R, y, { align: 'right' }) }
   doc.setFont('helvetica', 'normal'); y += 4; line()
 
   let sumMin = 0, sumCost = 0
@@ -58,11 +61,15 @@ export function buildLeistungsnachweis(projekt, eintraege, s, opts = {}) {
     need(16)
     const labor = (g.minutes / 60) * rate
     const total = labor + g.material + g.maschine
+    const ep = g.menge > 0 ? total / g.menge : null
     sumMin += g.minutes; sumCost += total
-    doc.text(g.gewerk + ' › ' + g.leistung, M, y, { maxWidth: 260 })
-    doc.text(g.menge ? g.menge + ' ' + (g.einheit || '') : '–', 320, y)
-    doc.text(g.minutes ? hh(g.minutes) : '–', 390, y)
-    if (mitKosten) doc.text(eur(total), R, y, { align: 'right' })
+    doc.text(g.gewerk + ' › ' + g.leistung, M, y, { maxWidth: 192 })
+    doc.text(g.menge ? num(g.menge) + ' ' + (g.einheit || '') : '–', cMenge, y)
+    doc.text(g.minutes ? hh(g.minutes) : '–', cStd, y)
+    if (mitKosten) {
+      doc.text(ep != null ? eur(ep).replace(' EUR', '') + (g.einheit ? '/' + g.einheit : '') : '–', cEP, y)
+      doc.text(eur(total), R, y, { align: 'right' })
+    }
     y += 16
   })
   y += 2; line()

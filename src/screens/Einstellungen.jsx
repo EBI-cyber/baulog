@@ -55,7 +55,7 @@ export default function Einstellungen() {
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
-          <button onClick={async () => { try { await syncAll(); alert('Synchronisiert ✓') } catch { alert('Sync-Fehler') } }} className="text-amber text-sm px-2.5 py-1.5 rounded-xl border border-white/10 inline-flex items-center gap-1.5"><RefreshCw className="w-4 h-4" /><span className="hidden sm:inline">Sync</span></button>
+          <button onClick={async () => { try { await syncAll(); location.reload() } catch { alert('Sync-Fehler') } }} className="text-amber text-sm px-2.5 py-1.5 rounded-xl border border-white/10 inline-flex items-center gap-1.5"><RefreshCw className="w-4 h-4" /><span className="hidden sm:inline">Sync</span></button>
           <button onClick={signOut} className="text-white/60 text-sm px-2.5 py-1.5 rounded-xl border border-white/10 inline-flex items-center gap-1.5"><LogOut className="w-4 h-4" /><span className="hidden sm:inline">Abmelden</span></button>
         </div>
       </div>

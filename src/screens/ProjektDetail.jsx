@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getProjekt, listEintraege, addEintrag, deleteEintrag } from '../lib/db'
 import { loadSettings, leistungenFor, einheitOf } from '../lib/settings'
-import { projektTotals } from '../lib/calc'
-import { euro, hrs, dmyhm, clock } from '../lib/format'
+import { projektTotals, leistungAnalytics } from '../lib/calc'
+import { euro, hrs, hms, dmyhm, clock } from '../lib/format'
 import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
 import { dinText, parseSetup, parseAbschluss } from '../lib/ai'
@@ -15,7 +15,7 @@ import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } fro
 import IconChip from '../ui/IconChip'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
-  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X,
+  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator,
 } from 'lucide-react'
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
@@ -44,7 +44,7 @@ function ActionTile({ icon, label, span, onClick }) {
 function EntryRow({ e, rate, onDelete, hideCost }) {
   const I = ENTRY_ICON[e.type] || Clock
   let main = '', sub = ''
-  if (e.type === 'zeit') { main = hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ' · ' + (e.gewerk || '')); sub = hideCost ? '' : euro((e.minutes / 60) * (rate || 0)) + ' Lohn' }
+  if (e.type === 'zeit') { main = hms((Number(e.minutes) || 0) * 60) + (e.leistung ? ' · ' + e.leistung : ' · ' + (e.gewerk || '')); sub = hideCost ? '' : euro((e.minutes / 60) * (rate || 0)) + ' Lohn' }
   else if (e.type === 'menge') { main = (e.leistung || 'Menge') + ': ' + e.menge + ' ' + (e.einheit || ''); sub = e.gewerk || '' }
   else if (e.type === 'material') { main = e.label + ' (' + e.qty + '×)' + (e.leistung ? ' · ' + e.leistung : ''); sub = hideCost ? '' : euro((e.qty || 0) * (e.unitCost || 0)) }
   else if (e.type === 'maschine') { main = (e.maschine || 'Maschine') + ' · ' + hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ''); sub = hideCost ? '' : euro((e.minutes / 60) * (e.satz || 0)) }
@@ -254,28 +254,37 @@ function TeamSheet({ projektToken, gewerke, onClose }) {
   const [email, setEmail] = useState('')
   const [pickGewerke, setPickGewerke] = useState([])
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [ok, setOk] = useState('')
   const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
-  const reload = async () => { try { setMembers(await listMembers(projektToken)) } catch { setMembers([]) } }
+  const reload = async () => { try { setErr(''); setMembers(await listMembers(projektToken)) } catch (e) { setErr(e.message); setMembers([]) } }
   useEffect(() => { reload() }, [projektToken])
   const toggle = (list, g) => (list.includes(g) ? list.filter((x) => x !== g) : [...list, g])
 
   async function add() {
     const e = email.trim().toLowerCase()
-    if (!e || !e.includes('@')) { alert('Bitte gültige E-Mail eingeben.'); return }
-    try { setBusy(true); await addMember(projektToken, e, pickGewerke); setEmail(''); setPickGewerke([]); await reload() }
-    catch (err) { alert(err.message) } finally { setBusy(false) }
+    if (!e || !e.includes('@')) { setErr('Bitte gültige E-Mail eingeben.'); return }
+    try {
+      setBusy(true); setErr(''); setOk('')
+      await addMember(projektToken, e, pickGewerke)
+      setOk(e + ' zugewiesen. Der Mitarbeiter muss sich mit dieser E-Mail registrieren und dann „Sync" drücken.')
+      setEmail(''); setPickGewerke([]); await reload()
+    } catch (er) { setErr(er.message) } finally { setBusy(false) }
   }
   async function saveGewerke(m, g) {
-    try { await setMemberGewerke(projektToken, m.email, g); setMembers((ms) => ms.map((x) => (x.email === m.email ? { ...x, gewerke: g } : x))) }
-    catch (err) { alert(err.message) }
+    try { setErr(''); await setMemberGewerke(projektToken, m.email, g); setMembers((ms) => ms.map((x) => (x.email === m.email ? { ...x, gewerke: g } : x))) }
+    catch (e2) { setErr(e2.message) }
   }
-  async function del(e) { try { await removeMember(projektToken, e); await reload() } catch (err) { alert(err.message) } }
+  async function del(e) { try { setErr(''); await removeMember(projektToken, e); await reload() } catch (e2) { setErr(e2.message) } }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
       <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
         <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={Users} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Team für dieses Projekt</div>
         <div className="text-white/45 text-sm">Mitarbeiter sehen <b>keine Kosten</b> und nur ihre zugewiesenen Gewerke. Sie müssen sich mit derselben E-Mail in BauLog registrieren.</div>
+
+        {err && <div className="rounded-xl bg-ember/15 border border-ember/30 text-ember text-sm p-3">{err}</div>}
+        {ok && <div className="rounded-xl bg-lime/15 border border-lime/30 text-lime text-sm p-3">{ok}</div>}
 
         <div className="bg-white/5 border border-white/10 rounded-2xl p-3 space-y-2">
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" placeholder="mitarbeiter@mail.de" className={inp} />
@@ -354,6 +363,7 @@ export default function ProjektDetail() {
 
   if (!projekt) return <div className="p-10 text-white/40">Lade…</div>
   const t = projektTotals(eintraege, projekt.hourlyRate)
+  const epRows = !isWorker ? leistungAnalytics(eintraege, [projekt]) : []
   const gewerkeList = isWorker && allowedGewerke.length ? allowedGewerke : s.gewerke
   const paused = Boolean(timer && timer.pauseStartTs)
   const workedMs = timer ? Math.max(0, now - timer.startTs - (timer.pausedMs || 0) - (timer.pauseStartTs ? now - timer.pauseStartTs : 0)) : 0
@@ -375,7 +385,8 @@ export default function ProjektDetail() {
   }
   async function stopTimer() {
     const ms = Math.max(0, Date.now() - timer.startTs - (timer.pausedMs || 0) - (timer.pauseStartTs ? Date.now() - timer.pauseStartTs : 0))
-    const mins = Math.max(1, Math.round(ms / 60000))
+    const secs = Math.max(1, Math.round(ms / 1000))
+    const mins = secs / 60 // sekundengenau als Bruchteil-Minuten
     await addEintrag({ projektId: Number(id), type: 'zeit', gewerk: timer.gewerk, leistung: timer.leistung || '', minutes: mins })
     const ctx = { gewerk: timer.gewerk, leistung: timer.leistung || '', einheit: einheitOf(s, timer.gewerk, timer.leistung || ''), maschinen: s.maschinen, workMinutes: mins }
     localStorage.removeItem(TIMERKEY(id)); setTimer(null); await load()
@@ -475,6 +486,31 @@ export default function ProjektDetail() {
             <ActionTile icon={NotebookPen} label="Tagebuch" onClick={() => setSheet('tagebuch')} />
           </div>
           <button onClick={() => setSheet('zeit')} className="text-white/50 text-sm inline-flex items-center gap-1 hover:text-white/70 transition"><Plus className="w-4 h-4" /> Zeit manuell erfassen</button>
+
+          {!isWorker && epRows.length > 0 && (
+            <div className="glass rounded-3xl p-5">
+              <div className="flex items-center gap-2.5 mb-3">
+                <IconChip icon={Calculator} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
+                <div>
+                  <div className="font-semibold">EP-Vorschau</div>
+                  <div className="text-white/35 text-xs">Selbstkosten je Einheit — Basis fürs Angebot</div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {epRows.map((l, i) => (
+                  <div key={i} className="bg-white/5 rounded-xl p-3">
+                    <div className="flex justify-between items-baseline gap-2">
+                      <div className="font-medium truncate text-sm">{l.leistung}</div>
+                      <div className="grad-text font-bold whitespace-nowrap text-sm">{l.ep != null ? euro(l.ep) + ' / ' + l.einheit : '—'}</div>
+                    </div>
+                    <div className="text-white/40 text-[11px] mt-0.5">
+                      {l.menge ? l.menge.toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' ' + l.einheit + ' · ' : ''}{euro(l.total)} Selbstkosten{l.ep == null ? ' · Menge erfassen für EP' : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-7 mt-5 lg:mt-0">
@@ -507,8 +543,13 @@ export default function ProjektDetail() {
               <input type="checkbox" checked={mitKosten} onChange={(e) => setMitKosten(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
             </label>
             <div className="text-white/40 text-xs">Aus = ohne Kosten (für den Kunden). Enthält Leistungen, Mengen, Stunden, Bautagebuch & Fotos.</div>
-            <button onClick={async () => { const doc = buildLeistungsnachweis(projekt, eintraege, s, { mitKosten }); await sharePdf(doc, nachweisFilename(projekt)); setNachweis(false) }}
-              className="w-full rounded-2xl py-3 font-bold btn-grad">PDF erzeugen & teilen</button>
+            <button onClick={async () => {
+              try {
+                const doc = buildLeistungsnachweis(projekt, eintraege, s, { mitKosten })
+                await sharePdf(doc, nachweisFilename(projekt))
+                setNachweis(false)
+              } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
+            }} className="w-full rounded-2xl py-3 font-bold btn-grad">PDF erzeugen & teilen</button>
           </div>
         </div>
       )}

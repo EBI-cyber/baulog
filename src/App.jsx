@@ -41,7 +41,8 @@ function Shell() {
       try { await syncAll() } catch {}
       try {
         const all = await listProjekte()
-        const owns = all.some((p) => p.owner && p.owner === user.id)
+        // Inhaber: besitzt mind. 1 Projekt (oder ein lokal angelegtes ohne owner). Mitarbeiter: hat nur fremde Projekte.
+        const owns = all.some((p) => !p.owner || p.owner === user.id)
         if (active) setRole(!owns && all.length > 0 ? 'worker' : 'owner')
       } catch {}
       if (active) setReady(true)
