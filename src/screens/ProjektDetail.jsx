@@ -5,6 +5,8 @@ import { loadSettings, leistungenFor, einheitOf } from '../lib/settings'
 import { projektTotals } from '../lib/calc'
 import { euro, hrs, dmyhm, clock } from '../lib/format'
 import CameraCapture from '../components/CameraCapture'
+import VoiceInput from '../components/VoiceInput'
+import { dinText } from '../lib/ai'
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
 
@@ -37,6 +39,7 @@ function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
   const [label, setLabel] = useState(''); const [qty, setQty] = useState('1'); const [unitCost, setUnitCost] = useState('')
   const [note, setNote] = useState(''); const [dataUrl, setDataUrl] = useState('')
   const [text, setText] = useState('')
+  const [dinBusy, setDinBusy] = useState(false)
 
   function changeGewerk(g) {
     setGewerk(g)
@@ -91,7 +94,19 @@ function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Beschreibung (optional)" className={inp} />
           </>
         )}
-        {type === 'tagebuch' && <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Was wurde heute gemacht? Wetter, Crew, Besonderheiten…" rows={4} className={inp} />}
+        {type === 'tagebuch' && (
+          <>
+            <div className="flex gap-2">
+              <VoiceInput onText={setText} />
+              <button type="button" disabled={dinBusy || !text.trim()}
+                onClick={async () => { try { setDinBusy(true); const out = await dinText(text, s.openaiKey); if (out) setText(out) } catch (err) { alert(err.message) } finally { setDinBusy(false) } }}
+                className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40">
+                {dinBusy ? '…' : '✨ Nach DIN'}
+              </button>
+            </div>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Diktieren per Mikro oder tippen, dann optional nach DIN formulieren…" rows={5} className={inp} />
+          </>
+        )}
 
         <button onClick={save} className="w-full rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink">Speichern</button>
       </div>
