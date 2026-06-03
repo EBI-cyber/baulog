@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { loadSettings, saveSettings, EINHEITEN } from '../lib/settings'
+import { loadSettings, saveSettings, EINHEITEN, mergeDinKatalog } from '../lib/settings'
 import { useAuth } from '../lib/auth'
 import { syncAll } from '../lib/cloud'
 
@@ -17,6 +17,7 @@ export default function Einstellungen() {
   const updMasch = (i, k, v) => setS((p) => ({ ...p, maschinen: p.maschinen.map((m, idx) => (idx === i ? { ...m, [k]: v } : m)) }))
   const addMasch = () => setS((p) => ({ ...p, maschinen: [...(p.maschinen || []), { name: '', satz: 0 }] }))
   const delMasch = (i) => setS((p) => ({ ...p, maschinen: p.maschinen.filter((_, idx) => idx !== i) }))
+  const ladeDin = () => { const r = mergeDinKatalog(s); setS((p) => ({ ...p, leistungskatalog: r.leistungskatalog, gewerke: r.gewerke })); alert(r.added + ' DIN-Positionen ergänzt — Speichern nicht vergessen.') }
   const save = () => {
     const clean = { ...s, gewerke: s.gewerke.filter((g) => g.trim()) }
     saveSettings(clean); setS(clean); setMsg(true); setTimeout(() => setMsg(false), 1500)
@@ -39,6 +40,18 @@ export default function Einstellungen() {
           </div>
         </div>
       )}
+
+      <div className="glass rounded-3xl p-4 mb-3">
+        <div className="text-white/60 font-semibold mb-2">Firmendaten (für Leistungsnachweis)</div>
+        <input value={s.company} onChange={(e) => upd('company', e.target.value)} placeholder="Firmenname" className={inp + ' mb-2'} />
+        <input value={s.owner} onChange={(e) => upd('owner', e.target.value)} placeholder="Inhaber" className={inp + ' mb-2'} />
+        <input value={s.street} onChange={(e) => upd('street', e.target.value)} placeholder="Straße & Nr." className={inp + ' mb-2'} />
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          <input value={s.zip} onChange={(e) => upd('zip', e.target.value)} placeholder="PLZ" className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+          <input value={s.city} onChange={(e) => upd('city', e.target.value)} placeholder="Ort" className="col-span-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+        </div>
+        <input value={s.taxId} onChange={(e) => upd('taxId', e.target.value)} placeholder="Steuernummer" className={inp} />
+      </div>
 
       <div className="glass rounded-3xl p-4 mb-3">
         <label className="block mb-2">
@@ -80,7 +93,10 @@ export default function Einstellungen() {
             </div>
           ))}
         </div>
-        <button onClick={addKat} className="text-sm text-amber mt-2">+ Leistung hinzufügen</button>
+        <div className="flex flex-wrap gap-3 mt-2">
+          <button onClick={addKat} className="text-sm text-amber">+ Leistung hinzufügen</button>
+          <button onClick={ladeDin} className="text-sm text-amber">⬇ DIN-Standardkatalog ergänzen</button>
+        </div>
       </div>
 
       <div className="glass rounded-3xl p-4 mt-3">

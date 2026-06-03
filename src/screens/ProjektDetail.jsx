@@ -7,6 +7,8 @@ import { euro, hrs, dmyhm, clock } from '../lib/format'
 import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
 import { dinText, parseSetup, parseAbschluss } from '../lib/ai'
+import { buildLeistungsnachweis, nachweisFilename } from '../lib/pdf'
+import { sharePdf } from '../lib/share'
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
 
@@ -230,6 +232,8 @@ export default function ProjektDetail() {
   const [setupText, setSetupText] = useState('')
   const [setupBusy, setSetupBusy] = useState(false)
   const [abschluss, setAbschluss] = useState(null)
+  const [nachweis, setNachweis] = useState(false)
+  const [mitKosten, setMitKosten] = useState(true)
 
   const load = async () => { setProjekt(await getProjekt(id)); setEintraege(await listEintraege(id)) }
   useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); if (t) setTimer(JSON.parse(t)) }, [id])
@@ -269,6 +273,7 @@ export default function ProjektDetail() {
           <div className="font-bold text-lg truncate">{projekt.name}</div>
           <div className="text-white/40 text-xs truncate">{[projekt.customer, projekt.address].filter(Boolean).join(' · ')}</div>
         </div>
+        <button onClick={() => setNachweis(true)} className="glass w-9 h-9 rounded-full ml-auto text-base leading-none" title="Leistungsnachweis">🧾</button>
       </header>
 
       <div className="px-5 grid grid-cols-2 gap-2">
@@ -339,6 +344,21 @@ export default function ProjektDetail() {
       {abschluss && (
         <AbschlussSheet s={s} ctx={abschluss} onClose={() => setAbschluss(null)}
           onSaved={async (entries) => { for (const e of entries) await addEintrag({ projektId: Number(id), ...e }); setAbschluss(null); await load() }} />
+      )}
+
+      {nachweis && (
+        <div className="fixed inset-0 bg-black/60 flex items-end z-30" onClick={() => setNachweis(false)}>
+          <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="text-lg font-bold">Leistungsnachweis erstellen</div>
+            <label className="flex items-center justify-between py-2">
+              <span className="text-white/70">Mit Selbstkosten (intern)</span>
+              <input type="checkbox" checked={mitKosten} onChange={(e) => setMitKosten(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
+            </label>
+            <div className="text-white/40 text-xs">Aus = ohne Kosten (für den Kunden). Enthält Leistungen, Mengen, Stunden, Bautagebuch & Fotos.</div>
+            <button onClick={async () => { const doc = buildLeistungsnachweis(projekt, eintraege, s, { mitKosten }); await sharePdf(doc, nachweisFilename(projekt)); setNachweis(false) }}
+              className="w-full rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink">PDF erzeugen & teilen</button>
+          </div>
+        </div>
       )}
     </div>
   )
