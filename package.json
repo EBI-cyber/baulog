@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
     "dayjs": "^1.11.13",
     "dexie": "^4.0.8",
     "framer-motion": "^11.5.4",

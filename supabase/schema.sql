@@ -1,0 +1,48 @@
+-- ============================================================
+--  BauLog — Cloud-Schema (in Supabase SQL Editor ausführen)
+-- ============================================================
+create extension if not exists "pgcrypto";
+
+create table if not exists public.bau_projekte (
+  token       text primary key,
+  owner       uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name        text,
+  customer    text,
+  address     text,
+  hourly_rate numeric,
+  status      text,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists public.bau_eintraege (
+  token        text primary key,
+  owner        uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  projekt_token text,
+  type         text,
+  gewerk       text,
+  leistung     text,
+  einheit      text,
+  menge        numeric,
+  minutes      numeric,
+  label        text,
+  qty          numeric,
+  unit_cost    numeric,
+  maschine     text,
+  satz         numeric,
+  data_url     text,
+  note         text,
+  text         text,
+  created_at   timestamptz not null default now()
+);
+
+alter table public.bau_projekte  enable row level security;
+alter table public.bau_eintraege enable row level security;
+
+drop policy if exists "bp_all_own" on public.bau_projekte;
+create policy "bp_all_own" on public.bau_projekte for all using (auth.uid() = owner) with check (auth.uid() = owner);
+
+drop policy if exists "be_all_own" on public.bau_eintraege;
+create policy "be_all_own" on public.bau_eintraege for all using (auth.uid() = owner) with check (auth.uid() = owner);
+
+create index if not exists bau_projekte_owner_idx  on public.bau_projekte(owner);
+create index if not exists bau_eintraege_owner_idx on public.bau_eintraege(owner);

@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { loadSettings, saveSettings, EINHEITEN } from '../lib/settings'
+import { useAuth } from '../lib/auth'
+import { syncAll } from '../lib/cloud'
 
 export default function Einstellungen() {
+  const { user, isCloudReady, signOut } = useAuth()
   const [s, setS] = useState(loadSettings())
   const [msg, setMsg] = useState(false)
   const upd = (k, v) => setS((p) => ({ ...p, [k]: v }))
@@ -23,6 +26,19 @@ export default function Einstellungen() {
   return (
     <div className="px-6 pt-10 pb-6">
       <h2 className="text-2xl font-bold mb-4">Einstellungen</h2>
+
+      {isCloudReady && (
+        <div className="glass rounded-3xl p-4 mb-3 flex items-center justify-between">
+          <div>
+            <div className="text-white/60 font-semibold">Cloud-Sync aktiv</div>
+            <div className="text-white/40 text-xs">{user?.email}</div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={async () => { try { await syncAll(); alert('Synchronisiert ✓') } catch { alert('Sync-Fehler') } }} className="text-amber text-sm px-2 py-1 rounded-lg border border-white/10">Sync</button>
+            <button onClick={signOut} className="text-white/60 text-sm px-2 py-1 rounded-lg border border-white/10">Abmelden</button>
+          </div>
+        </div>
+      )}
 
       <div className="glass rounded-3xl p-4 mb-3">
         <label className="block mb-2">
