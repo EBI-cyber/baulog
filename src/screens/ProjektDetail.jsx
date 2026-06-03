@@ -11,7 +11,7 @@ import { buildLeistungsnachweis, nachweisFilename } from '../lib/pdf'
 import { sharePdf } from '../lib/share'
 import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
-import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
+import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke, inviteWorker } from '../lib/team'
 import IconChip from '../ui/IconChip'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
@@ -289,7 +289,16 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
     try {
       setBusy(true); setErr(''); setOk('')
       await addMember(projektToken, e, pickGewerke)
-      setOk(e + ' zugewiesen. Schick ihm die Einladung (✈) — er registriert sich mit dieser E-Mail und drückt „Sync".')
+      let note = e + ' zugewiesen.'
+      try {
+        const r = await inviteWorker(e, projektName)
+        note += r && r.already
+          ? ' Konto besteht schon — er kann sich direkt anmelden.'
+          : ' Einladungs-Mail wurde automatisch verschickt ✉'
+      } catch {
+        note += ' (Auto-Mail nicht möglich — nutze den ✈-Knopf zum Senden.)'
+      }
+      setOk(note)
       setEmail(''); setPickGewerke([]); await reload()
     } catch (er) { setErr(er.message) } finally { setBusy(false) }
   }

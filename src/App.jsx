@@ -10,6 +10,11 @@ import ProjektDetail from './screens/ProjektDetail'
 import Dashboard from './screens/Dashboard'
 import Einstellungen from './screens/Einstellungen'
 import Login from './screens/Login'
+import SetPassword from './screens/SetPassword'
+
+// Einladungs-/Recovery-Link von Supabase erkennen (Token steht im URL-Hash)
+const INITIAL_HASH = typeof window !== 'undefined' ? window.location.hash : ''
+const IS_INVITE = /type=(invite|recovery)/.test(INITIAL_HASH)
 
 function Splash() {
   return (
@@ -51,6 +56,8 @@ function Shell() {
   }, [user])
 
   if (loading) return <Splash />
+  // Eingeladener Mitarbeiter: erst Passwort festlegen
+  if (IS_INVITE) return user ? <SetPassword /> : <Splash />
   if (isCloudReady && !user) return <Login />
   if (!ready) return <Splash />
 

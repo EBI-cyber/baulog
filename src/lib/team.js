@@ -38,6 +38,18 @@ export async function removeMember(projektToken, email) {
   if (error) throw new Error(friendly(error))
 }
 
+// Automatische Einladungs-Mail über die Edge Function verschicken
+export async function inviteWorker(email, projektName) {
+  if (!isCloudReady) return { ok: false }
+  const redirectTo = location.origin + import.meta.env.BASE_URL
+  const { data, error } = await supabase.functions.invoke('invite-worker', {
+    body: { email: String(email).trim().toLowerCase(), projektName: projektName || '', redirectTo },
+  })
+  if (error) throw new Error(error.message || 'Einladung konnte nicht gesendet werden')
+  if (data && data.error) throw new Error(data.error)
+  return data || { ok: true }
+}
+
 // Mitarbeiter: eigene Gewerk-Zuweisung für ein Projekt (leer = alle erlaubt)
 export async function myGewerke(projektToken, email) {
   if (!isCloudReady || !email) return []
