@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getProjekt, listEintraege, addEintrag, deleteEintrag } from '../lib/db'
-import { loadSettings } from '../lib/settings'
+import { loadSettings, leistungenFor, einheitOf } from '../lib/settings'
 import { projektTotals } from '../lib/calc'
 import { euro, hrs, dmyhm, clock } from '../lib/format'
+import CameraCapture from '../components/CameraCapture'
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
 
 function EntryRow({ e, rate, onDelete }) {
-  const icon = { zeit: '⏱️', material: '💶', foto: '📸', tagebuch: '📓' }[e.type]
+  const icon = { zeit: '⏱️', material: '💶', foto: '📸', tagebuch: '📓', menge: '📐' }[e.type] || '•'
   let main = '', sub = ''
-  if (e.type === 'zeit') { main = hrs(e.minutes) + ' · ' + (e.gewerk || '') ; sub = euro((e.minutes / 60) * (rate || 0)) + ' Lohn' }
-  else if (e.type === 'material') { main = e.label + ' (' + e.qty + '×)'; sub = euro((e.qty || 0) * (e.unitCost || 0)) }
-  else if (e.type === 'foto') { main = e.note || 'Foto'; sub = e.gewerk || '' }
+  if (e.type === 'zeit') { main = hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ' · ' + (e.gewerk || '')); sub = euro((e.minutes / 60) * (rate || 0)) + ' Lohn' }
+  else if (e.type === 'menge') { main = (e.leistung || 'Menge') + ': ' + e.menge + ' ' + (e.einheit || ''); sub = e.gewerk || '' }
+  else if (e.type === 'material') { main = e.label + ' (' + e.qty + '×)' + (e.leistung ? ' · ' + e.leistung : ''); sub = euro((e.qty || 0) * (e.unitCost || 0)) }
+  else if (e.type === 'foto') { main = e.note || 'Foto'; sub = e.leistung || e.gewerk || '' }
   else if (e.type === 'tagebuch') { main = (e.text || '').slice(0, 70); sub = e.gewerk || '' }
   return (
     <div className="glass rounded-2xl p-3 flex items-center gap-3">
@@ -26,30 +28,54 @@ function EntryRow({ e, rate, onDelete }) {
   )
 }
 
-function AddSheet({ type, gewerke, defaultGewerk, onClose, onSave }) {
+function AddSheet({ s, type, defaultGewerk, onClose, onSave }) {
   const [gewerk, setGewerk] = useState(defaultGewerk)
+  const leistungen = leistungenFor(s, gewerk)
+  const [leistung, setLeistung] = useState(leistungen[0] ? leistungen[0].name : '')
   const [minutes, setMinutes] = useState('')
+  const [menge, setMenge] = useState('')
   const [label, setLabel] = useState(''); const [qty, setQty] = useState('1'); const [unitCost, setUnitCost] = useState('')
   const [note, setNote] = useState(''); const [dataUrl, setDataUrl] = useState('')
   const [text, setText] = useState('')
 
-  function onPhoto(e) { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => setDataUrl(r.result); r.readAsDataURL(f) }
+  function changeGewerk(g) {
+    setGewerk(g)
+    const l = leistungenFor(s, g)
+    setLeistung(l[0] ? l[0].name : '')
+  }
+  const einheit = einheitOf(s, gewerk, leistung)
+
   function save() {
-    if (type === 'zeit') { if (!minutes) return; onSave({ type: 'zeit', gewerk, minutes: Number(minutes) || 0, note: 'manuell' }) }
-    else if (type === 'material') { if (!label.trim()) return; onSave({ type: 'material', gewerk, label: label.trim(), qty: Number(qty) || 1, unitCost: Number(unitCost) || 0 }) }
-    else if (type === 'foto') { if (!dataUrl) return; onSave({ type: 'foto', gewerk, dataUrl, note: note.trim() }) }
+    if (type === 'zeit') { if (!minutes) return; onSave({ type: 'zeit', gewerk, leistung, minutes: Number(minutes) || 0 }) }
+    else if (type === 'menge') { if (!leistung || !menge) return; onSave({ type: 'menge', gewerk, leistung, einheit, menge: Number(menge) || 0 }) }
+    else if (type === 'material') { if (!label.trim()) return; onSave({ type: 'material', gewerk, leistung, label: label.trim(), qty: Number(qty) || 1, unitCost: Number(unitCost) || 0 }) }
+    else if (type === 'foto') { if (!dataUrl) return; onSave({ type: 'foto', gewerk, leistung, dataUrl, note: note.trim() }) }
     else if (type === 'tagebuch') { if (!text.trim()) return; onSave({ type: 'tagebuch', gewerk, text: text.trim() }) }
   }
-  const title = { zeit: 'Zeit erfassen', material: 'Material / Kosten', foto: 'Foto', tagebuch: 'Tagebuch-Eintrag' }[type]
+  const title = { zeit: 'Zeit erfassen', menge: 'Menge / Leistung', material: 'Material / Kosten', foto: 'Foto aufnehmen', tagebuch: 'Tagebuch-Eintrag' }[type]
   const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end z-20" onClick={onClose}>
-      <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="glass w-full max-w-md mx-auto rounded-t-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="text-lg font-bold">{title}</div>
-        <select value={gewerk} onChange={(e) => setGewerk(e.target.value)} className={inp}>
-          {gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
+        <select value={gewerk} onChange={(e) => changeGewerk(e.target.value)} className={inp}>
+          {s.gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
+        {type !== 'tagebuch' && (
+          <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className={inp}>
+            <option value="">— allgemein —</option>
+            {leistungen.map((l) => <option key={l.name} value={l.name}>{l.name} ({l.einheit})</option>)}
+          </select>
+        )}
+
         {type === 'zeit' && <input value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" placeholder="Minuten (z.B. 90)" className={inp} />}
+        {type === 'menge' && (
+          <div className="flex gap-2 items-center">
+            <input value={menge} onChange={(e) => setMenge(e.target.value)} inputMode="decimal" placeholder="Menge" className={inp} />
+            <span className="text-white/60 w-12 text-center">{einheit || '—'}</span>
+          </div>
+        )}
         {type === 'material' && (
           <>
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Material / Bezeichnung" className={inp} />
@@ -61,12 +87,12 @@ function AddSheet({ type, gewerke, defaultGewerk, onClose, onSave }) {
         )}
         {type === 'foto' && (
           <>
-            <input type="file" accept="image/*" capture="environment" onChange={onPhoto} className="text-sm" />
-            {dataUrl && <img src={dataUrl} alt="" className="w-full h-40 object-cover rounded-xl" />}
+            {dataUrl ? <img src={dataUrl} alt="" className="w-full rounded-xl" /> : <CameraCapture onCapture={setDataUrl} />}
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Beschreibung (optional)" className={inp} />
           </>
         )}
         {type === 'tagebuch' && <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Was wurde heute gemacht? Wetter, Crew, Besonderheiten…" rows={4} className={inp} />}
+
         <button onClick={save} className="w-full rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink">Speichern</button>
       </div>
     </div>
@@ -83,6 +109,7 @@ export default function ProjektDetail() {
   const [now, setNow] = useState(Date.now())
   const [sheet, setSheet] = useState(null)
   const [gewerk, setGewerk] = useState(s.gewerke[0])
+  const [leistung, setLeistung] = useState('')
 
   const load = async () => { setProjekt(await getProjekt(id)); setEintraege(await listEintraege(id)) }
   useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); if (t) setTimer(JSON.parse(t)) }, [id])
@@ -91,13 +118,17 @@ export default function ProjektDetail() {
   if (!projekt) return <div className="p-10 text-white/40">Lade…</div>
   const t = projektTotals(eintraege, projekt.hourlyRate)
 
-  function startTimer() { const tm = { gewerk, startTs: Date.now() }; localStorage.setItem(TIMERKEY(id), JSON.stringify(tm)); setTimer(tm); setNow(Date.now()) }
+  function startTimer() {
+    const tm = { gewerk, leistung, startTs: Date.now() }
+    localStorage.setItem(TIMERKEY(id), JSON.stringify(tm)); setTimer(tm); setNow(Date.now())
+  }
   async function stopTimer() {
     const mins = Math.max(1, Math.round((Date.now() - timer.startTs) / 60000))
-    await addEintrag({ projektId: Number(id), type: 'zeit', gewerk: timer.gewerk, minutes: mins, note: 'Timer' })
+    await addEintrag({ projektId: Number(id), type: 'zeit', gewerk: timer.gewerk, leistung: timer.leistung || '', minutes: mins })
     localStorage.removeItem(TIMERKEY(id)); setTimer(null); await load()
   }
   async function remove(eid) { await deleteEintrag(eid); await load() }
+  const leistungenG = leistungenFor(s, gewerk)
 
   return (
     <div className="min-h-[100dvh] flex flex-col max-w-md mx-auto pb-28">
@@ -118,26 +149,32 @@ export default function ProjektDetail() {
 
       <div className="px-5 mt-3">
         <div className="glass rounded-3xl p-5">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-white/50 text-xs">Zeit-Timer</div>
-            <select value={timer ? timer.gewerk : gewerk} onChange={(e) => setGewerk(e.target.value)} disabled={!!timer}
-              className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm disabled:opacity-60">
-              {s.gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </div>
+          <div className="text-white/50 text-xs mb-2">Zeit-Timer</div>
           {timer ? (
             <>
               <div className="text-4xl font-extrabold text-center tabular-nums">{clock(now - timer.startTs)}</div>
-              <div className="text-center text-white/40 text-xs mb-3">{timer.gewerk}</div>
+              <div className="text-center text-white/40 text-xs mb-3">{timer.gewerk}{timer.leistung ? ' · ' + timer.leistung : ''}</div>
               <button onClick={stopTimer} className="w-full rounded-2xl py-4 font-bold bg-ember text-white active:scale-[0.98] transition">⏹ Stopp & speichern</button>
             </>
           ) : (
-            <button onClick={startTimer} className="w-full rounded-2xl py-5 font-bold text-xl bg-gradient-to-r from-amber to-ember text-ink shadow-glow active:scale-[0.98] transition">▶ Start</button>
+            <>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <select value={gewerk} onChange={(e) => { setGewerk(e.target.value); setLeistung('') }} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
+                  {s.gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+                <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
+                  <option value="">— allgemein —</option>
+                  {leistungenG.map((l) => <option key={l.name} value={l.name}>{l.name}</option>)}
+                </select>
+              </div>
+              <button onClick={startTimer} className="w-full rounded-2xl py-5 font-bold text-xl bg-gradient-to-r from-amber to-ember text-ink shadow-glow active:scale-[0.98] transition">▶ Start</button>
+            </>
           )}
         </div>
       </div>
 
-      <div className="px-5 mt-3 grid grid-cols-3 gap-2">
+      <div className="px-5 mt-3 grid grid-cols-2 gap-2">
+        <button onClick={() => setSheet('menge')} className="glass rounded-2xl py-3 text-sm">📐<div>Menge/Leistung</div></button>
         <button onClick={() => setSheet('material')} className="glass rounded-2xl py-3 text-sm">💶<div>Material</div></button>
         <button onClick={() => setSheet('foto')} className="glass rounded-2xl py-3 text-sm">📸<div>Foto</div></button>
         <button onClick={() => setSheet('tagebuch')} className="glass rounded-2xl py-3 text-sm">📓<div>Tagebuch</div></button>
@@ -152,7 +189,7 @@ export default function ProjektDetail() {
       </div>
 
       {sheet && (
-        <AddSheet type={sheet} gewerke={s.gewerke} defaultGewerk={gewerk} onClose={() => setSheet(null)}
+        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} onClose={() => setSheet(null)}
           onSave={async (data) => { await addEintrag({ projektId: Number(id), ...data }); setSheet(null); await load() }} />
       )}
     </div>

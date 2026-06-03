@@ -42,3 +42,22 @@ export function gewerkAnalytics(allEintraege, projekte) {
     .filter((x) => x.minutes > 0 || x.materialCost > 0)
     .sort((a, b) => b.total - a.total)
 }
+
+// Selbstkosten je Einheit (EP-Basis) pro Leistung
+export function leistungAnalytics(allEintraege, projekte) {
+  const rateByProj = {}
+  projekte.forEach((p) => { rateByProj[p.id] = Number(p.hourlyRate) || 0 })
+  const map = {}
+  for (const e of allEintraege) {
+    if (!e.leistung) continue
+    const key = (e.gewerk || '') + '||' + e.leistung
+    if (!map[key]) map[key] = { gewerk: e.gewerk, leistung: e.leistung, einheit: '', menge: 0, laborCost: 0, materialCost: 0 }
+    if (e.type === 'zeit') map[key].laborCost += ((Number(e.minutes) || 0) / 60) * (rateByProj[e.projektId] || 0)
+    else if (e.type === 'material') map[key].materialCost += (Number(e.qty) || 0) * (Number(e.unitCost) || 0)
+    else if (e.type === 'menge') { map[key].menge += Number(e.menge) || 0; if (e.einheit) map[key].einheit = e.einheit }
+  }
+  return Object.values(map)
+    .map((x) => ({ ...x, total: x.laborCost + x.materialCost, ep: x.menge > 0 ? (x.laborCost + x.materialCost) / x.menge : null }))
+    .sort((a, b) => b.total - a.total)
+}
+

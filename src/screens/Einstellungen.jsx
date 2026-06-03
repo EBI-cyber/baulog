@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { loadSettings, saveSettings } from '../lib/settings'
+import { loadSettings, saveSettings, EINHEITEN } from '../lib/settings'
 
 export default function Einstellungen() {
   const [s, setS] = useState(loadSettings())
@@ -8,6 +8,9 @@ export default function Einstellungen() {
   const setGewerk = (i, v) => setS((p) => ({ ...p, gewerke: p.gewerke.map((g, idx) => (idx === i ? v : g)) }))
   const addGewerk = () => setS((p) => ({ ...p, gewerke: [...p.gewerke, ''] }))
   const delGewerk = (i) => setS((p) => ({ ...p, gewerke: p.gewerke.filter((_, idx) => idx !== i) }))
+  const updKat = (i, k, v) => setS((p) => ({ ...p, leistungskatalog: p.leistungskatalog.map((l, idx) => (idx === i ? { ...l, [k]: v } : l)) }))
+  const addKat = () => setS((p) => ({ ...p, leistungskatalog: [...p.leistungskatalog, { gewerk: p.gewerke[0] || 'Sonstiges', name: '', einheit: 'm²' }] }))
+  const delKat = (i) => setS((p) => ({ ...p, leistungskatalog: p.leistungskatalog.filter((_, idx) => idx !== i) }))
   const save = () => {
     const clean = { ...s, gewerke: s.gewerke.filter((g) => g.trim()) }
     saveSettings(clean); setS(clean); setMsg(true); setTimeout(() => setMsg(false), 1500)
@@ -35,6 +38,30 @@ export default function Einstellungen() {
           </div>
         ))}
         <button onClick={addGewerk} className="text-sm text-amber">+ Gewerk hinzufügen</button>
+      </div>
+
+      <div className="glass rounded-3xl p-4 mt-3">
+        <div className="text-white/60 font-semibold mb-1">Leistungskatalog (mit Einheiten)</div>
+        <div className="text-white/35 text-xs mb-3">Vorbelegt pro Gewerk. Erscheinen bei Zeit/Menge/Material zur Auswahl — Basis für die EP-Kalkulation.</div>
+        <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+          {s.leistungskatalog.map((l, i) => (
+            <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-2">
+              <div className="flex gap-2 items-center">
+                <input value={l.name} onChange={(e) => updKat(i, 'name', e.target.value)} placeholder="Leistung" className="flex-1 bg-transparent outline-none px-1 py-1" />
+                <button onClick={() => delKat(i)} className="text-white/40 px-1 text-lg leading-none">✕</button>
+              </div>
+              <div className="flex gap-2 mt-1">
+                <select value={l.gewerk} onChange={(e) => updKat(i, 'gewerk', e.target.value)} className="flex-1 bg-white/5 rounded-lg px-2 py-1 text-sm">
+                  {s.gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+                <select value={l.einheit} onChange={(e) => updKat(i, 'einheit', e.target.value)} className="w-24 bg-white/5 rounded-lg px-2 py-1 text-sm">
+                  {EINHEITEN.map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button onClick={addKat} className="text-sm text-amber mt-2">+ Leistung hinzufügen</button>
       </div>
 
       <button onClick={save} className="w-full mt-4 rounded-2xl py-3 font-bold bg-gradient-to-r from-amber to-ember text-ink">
