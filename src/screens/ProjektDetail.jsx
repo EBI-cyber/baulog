@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getProjekt, listEintraege, addEintrag, deleteEintrag } from '../lib/db'
+import {
+  getProjekt, listEintraege, addEintrag, deleteEintrag,
+  listRechnungen, createRechnung, updateRechnung, deleteRechnung,
+} from '../lib/db'
 import { loadSettings, leistungenFor, einheitOf } from '../lib/settings'
-import { projektTotals, leistungAnalytics } from '../lib/calc'
-import { euro, hrs, hms, dmyhm, clock } from '../lib/format'
+import { projektTotals, leistungAnalytics, filterByRange } from '../lib/calc'
+import { euro, hrs, hms, dmy, dmyhm, hm, clock, dinMaschinenText } from '../lib/format'
 import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
 import { dinText, parseSetup, parseAbschluss } from '../lib/ai'
@@ -15,7 +18,7 @@ import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } fro
 import IconChip from '../ui/IconChip'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
-  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send,
+  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check,
 } from 'lucide-react'
 
 async function sendInvite(projektName, email) {
@@ -37,6 +40,17 @@ async function sendInvite(projektName, email) {
 
 const TIMERKEY = (id) => 'baulog.timer.' + id
 const ENTRY_ICON = { zeit: Clock, material: Package, foto: Camera, tagebuch: NotebookPen, menge: Ruler, maschine: Wrench }
+
+// timer.pauses: [{ startTs, endTs }] — endTs null solange pausiert. `pausedMs`/`pauseStartTs` sind Legacy-Fallback
+// für einen beim Update noch laufenden Timer aus localStorage.
+function pausedMsOf(tm, now) {
+  if (tm.pauses) return tm.pauses.reduce((sum, p) => sum + ((p.endTs || now) - p.startTs), 0)
+  return (tm.pausedMs || 0) + (tm.pauseStartTs ? now - tm.pauseStartTs : 0)
+}
+function isPaused(tm) {
+  if (tm.pauses) { const last = tm.pauses[tm.pauses.length - 1]; return Boolean(last && !last.endTs) }
+  return Boolean(tm.pauseStartTs)
+}
 
 function StatTile({ icon, label, value, grad, big }) {
   return (
@@ -61,7 +75,11 @@ function ActionTile({ icon, label, span, onClick }) {
 function EntryRow({ e, rate, onDelete, hideCost }) {
   const I = ENTRY_ICON[e.type] || Clock
   let main = '', sub = ''
-  if (e.type === 'zeit') { main = hms((Number(e.minutes) || 0) * 60) + (e.leistung ? ' · ' + e.leistung : ' · ' + (e.gewerk || '')); sub = hideCost ? '' : euro((e.minutes / 60) * (rate || 0)) + ' Lohn' }
+  if (e.type === 'zeit') {
+    const zeitraum = e.startAt && e.endAt ? hm(e.startAt) + '–' + hm(e.endAt) + ' Uhr · ' : ''
+    main = zeitraum + hms((Number(e.minutes) || 0) * 60) + (e.leistung ? ' · ' + e.leistung : ' · ' + (e.gewerk || ''))
+    sub = hideCost ? '' : euro((e.minutes / 60) * (rate || 0)) + ' Lohn'
+  }
   else if (e.type === 'menge') { main = (e.leistung || 'Menge') + ': ' + e.menge + ' ' + (e.einheit || ''); sub = e.gewerk || '' }
   else if (e.type === 'material') { main = e.label + ' (' + e.qty + '×)' + (e.leistung ? ' · ' + e.leistung : ''); sub = hideCost ? '' : euro((e.qty || 0) * (e.unitCost || 0)) }
   else if (e.type === 'maschine') { main = (e.maschine || 'Maschine') + ' · ' + hrs(e.minutes) + (e.leistung ? ' · ' + e.leistung : ''); sub = hideCost ? '' : euro((e.minutes / 60) * (e.satz || 0)) }
@@ -79,18 +97,53 @@ function EntryRow({ e, rate, onDelete, hideCost }) {
   )
 }
 
+function MaschineCombo({ s, value, onChange, inp, wrapClass = '' }) {
+  const [q, setQ] = useState(value || '')
+  const [open, setOpen] = useState(false)
+  const list = s.maschinen || []
+  const needle = q.trim().toLowerCase()
+  const filtered = needle ? list.filter((m) => m.name.toLowerCase().includes(needle)) : list
+
+  return (
+    <div className={'relative ' + wrapClass}>
+      <input
+        value={q}
+        onChange={(e) => { setQ(e.target.value); onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Maschine suchen oder wählen…"
+        className={inp}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-10 mt-1 w-full glass rounded-xl max-h-52 overflow-y-auto">
+          {filtered.map((m) => (
+            <button type="button" key={m.name} onMouseDown={() => { onChange(m.name); setQ(m.name); setOpen(false) }}
+              className="w-full text-left px-3 py-2 hover:bg-white/10 text-sm flex justify-between items-center gap-2 transition">
+              <span className="truncate">{m.name}</span><span className="text-white/40 text-xs shrink-0">{m.satz} €/h</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
   const gewerkeOpts = gewerkeList && gewerkeList.length ? gewerkeList : s.gewerke
   const [gewerk, setGewerk] = useState(defaultGewerk)
   const leistungen = leistungenFor(s, gewerk)
   const [leistung, setLeistung] = useState(leistungen[0] ? leistungen[0].name : '')
   const [minutes, setMinutes] = useState('')
+  const [startzeit, setStartzeit] = useState('')
   const [menge, setMenge] = useState('')
   const [label, setLabel] = useState(''); const [qty, setQty] = useState('1'); const [unitCost, setUnitCost] = useState('')
   const [note, setNote] = useState(''); const [dataUrl, setDataUrl] = useState('')
   const [text, setText] = useState('')
   const [dinBusy, setDinBusy] = useState(false)
   const [maschine, setMaschine] = useState(s.maschinen && s.maschinen[0] ? s.maschinen[0].name : '')
+  const [dinNote, setDinNote] = useState('')
+  const [addDinNote, setAddDinNote] = useState(true)
+  const [dinNoteTouched, setDinNoteTouched] = useState(false)
 
   function changeGewerk(g) {
     setGewerk(g)
@@ -99,11 +152,33 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
   }
   const einheit = einheitOf(s, gewerk, leistung)
 
+  useEffect(() => {
+    if (type !== 'maschine' || dinNoteTouched) return
+    setDinNote(maschine && minutes ? dinMaschinenText(gewerk, leistung, maschine, minutes) : '')
+  }, [type, gewerk, leistung, maschine, minutes, dinNoteTouched])
+
   function save() {
-    if (type === 'zeit') { if (!minutes) return; onSave({ type: 'zeit', gewerk, leistung, minutes: Number(minutes) || 0 }) }
+    if (type === 'zeit') {
+      if (!minutes) return
+      const data = { type: 'zeit', gewerk, leistung, minutes: Number(minutes) || 0 }
+      if (startzeit) {
+        const start = new Date(startzeit)
+        if (!Number.isNaN(start.getTime())) {
+          data.startAt = start.toISOString()
+          data.endAt = new Date(start.getTime() + (Number(minutes) || 0) * 60000).toISOString()
+        }
+      }
+      onSave(data)
+    }
     else if (type === 'menge') { if (!leistung || !menge) return; onSave({ type: 'menge', gewerk, leistung, einheit, menge: Number(menge) || 0 }) }
     else if (type === 'material') { if (!label.trim()) return; onSave({ type: 'material', gewerk, leistung, label: label.trim(), qty: Number(qty) || 1, unitCost: Number(unitCost) || 0 }) }
-    else if (type === 'maschine') { if (!maschine || !minutes) return; const m = (s.maschinen || []).find((x) => x.name === maschine); onSave({ type: 'maschine', gewerk, leistung, maschine, minutes: Number(minutes) || 0, satz: m ? Number(m.satz) || 0 : 0 }) }
+    else if (type === 'maschine') {
+      if (!maschine || !minutes) return
+      const m = (s.maschinen || []).find((x) => x.name === maschine)
+      const entries = [{ type: 'maschine', gewerk, leistung, maschine, minutes: Number(minutes) || 0, satz: m ? Number(m.satz) || 0 : 0 }]
+      if (addDinNote && dinNote.trim()) entries.push({ type: 'tagebuch', gewerk, text: dinNote.trim() })
+      onSave(entries)
+    }
     else if (type === 'foto') { if (!dataUrl) return; onSave({ type: 'foto', gewerk, leistung, dataUrl, note: note.trim() }) }
     else if (type === 'tagebuch') { if (!text.trim()) return; onSave({ type: 'tagebuch', gewerk, text: text.trim() }) }
   }
@@ -125,7 +200,15 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
           </select>
         )}
 
-        {type === 'zeit' && <input value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" placeholder="Minuten (z.B. 90)" className={inp} />}
+        {type === 'zeit' && (
+          <>
+            <input value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" placeholder="Minuten (z.B. 90)" className={inp} />
+            <div>
+              <input type="datetime-local" value={startzeit} onChange={(e) => setStartzeit(e.target.value)} className={inp} />
+              <div className="text-white/35 text-[11px] mt-1">Startzeit (optional) — für genaue Uhrzeiten im Leistungsnachweis</div>
+            </div>
+          </>
+        )}
         {type === 'menge' && (
           <div className="flex gap-2 items-center">
             <input value={menge} onChange={(e) => setMenge(e.target.value)} inputMode="decimal" placeholder="Menge" className={inp} />
@@ -143,10 +226,15 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
         )}
         {type === 'maschine' && (
           <>
-            <select value={maschine} onChange={(e) => setMaschine(e.target.value)} className={inp}>
-              {(s.maschinen || []).map((m) => <option key={m.name} value={m.name}>{m.name} ({m.satz} €/h)</option>)}
-            </select>
+            <MaschineCombo s={s} value={maschine} onChange={setMaschine} inp={inp} />
             <input value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" placeholder="Minuten (Werkzeug-Einsatz)" className={inp} />
+            <label className="flex items-center gap-2 pt-1">
+              <input type="checkbox" checked={addDinNote} onChange={(e) => setAddDinNote(e.target.checked)} className="w-4 h-4 accent-[#f59e0b]" />
+              <span className="text-white/60 text-xs">DIN-Text als Tagebuch-Notiz übernehmen</span>
+            </label>
+            {addDinNote && (
+              <textarea value={dinNote} onChange={(e) => { setDinNote(e.target.value); setDinNoteTouched(true) }} rows={2} className={inp} />
+            )}
           </>
         )}
         {type === 'foto' && (
@@ -248,10 +336,8 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
               <div className="text-white/50 text-sm mb-1">Maschinen (Min)</div>
               {p.maschinen.map((m, i) => (
                 <div key={i} className="flex gap-2 mb-1">
-                  <select value={m.name} onChange={(e) => setMas(i, 'name', e.target.value)} className="flex-1 bg-white/5 rounded-lg px-2 py-1 text-sm">
-                    <option value="">—</option>
-                    {(s.maschinen || []).map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
-                  </select>
+                  <MaschineCombo s={s} value={m.name} onChange={(v) => setMas(i, 'name', v)}
+                    inp="flex-1 bg-white/5 rounded-lg px-2 py-1 text-sm outline-none" wrapClass="flex-1" />
                   <input value={m.minutes} onChange={(e) => setMas(i, 'minutes', e.target.value)} inputMode="numeric" className="w-16 text-center bg-white/5 rounded-lg px-1 py-1 text-sm" />
                 </div>
               ))}
@@ -342,6 +428,39 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
   )
 }
 
+function RechnungenSheet({ rechnungen, onClose, onTogglePaid, onDelete }) {
+  const offen = rechnungen.filter((r) => !r.bezahlt)
+  const offenSumme = offen.reduce((sum, r) => sum + (Number(r.betrag) || 0), 0)
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
+      <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Rechnungen</div>
+        <div className="text-white/45 text-sm">Offene Forderungen: <b className="text-amber">{euro(offenSumme)}</b>{offen.length ? ' (' + offen.length + ' Rechnung' + (offen.length === 1 ? '' : 'en') + ')' : ''}</div>
+        <div className="space-y-2">
+          {rechnungen.length === 0 && (
+            <div className="text-white/35 text-sm">Noch keine Rechnung erstellt — im Leistungsnachweis-Dialog „Als offene Rechnung speichern" aktivieren.</div>
+          )}
+          {rechnungen.map((r) => (
+            <div key={r.id} className="glass rounded-2xl p-3 flex items-center gap-3">
+              <IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm truncate">{r.von ? dmy(r.von) : '…'} – {r.bis ? dmy(r.bis) : '…'}</div>
+                <div className="text-white/40 text-xs">{euro(r.betrag)}{r.bezahlt && r.bezahltAm ? ' · bezahlt am ' + dmy(r.bezahltAm) : ''}</div>
+              </div>
+              <button onClick={() => onTogglePaid(r)}
+                className={'shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full inline-flex items-center gap-1 transition ' + (r.bezahlt ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber/20 text-amber')}>
+                {r.bezahlt ? <><Check className="w-3.5 h-3.5" /> Bezahlt</> : 'Offen'}
+              </button>
+              <button onClick={() => onDelete(r)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
+            </div>
+          ))}
+        </div>
+        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Schließen</button>
+      </div>
+    </div>
+  )
+}
+
 export default function ProjektDetail() {
   const { id } = useParams()
   const nav = useNavigate()
@@ -362,10 +481,18 @@ export default function ProjektDetail() {
   const [abschluss, setAbschluss] = useState(null)
   const [nachweis, setNachweis] = useState(false)
   const [mitKosten, setMitKosten] = useState(true)
+  const [rechnungen, setRechnungen] = useState([])
+  const [rechnungenOpen, setRechnungenOpen] = useState(false)
+  const [nvon, setNvon] = useState('')
+  const [nbis, setNbis] = useState('')
+  const [alsRechnung, setAlsRechnung] = useState(false)
 
-  const load = async () => { setProjekt(await getProjekt(id)); setEintraege(await listEintraege(id)) }
+  const load = async () => {
+    setProjekt(await getProjekt(id)); setEintraege(await listEintraege(id))
+    if (!isWorker) setRechnungen(await listRechnungen(id))
+  }
   useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); if (t) setTimer(JSON.parse(t)) }, [id])
-  useEffect(() => { if (!timer || timer.pauseStartTs) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [timer])
+  useEffect(() => { if (!timer || isPaused(timer)) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [timer])
   // Mitarbeiter: nur zugewiesene Gewerke laden
   useEffect(() => {
     if (!isWorker || !projekt || !user) return
@@ -382,30 +509,40 @@ export default function ProjektDetail() {
   if (!projekt) return <div className="p-10 text-white/40">Lade…</div>
   const t = projektTotals(eintraege, projekt.hourlyRate)
   const epRows = !isWorker ? leistungAnalytics(eintraege, [projekt]) : []
+  const offeneRechnungen = rechnungen.filter((r) => !r.bezahlt)
+  const offeneSumme = offeneRechnungen.reduce((sum, r) => sum + (Number(r.betrag) || 0), 0)
   const gewerkeList = isWorker && allowedGewerke.length ? allowedGewerke : s.gewerke
-  const paused = Boolean(timer && timer.pauseStartTs)
-  const workedMs = timer ? Math.max(0, now - timer.startTs - (timer.pausedMs || 0) - (timer.pauseStartTs ? now - timer.pauseStartTs : 0)) : 0
+  const paused = Boolean(timer && isPaused(timer))
+  const workedMs = timer ? Math.max(0, now - timer.startTs - pausedMsOf(timer, now)) : 0
 
   function startTimer() {
-    const tm = { gewerk, leistung, startTs: Date.now(), pausedMs: 0, pauseStartTs: null }
+    const tm = { gewerk, leistung, startTs: Date.now(), pauses: [] }
     localStorage.setItem(TIMERKEY(id), JSON.stringify(tm)); setTimer(tm); setNow(Date.now())
   }
   function pauseResume() {
     setTimer((tm) => {
       if (!tm) return tm
-      const next = tm.pauseStartTs
-        ? { ...tm, pausedMs: (tm.pausedMs || 0) + (Date.now() - tm.pauseStartTs), pauseStartTs: null }
-        : { ...tm, pauseStartTs: Date.now() }
+      const pauses = tm.pauses || []
+      const last = pauses[pauses.length - 1]
+      const nowTs = Date.now()
+      const nextPauses = last && !last.endTs
+        ? pauses.slice(0, -1).concat([{ ...last, endTs: nowTs }])
+        : pauses.concat([{ startTs: nowTs, endTs: null }])
+      const next = { ...tm, pauses: nextPauses }
       localStorage.setItem(TIMERKEY(id), JSON.stringify(next))
       return next
     })
     setNow(Date.now())
   }
   async function stopTimer() {
-    const ms = Math.max(0, Date.now() - timer.startTs - (timer.pausedMs || 0) - (timer.pauseStartTs ? Date.now() - timer.pauseStartTs : 0))
+    const stopTs = Date.now()
+    const ms = Math.max(0, stopTs - timer.startTs - pausedMsOf(timer, stopTs))
     const secs = Math.max(1, Math.round(ms / 1000))
     const mins = secs / 60 // sekundengenau als Bruchteil-Minuten
-    await addEintrag({ projektId: Number(id), type: 'zeit', gewerk: timer.gewerk, leistung: timer.leistung || '', minutes: mins })
+    const startAt = new Date(timer.startTs).toISOString()
+    const endAt = new Date(stopTs).toISOString()
+    const pausen = (timer.pauses || []).map((p) => ({ start: new Date(p.startTs).toISOString(), end: new Date(p.endTs || stopTs).toISOString() }))
+    await addEintrag({ projektId: Number(id), type: 'zeit', gewerk: timer.gewerk, leistung: timer.leistung || '', minutes: mins, startAt, endAt, pausen })
     const ctx = { gewerk: timer.gewerk, leistung: timer.leistung || '', einheit: einheitOf(s, timer.gewerk, timer.leistung || ''), maschinen: s.maschinen, workMinutes: mins }
     localStorage.removeItem(TIMERKEY(id)); setTimer(null); await load()
     if (!isWorker) setAbschluss(ctx)
@@ -433,6 +570,7 @@ export default function ProjektDetail() {
         {!isWorker && (
           <div className="flex gap-2 shrink-0">
             <button onClick={() => setTeam(true)} title="Team" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Users className="w-5 h-5" /></button>
+            <button onClick={() => setRechnungenOpen(true)} title="Rechnungen" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Receipt className="w-5 h-5" /></button>
             <button onClick={() => setNachweis(true)} title="Leistungsnachweis" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><FileText className="w-5 h-5" /></button>
           </div>
         )}
@@ -453,6 +591,15 @@ export default function ProjektDetail() {
                 <StatTile icon={Package} label="Material" value={euro(t.materialCost)} />
                 <StatTile icon={Wrench} label="Maschine" value={euro(t.maschineCost)} />
               </div>
+              {offeneRechnungen.length > 0 && (
+                <button onClick={() => setRechnungenOpen(true)} className="w-full glass card-hover rounded-2xl p-3 flex items-center gap-3 text-left">
+                  <IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-white/40 text-xs">Offene Forderungen · {offeneRechnungen.length} Rechnung{offeneRechnungen.length === 1 ? '' : 'en'}</div>
+                    <div className="font-bold text-amber">{euro(offeneSumme)}</div>
+                  </div>
+                </button>
+              )}
             </>
           )}
 
@@ -542,7 +689,11 @@ export default function ProjektDetail() {
 
       {sheet && (
         <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} onClose={() => setSheet(null)}
-          onSave={async (data) => { await addEintrag({ projektId: Number(id), ...data }); setSheet(null); await load() }} />
+          onSave={async (data) => {
+            const arr = Array.isArray(data) ? data : [data]
+            for (const d of arr) await addEintrag({ projektId: Number(id), ...d })
+            setSheet(null); await load()
+          }} />
       )}
 
       {abschluss && (
@@ -556,20 +707,44 @@ export default function ProjektDetail() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={() => setNachweis(false)}>
           <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
             <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={FileText} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Leistungsnachweis erstellen</div>
+            <div>
+              <div className="text-white/50 text-xs mb-1">Zeitraum (optional — leer = alles)</div>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" value={nvon} onChange={(e) => setNvon(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+                <input type="date" value={nbis} onChange={(e) => setNbis(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+              </div>
+            </div>
             <label className="flex items-center justify-between py-2">
               <span className="text-white/70">Mit Selbstkosten (intern)</span>
               <input type="checkbox" checked={mitKosten} onChange={(e) => setMitKosten(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
             </label>
-            <div className="text-white/40 text-xs">Aus = ohne Kosten (für den Kunden). Enthält Leistungen, Mengen, Stunden, Bautagebuch & Fotos.</div>
+            <div className="text-white/40 text-xs">Aus = ohne Kosten (für den Kunden). Enthält Zeiterfassung mit Uhrzeiten, Leistungen, Bautagebuch & Fotos.</div>
+            <label className="flex items-center justify-between py-2 border-t border-white/10">
+              <span className="text-white/70">Als offene Rechnung speichern</span>
+              <input type="checkbox" checked={alsRechnung} onChange={(e) => setAlsRechnung(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
+            </label>
+            <div className="text-white/40 text-xs">Merkt sich den Zeitraum & Betrag in „Rechnungen" — so weißt du immer, was schon abgerechnet und was noch offen ist.</div>
             <button onClick={async () => {
               try {
-                const doc = buildLeistungsnachweis(projekt, eintraege, s, { mitKosten })
+                const doc = buildLeistungsnachweis(projekt, eintraege, s, { mitKosten, von: nvon, bis: nbis })
                 await sharePdf(doc, nachweisFilename(projekt))
+                if (alsRechnung) {
+                  const gefiltert = filterByRange(eintraege, nvon, nbis)
+                  const betrag = projektTotals(gefiltert, projekt.hourlyRate).total
+                  await createRechnung({ projektId: Number(id), von: nvon || null, bis: nbis || null, betrag })
+                  setRechnungen(await listRechnungen(id))
+                }
                 setNachweis(false)
               } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
             }} className="w-full rounded-2xl py-3 font-bold btn-grad">PDF erzeugen & teilen</button>
           </div>
         </div>
+      )}
+
+      {rechnungenOpen && (
+        <RechnungenSheet rechnungen={rechnungen} onClose={() => setRechnungenOpen(false)}
+          onTogglePaid={async (r) => { await updateRechnung(r.id, { bezahlt: r.bezahlt ? 0 : 1, bezahltAm: r.bezahlt ? null : new Date().toISOString().slice(0, 10) }); setRechnungen(await listRechnungen(id)) }}
+          onDelete={async (r) => { await deleteRechnung(r.id); setRechnungen(await listRechnungen(id)) }} />
       )}
     </div>
   )

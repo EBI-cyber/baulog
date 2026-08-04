@@ -21,6 +21,9 @@ db.version(2).stores({
     await tx.table('eintraege').update(e.id, patch)
   }
 })
+db.version(3).stores({
+  rechnungen: '++id, token, projektId, projektToken, bezahlt, createdAt, synced',
+})
 
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'x' + Date.now() + Math.random().toString(16).slice(2))
 
@@ -47,11 +50,24 @@ export async function deleteEintrag(id) { return db.eintraege.delete(Number(id))
 export async function allEintraege() { return db.eintraege.toArray() }
 export async function projektMap() { const ps = await db.projekte.toArray(); const m = {}; ps.forEach((p) => { m[p.token] = p.owner }); return m }
 
+export async function createRechnung(r) {
+  const proj = await db.projekte.get(Number(r.projektId))
+  return db.rechnungen.add({ bezahlt: 0, ...r, projektToken: proj ? proj.token : r.projektToken, token: uuid(), createdAt: r.createdAt || new Date().toISOString(), synced: 0 })
+}
+export async function listRechnungen(projektId) {
+  const arr = await db.rechnungen.where('projektId').equals(Number(projektId)).toArray()
+  return arr.sort((a, b) => String(b.von || b.createdAt).localeCompare(String(a.von || a.createdAt)))
+}
+export async function updateRechnung(id, patch) { return db.rechnungen.update(Number(id), { ...patch, synced: 0 }) }
+export async function deleteRechnung(id) { return db.rechnungen.delete(Number(id)) }
+
 // --- Cloud-Sync-Helfer ---
 export async function pendingProjekte() { return (await db.projekte.toArray()).filter((p) => !p.synced) }
 export async function pendingEintraege() { return (await db.eintraege.toArray()).filter((e) => !e.synced) }
+export async function pendingRechnungen() { return (await db.rechnungen.toArray()).filter((r) => !r.synced) }
 export async function markProjektSynced(token) { const p = await db.projekte.where('token').equals(token).first(); if (p) await db.projekte.update(p.id, { synced: 1 }) }
 export async function markEintragSynced(token) { const e = await db.eintraege.where('token').equals(token).first(); if (e) await db.eintraege.update(e.id, { synced: 1 }) }
+export async function markRechnungSynced(token) { const r = await db.rechnungen.where('token').equals(token).first(); if (r) await db.rechnungen.update(r.id, { synced: 1 }) }
 
 export async function upsertProjekteFromCloud(list) {
   for (const p of list) {
@@ -69,5 +85,16 @@ export async function upsertEintraegeFromCloud(list) {
     const row = { ...e, projektId, synced: 1 }
     if (ex) await db.eintraege.update(ex.id, row)
     else await db.eintraege.add(row)
+  }
+}
+export async function upsertRechnungenFromCloud(list) {
+  const projs = await db.projekte.toArray()
+  const idByToken = {}; projs.forEach((p) => { idByToken[p.token] = p.id })
+  for (const r of list) {
+    const projektId = idByToken[r.projektToken] || r.projektId || null
+    const ex = await db.rechnungen.where('token').equals(r.token).first()
+    const row = { ...r, projektId, synced: 1 }
+    if (ex) await db.rechnungen.update(ex.id, row)
+    else await db.rechnungen.add(row)
   }
 }

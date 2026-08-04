@@ -1,12 +1,15 @@
 import { jsPDF } from 'jspdf'
+import { filterByRange } from './calc'
 
 const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' EUR'
 const hh = (min) => ((Number(min) || 0) / 60).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' h'
 const num = (n) => (Number(n) || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 })
 const dmy = (d) => { try { return new Date(d).toLocaleDateString('de-DE') } catch { return '' } }
+const hm = (d) => { try { return new Date(d).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) } catch { return '' } }
 
-export function buildLeistungsnachweis(projekt, eintraege, s, opts = {}) {
+export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   const mitKosten = opts.mitKosten !== false
+  const eintraege = filterByRange(alleEintraege, opts.von, opts.bis)
   const rate = Number(projekt.hourlyRate) || 0
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const M = 48, R = 547
@@ -33,6 +36,30 @@ export function buildLeistungsnachweis(projekt, eintraege, s, opts = {}) {
   if (dates.length) { doc.text('Zeitraum: ' + dmy(dates[0]) + ' – ' + dmy(dates[dates.length - 1]), M, y); y += 14 }
   doc.text('Erstellt: ' + dmy(new Date().toISOString()), M, y); y += 8
   line()
+
+  // Zeiterfassung — chronologisch mit echten Uhrzeiten (Timer-Start/Pause/Ende)
+  const zeitEntries = eintraege.filter((e) => e.type === 'zeit')
+    .slice().sort((a, b) => String(a.startAt || a.createdAt).localeCompare(String(b.startAt || b.createdAt)))
+  if (zeitEntries.length) {
+    need(30); doc.setFont('helvetica', 'bold').setFontSize(11).text('Zeiterfassung', M, y); y += 16
+    doc.setFontSize(9)
+    zeitEntries.forEach((e) => {
+      const what = (e.gewerk || '') + (e.leistung ? ' › ' + e.leistung : '')
+      let head
+      if (e.startAt && e.endAt) {
+        head = dmy(e.startAt) + '  ' + hm(e.startAt) + '–' + hm(e.endAt) + ' Uhr'
+        if (e.pausen && e.pausen.length) {
+          head += '  (Pause ' + e.pausen.map((p) => hm(p.start) + '–' + hm(p.end)).join(', ') + ')'
+        }
+      } else {
+        head = dmy(e.createdAt) + '  Dauer ohne erfasste Uhrzeit'
+      }
+      const lines = doc.splitTextToSize(head + '   ·  ' + (what || '(allgemein)') + '   ·  ' + hh(e.minutes), R - M)
+      need(lines.length * 12 + 2)
+      doc.text(lines, M, y); y += lines.length * 12 + 2
+    })
+    doc.setFont('helvetica', 'normal'); y += 8; line()
+  }
 
   // Leistungen gruppieren
   const groups = {}

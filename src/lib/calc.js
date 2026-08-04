@@ -1,3 +1,14 @@
+// Einträge auf einen Zeitraum (YYYY-MM-DD, inklusive) eingrenzen
+export function filterByRange(eintraege, von, bis) {
+  if (!von && !bis) return eintraege
+  return eintraege.filter((e) => {
+    const d = String(e.createdAt || '').slice(0, 10)
+    if (von && d < von) return false
+    if (bis && d > bis) return false
+    return true
+  })
+}
+
 // Selbstkosten eines Projekts aus seinen Einträgen
 export function projektTotals(eintraege, rate) {
   let minutes = 0, materialCost = 0, maschineCost = 0, photos = 0, diary = 0

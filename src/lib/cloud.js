@@ -1,7 +1,7 @@
 import { supabase, isCloudReady } from './supabase'
 import {
-  pendingProjekte, pendingEintraege, markProjektSynced, markEintragSynced,
-  upsertProjekteFromCloud, upsertEintraegeFromCloud, projektMap,
+  pendingProjekte, pendingEintraege, pendingRechnungen, markProjektSynced, markEintragSynced, markRechnungSynced,
+  upsertProjekteFromCloud, upsertEintraegeFromCloud, upsertRechnungenFromCloud, projektMap,
 } from './db'
 
 async function hasSession() {
@@ -23,12 +23,22 @@ const eintToRow = (e) => ({
   einheit: e.einheit || '', menge: Number(e.menge) || null, minutes: Number(e.minutes) || null,
   label: e.label || '', qty: Number(e.qty) || null, unit_cost: Number(e.unitCost) || null,
   maschine: e.maschine || '', satz: Number(e.satz) || null, data_url: e.dataUrl || '', note: e.note || '', text: e.text || '',
+  start_at: e.startAt || null, end_at: e.endAt || null, pausen: e.pausen && e.pausen.length ? e.pausen : null,
   created_at: e.createdAt,
 })
 const eintFromRow = (r) => ({
   token: r.token, projektToken: r.projekt_token, type: r.type, gewerk: r.gewerk, leistung: r.leistung,
   einheit: r.einheit, menge: r.menge, minutes: r.minutes, label: r.label, qty: r.qty, unitCost: r.unit_cost,
-  maschine: r.maschine, satz: r.satz, dataUrl: r.data_url, note: r.note, text: r.text, createdAt: r.created_at, owner: r.owner,
+  maschine: r.maschine, satz: r.satz, dataUrl: r.data_url, note: r.note, text: r.text,
+  startAt: r.start_at, endAt: r.end_at, pausen: r.pausen || null, createdAt: r.created_at, owner: r.owner,
+})
+const rechToRow = (r) => ({
+  token: r.token, projekt_token: r.projektToken, von: r.von || null, bis: r.bis || null,
+  betrag: Number(r.betrag) || 0, bezahlt: Boolean(r.bezahlt), bezahlt_am: r.bezahltAm || null, created_at: r.createdAt,
+})
+const rechFromRow = (r) => ({
+  token: r.token, projektToken: r.projekt_token, von: r.von, bis: r.bis,
+  betrag: r.betrag, bezahlt: r.bezahlt ? 1 : 0, bezahltAm: r.bezahlt_am, createdAt: r.created_at, owner: r.owner,
 })
 
 export async function syncAll() {
@@ -51,5 +61,13 @@ export async function syncAll() {
   if (projs) await upsertProjekteFromCloud(projs.map(projFromRow))
   const { data: eints } = await supabase.from('bau_eintraege').select('*')
   if (eints) await upsertEintraegeFromCloud(eints.map(eintFromRow))
+
+  const pRech = await pendingRechnungen()
+  if (pRech.length) {
+    const { error } = await supabase.from('bau_rechnungen').upsert(pRech.map(rechToRow), { onConflict: 'token' })
+    if (!error) for (const r of pRech) await markRechnungSynced(r.token)
+  }
+  const { data: rechs } = await supabase.from('bau_rechnungen').select('*')
+  if (rechs) await upsertRechnungenFromCloud(rechs.map(rechFromRow))
   return { ok: true }
 }
