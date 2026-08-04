@@ -5,6 +5,7 @@ import { syncAll } from './lib/cloud'
 import { listProjekte } from './lib/db'
 import { RoleContext } from './lib/role'
 import Nav from './components/Nav'
+import DailyReminder from './components/DailyReminder'
 import Projekte from './screens/Projekte'
 import ProjektDetail from './screens/ProjektDetail'
 import Dashboard from './screens/Dashboard'
@@ -71,6 +72,7 @@ function Shell() {
           <Route path="/einstellungen" element={<Einstellungen />} />
         </Routes>
       </Layout>
+      <DailyReminder />
     </RoleContext.Provider>
   )
 }

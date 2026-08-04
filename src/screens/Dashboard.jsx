@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { FolderKanban, Clock, Wallet, Layers, Ruler, Lightbulb } from 'lucide-react'
-import { listProjekte, allEintraege } from '../lib/db'
+import { FolderKanban, Clock, Wallet, Layers, Ruler, Lightbulb, Receipt, PiggyBank } from 'lucide-react'
+import { listProjekte, allEintraege, allRechnungen } from '../lib/db'
 import { gewerkAnalytics, projektTotals, leistungAnalytics } from '../lib/calc'
 import { euro, hrs } from '../lib/format'
 import IconChip from '../ui/IconChip'
@@ -20,7 +20,8 @@ function Stat({ icon, label, value, grad }) {
 export default function Dashboard() {
   const [projekte, setProjekte] = useState([])
   const [eintraege, setEintraege] = useState([])
-  useEffect(() => { (async () => { setProjekte(await listProjekte()); setEintraege(await allEintraege()) })() }, [])
+  const [rechnungen, setRechnungen] = useState([])
+  useEffect(() => { (async () => { setProjekte(await listProjekte()); setEintraege(await allEintraege()); setRechnungen(await allRechnungen()) })() }, [])
 
   const totalMin = eintraege.filter((e) => e.type === 'zeit').reduce((a, e) => a + (Number(e.minutes) || 0), 0)
   let totalCost = 0
@@ -28,15 +29,31 @@ export default function Dashboard() {
   const gw = gewerkAnalytics(eintraege, projekte)
   const la = leistungAnalytics(eintraege, projekte)
 
+  // aktueller Saldo je Projekt = jüngster Abschnitt (höchste Nr.); offene Forderungen & Kunden-Guthaben über alle Projekte
+  const aktuellerProjektSaldo = {}
+  rechnungen.forEach((r) => {
+    const cur = aktuellerProjektSaldo[r.projektId]
+    if (!cur || (Number(r.nr) || 0) > (Number(cur.nr) || 0)) aktuellerProjektSaldo[r.projektId] = r
+  })
+  const salden = Object.values(aktuellerProjektSaldo).map((r) => Number(r.saldo) || 0)
+  const offenGesamt = salden.filter((x) => x > 0).reduce((a, x) => a + x, 0)
+  const guthabenGesamt = salden.filter((x) => x < 0).reduce((a, x) => a - x, 0)
+
   return (
     <div className="px-6 md:px-8 pt-10 md:pt-12">
       <h2 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight mb-5">Auswertung</h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-7">
+      <div className={'grid grid-cols-1 sm:grid-cols-3 gap-3 ' + (rechnungen.length > 0 ? 'mb-3' : 'mb-7')}>
         <Stat icon={FolderKanban} label="Projekte" value={projekte.length} />
         <Stat icon={Clock} label="Stunden" value={hrs(totalMin)} />
         <Stat icon={Wallet} label="Selbstkosten" value={euro(totalCost)} grad />
       </div>
+      {rechnungen.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-7">
+          <Stat icon={Receipt} label="Offene Forderungen (alle Projekte)" value={euro(offenGesamt)} />
+          <Stat icon={PiggyBank} label="Guthaben bei Kunden (überzahlt)" value={euro(guthabenGesamt)} />
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-x-8 gap-y-7">
         <section>

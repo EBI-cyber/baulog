@@ -33,12 +33,16 @@ const eintFromRow = (r) => ({
   startAt: r.start_at, endAt: r.end_at, pausen: r.pausen || null, createdAt: r.created_at, owner: r.owner,
 })
 const rechToRow = (r) => ({
-  token: r.token, projekt_token: r.projektToken, von: r.von || null, bis: r.bis || null,
-  betrag: Number(r.betrag) || 0, bezahlt: Boolean(r.bezahlt), bezahlt_am: r.bezahltAm || null, created_at: r.createdAt,
+  token: r.token, projekt_token: r.projektToken, nr: Number(r.nr) || null, von: r.von || null, bis: r.bis || null,
+  betrag: Number(r.betrag) || 0, vorheriger_saldo: Number(r.vorherigerSaldo) || 0,
+  gesamtbetrag: Number(r.gesamtbetrag) || Number(r.betrag) || 0, bezahlter_betrag: Number(r.bezahlterBetrag) || 0,
+  saldo: Number(r.saldo) || 0, bezahlt: Boolean(r.bezahlt), bezahlt_am: r.bezahltAm || null, created_at: r.createdAt,
 })
 const rechFromRow = (r) => ({
-  token: r.token, projektToken: r.projekt_token, von: r.von, bis: r.bis,
-  betrag: r.betrag, bezahlt: r.bezahlt ? 1 : 0, bezahltAm: r.bezahlt_am, createdAt: r.created_at, owner: r.owner,
+  token: r.token, projektToken: r.projekt_token, nr: r.nr, von: r.von, bis: r.bis,
+  betrag: r.betrag, vorherigerSaldo: r.vorheriger_saldo, gesamtbetrag: r.gesamtbetrag,
+  bezahlterBetrag: r.bezahlter_betrag, saldo: r.saldo,
+  bezahlt: r.bezahlt ? 1 : 0, bezahltAm: r.bezahlt_am, createdAt: r.created_at, owner: r.owner,
 })
 
 export async function syncAll() {

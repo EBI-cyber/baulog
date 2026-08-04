@@ -51,6 +51,12 @@ create table if not exists public.bau_rechnungen (
   bezahlt_am    date,
   created_at    timestamptz not null default now()
 );
+-- Fortlaufende Abschnitt-Nr. + Saldo-Verrechnung zwischen Abschnitten
+alter table public.bau_rechnungen add column if not exists nr               int;
+alter table public.bau_rechnungen add column if not exists vorheriger_saldo numeric not null default 0;
+alter table public.bau_rechnungen add column if not exists gesamtbetrag    numeric;
+alter table public.bau_rechnungen add column if not exists bezahlter_betrag numeric not null default 0;
+alter table public.bau_rechnungen add column if not exists saldo           numeric;
 
 alter table public.bau_projekte   enable row level security;
 alter table public.bau_eintraege  enable row level security;

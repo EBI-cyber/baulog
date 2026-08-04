@@ -60,6 +60,7 @@ export async function listRechnungen(projektId) {
 }
 export async function updateRechnung(id, patch) { return db.rechnungen.update(Number(id), { ...patch, synced: 0 }) }
 export async function deleteRechnung(id) { return db.rechnungen.delete(Number(id)) }
+export async function allRechnungen() { return db.rechnungen.toArray() }
 
 // --- Cloud-Sync-Helfer ---
 export async function pendingProjekte() { return (await db.projekte.toArray()).filter((p) => !p.synced) }

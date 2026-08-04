@@ -104,6 +104,7 @@ export const defaultGewerke = [
 
 export const defaultSettings = {
   defaultRate: 45,
+  rundungMinuten: 0,
   gewerke: defaultGewerke,
   leistungskatalog: defaultKatalog,
   maschinen: [

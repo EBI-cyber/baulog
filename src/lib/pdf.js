@@ -105,6 +105,23 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   if (mitKosten) doc.text('Selbstkosten gesamt: ' + eur(sumCost), R, y, { align: 'right' })
   doc.setFont('helvetica', 'normal'); y += 18
 
+  // Abrechnungs-Abschnitt: Verrechnung mit Saldo aus dem vorherigen Abschnitt
+  if (mitKosten && opts.abschnittNr != null) {
+    need(56)
+    doc.setFont('helvetica', 'bold').setFontSize(11).text('Abrechnung — Abschnitt Nr. ' + opts.abschnittNr, M, y); y += 16
+    doc.setFont('helvetica', 'normal').setFontSize(9.5)
+    doc.text('Leistungen dieses Abschnitts', M, y); doc.text(eur(sumCost), R, y, { align: 'right' }); y += 14
+    const vs = Number(opts.vorherigerSaldo) || 0
+    if (vs !== 0) {
+      doc.text(vs > 0 ? 'Übertrag — noch offen aus Abschnitt ' + (opts.abschnittNr - 1) : 'Übertrag — Guthaben aus Abschnitt ' + (opts.abschnittNr - 1), M, y)
+      doc.text((vs > 0 ? '+' : '') + eur(vs), R, y, { align: 'right' }); y += 14
+    }
+    line()
+    doc.setFont('helvetica', 'bold').setFontSize(10.5)
+    doc.text('Gesamtbetrag nach Verrechnung', M, y); doc.text(eur(sumCost + vs), R, y, { align: 'right' }); y += 18
+    doc.setFont('helvetica', 'normal')
+  }
+
   // Tagebuch
   const diary = eintraege.filter((e) => e.type === 'tagebuch' && e.text)
   if (diary.length) {
@@ -144,3 +161,61 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
 }
 
 export const nachweisFilename = (projekt) => 'Leistungsnachweis_' + String(projekt.name || 'Projekt').replace(/[^\w\-]+/g, '_') + '.pdf'
+
+// Gesamtübersicht aller Abrechnungs-Abschnitte eines Projekts (Betrag/bezahlt/Saldo, chronologisch)
+export function buildAbrechnungsUebersicht(projekt, rechnungen, s) {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  const M = 48, R = 547
+  let y = 56
+  const line = () => { doc.setDrawColor(210).line(M, y, R, y); y += 14 }
+  const need = (h) => { if (y + h > 800) { doc.addPage(); y = 56 } }
+
+  doc.setFont('helvetica', 'bold').setFontSize(18).text(s.company || 'Abrechnungsübersicht', M, y)
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(90)
+  y += 16
+  ;[s.owner, s.street, [s.zip, s.city].filter(Boolean).join(' ')].filter(Boolean).forEach((t) => { doc.text(String(t), M, y); y += 12 })
+  doc.setTextColor(0)
+  y += 14
+  doc.setFont('helvetica', 'bold').setFontSize(15).text('Abrechnungsübersicht', M, y); y += 20
+  doc.setFont('helvetica', 'normal').setFontSize(10)
+  doc.text('Projekt: ' + (projekt.name || ''), M, y); y += 14
+  if (projekt.customer) { doc.text('Kunde: ' + projekt.customer, M, y); y += 14 }
+  doc.text('Erstellt: ' + dmy(new Date().toISOString()), M, y); y += 8
+  line()
+
+  const asc = rechnungen.slice().sort((a, b) => (Number(a.nr) || 0) - (Number(b.nr) || 0))
+  const cZeit = 118, cBetrag = 350, cBezahlt = 425
+  doc.setFont('helvetica', 'bold').setFontSize(9)
+  doc.text('Abschn.', M, y); doc.text('Zeitraum', cZeit, y); doc.text('Betrag', cBetrag, y); doc.text('Bezahlt', cBezahlt, y); doc.text('Saldo', R, y, { align: 'right' })
+  doc.setFont('helvetica', 'normal'); y += 4; line()
+
+  let sumBetrag = 0, sumBezahlt = 0
+  asc.forEach((r) => {
+    need(16)
+    const gesamt = Number(r.gesamtbetrag ?? r.betrag) || 0
+    const bezahlt = Number(r.bezahlterBetrag) || 0
+    const saldo = r.saldo != null ? Number(r.saldo) : gesamt - bezahlt
+    sumBetrag += gesamt; sumBezahlt += bezahlt
+    doc.text(String(r.nr ?? '–'), M, y)
+    doc.text((r.von ? dmy(r.von) : '…') + ' – ' + (r.bis ? dmy(r.bis) : '…'), cZeit, y)
+    doc.text(eur(gesamt), cBetrag, y)
+    doc.text(eur(bezahlt), cBezahlt, y)
+    doc.text((saldo > 0 ? 'offen ' : saldo < 0 ? 'Guthaben ' : '') + eur(Math.abs(saldo)), R, y, { align: 'right' })
+    y += 15
+  })
+  y += 2; line()
+  doc.setFont('helvetica', 'bold').setFontSize(10)
+  const endSaldo = asc.length ? Number(asc[asc.length - 1].saldo) || 0 : 0
+  doc.text('Gesamt in Rechnung gestellt: ' + eur(sumBetrag), M, y); y += 14
+  doc.text('Gesamt bezahlt: ' + eur(sumBezahlt), M, y); y += 14
+  doc.text('Aktueller Saldo: ' + eur(endSaldo) + (endSaldo > 0 ? ' (offen)' : endSaldo < 0 ? ' (Guthaben)' : ' (ausgeglichen)'), M, y)
+
+  const pages = doc.getNumberOfPages()
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i); doc.setFontSize(7).setTextColor(140)
+    doc.text('Erstellt mit BauLog · ' + dmy(new Date().toISOString()) + ' · Seite ' + i + '/' + pages, M, 812)
+    doc.setTextColor(0)
+  }
+  return doc
+}
+export const uebersichtFilename = (projekt) => 'Abrechnungsuebersicht_' + String(projekt.name || 'Projekt').replace(/[^\w\-]+/g, '_') + '.pdf'

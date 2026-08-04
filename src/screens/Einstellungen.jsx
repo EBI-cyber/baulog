@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Building2, BadgeEuro, Layers, ListChecks, Wrench, Sparkles, Cloud, RefreshCw, LogOut, Plus, Download, X, Save } from 'lucide-react'
+import { Building2, BadgeEuro, Layers, ListChecks, Wrench, Sparkles, Cloud, RefreshCw, LogOut, Plus, Download, X, Save, Timer } from 'lucide-react'
 import { loadSettings, saveSettings, EINHEITEN, mergeDinKatalog } from '../lib/settings'
 import { useAuth } from '../lib/auth'
 import { syncAll } from '../lib/cloud'
@@ -96,6 +96,15 @@ export default function Einstellungen() {
 
         <Section icon={BadgeEuro} title="Standard-Stundensatz" hint="Selbstkosten €/h · Basis für Lohnkosten">
           <input value={s.defaultRate} onChange={(e) => upd('defaultRate', e.target.value)} inputMode="decimal" className={inp} />
+        </Section>
+
+        <Section icon={Timer} title="Rundung Timer-Erfassung" hint="Stoppzeit auf volle Schritte aufrunden — für glatte Abrechnung">
+          <select value={s.rundungMinuten || 0} onChange={(e) => upd('rundungMinuten', Number(e.target.value))} className={inp}>
+            <option value={0}>Aus — sekundengenau</option>
+            <option value={5}>Auf 5 Minuten aufrunden</option>
+            <option value={15}>Auf 15 Minuten aufrunden</option>
+            <option value={30}>Auf 30 Minuten aufrunden</option>
+          </select>
         </Section>
 
         <Section icon={Layers} title="Gewerke">

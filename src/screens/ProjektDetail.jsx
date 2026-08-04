@@ -10,7 +10,7 @@ import { euro, hrs, hms, dmy, dmyhm, hm, clock, dinMaschinenText } from '../lib/
 import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
 import { dinText, parseSetup, parseAbschluss } from '../lib/ai'
-import { buildLeistungsnachweis, nachweisFilename } from '../lib/pdf'
+import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename } from '../lib/pdf'
 import { sharePdf } from '../lib/share'
 import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
@@ -50,6 +50,14 @@ function pausedMsOf(tm, now) {
 function isPaused(tm) {
   if (tm.pauses) { const last = tm.pauses[tm.pauses.length - 1]; return Boolean(last && !last.endTs) }
   return Boolean(tm.pauseStartTs)
+}
+
+// datetime-local-Wert auf "heute"/"gestern" setzen, Uhrzeit-Anteil bleibt erhalten
+function quickDay(daysAgo, current) {
+  const d = new Date(); d.setDate(d.getDate() - daysAgo)
+  const pad = (n) => String(n).padStart(2, '0')
+  const timePart = current && current.includes('T') ? current.slice(11) : new Date().toTimeString().slice(0, 5)
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + timePart
 }
 
 function StatTile({ icon, label, value, grad, big }) {
@@ -204,8 +212,12 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
           <>
             <input value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" placeholder="Minuten (z.B. 90)" className={inp} />
             <div>
+              <div className="flex gap-1.5 mb-1.5">
+                <button type="button" onClick={() => setStartzeit(quickDay(0, startzeit))} className="px-2.5 py-1 rounded-full text-xs border border-white/15 text-white/60 hover:border-white/30">Heute</button>
+                <button type="button" onClick={() => setStartzeit(quickDay(1, startzeit))} className="px-2.5 py-1 rounded-full text-xs border border-white/15 text-white/60 hover:border-white/30">Gestern</button>
+              </div>
               <input type="datetime-local" value={startzeit} onChange={(e) => setStartzeit(e.target.value)} className={inp} />
-              <div className="text-white/35 text-[11px] mt-1">Startzeit (optional) — für genaue Uhrzeiten im Leistungsnachweis</div>
+              <div className="text-white/35 text-[11px] mt-1">Startzeit (optional) — für genaue Uhrzeiten im Leistungsnachweis, z.B. zum Nachtragen von gestern</div>
             </div>
           </>
         )}
@@ -428,33 +440,60 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
   )
 }
 
-function RechnungenSheet({ rechnungen, onClose, onTogglePaid, onDelete }) {
-  const offen = rechnungen.filter((r) => !r.bezahlt)
-  const offenSumme = offen.reduce((sum, r) => sum + (Number(r.betrag) || 0), 0)
+function RechnungRow({ r, onSavePayment, onDelete }) {
+  const [val, setVal] = useState(String(r.bezahlterBetrag ?? 0))
+  const gesamt = Number(r.gesamtbetrag ?? r.betrag) || 0
+  const saldo = r.saldo != null ? Number(r.saldo) : gesamt - (Number(r.bezahlterBetrag) || 0)
+  return (
+    <div className="glass rounded-2xl p-3 space-y-2">
+      <div className="flex items-center gap-3">
+        <IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm truncate">Abschnitt {r.nr ?? '–'} · {r.von ? dmy(r.von) : '…'} – {r.bis ? dmy(r.bis) : '…'}</div>
+          <div className="text-white/40 text-xs">
+            Leistungen {euro(r.betrag)}
+            {r.vorherigerSaldo ? (r.vorherigerSaldo > 0 ? ' + Übertrag ' + euro(r.vorherigerSaldo) : ' − Übertrag ' + euro(Math.abs(r.vorherigerSaldo))) : ''}
+            {' = '}{euro(gesamt)}
+          </div>
+        </div>
+        <button onClick={() => onDelete(r)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
+      </div>
+      <div className="flex items-center gap-2 pl-1 flex-wrap">
+        <span className="text-white/45 text-xs shrink-0">Bezahlt:</span>
+        <input value={val} onChange={(e) => setVal(e.target.value)} inputMode="decimal" className="w-24 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm" />
+        <button onClick={() => onSavePayment(r, val)} className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white/10">Speichern</button>
+        <span className={'ml-auto text-xs font-semibold px-2.5 py-1 rounded-full ' + (saldo > 0 ? 'bg-ember/20 text-ember' : saldo < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/50')}>
+          {saldo > 0 ? 'Offen ' + euro(saldo) : saldo < 0 ? 'Überzahlt ' + euro(Math.abs(saldo)) : 'Ausgeglichen'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function RechnungenSheet({ rechnungen, onClose, onSavePayment, onDelete, onExportPdf }) {
+  const gesamtRechnung = rechnungen.reduce((sum, r) => sum + (Number(r.gesamtbetrag ?? r.betrag) || 0), 0)
+  const gesamtBezahlt = rechnungen.reduce((sum, r) => sum + (Number(r.bezahlterBetrag) || 0), 0)
+  const aktuellerSaldo = rechnungen.length ? (Number(rechnungen[0].saldo) || 0) : 0
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
-      <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
-        <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Rechnungen</div>
-        <div className="text-white/45 text-sm">Offene Forderungen: <b className="text-amber">{euro(offenSumme)}</b>{offen.length ? ' (' + offen.length + ' Rechnung' + (offen.length === 1 ? '' : 'en') + ')' : ''}</div>
+      <div className="glass w-full max-w-lg mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Abrechnungsübersicht</div>
+        {rechnungen.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-white/5 rounded-xl p-2"><div className="text-white/40 text-[11px]">Gestellt</div><div className="font-bold text-sm">{euro(gesamtRechnung)}</div></div>
+            <div className="bg-white/5 rounded-xl p-2"><div className="text-white/40 text-[11px]">Bezahlt</div><div className="font-bold text-sm">{euro(gesamtBezahlt)}</div></div>
+            <div className="bg-white/5 rounded-xl p-2"><div className="text-white/40 text-[11px]">Saldo</div><div className={'font-bold text-sm ' + (aktuellerSaldo > 0 ? 'text-ember' : aktuellerSaldo < 0 ? 'text-emerald-400' : '')}>{euro(aktuellerSaldo)}</div></div>
+          </div>
+        )}
         <div className="space-y-2">
           {rechnungen.length === 0 && (
-            <div className="text-white/35 text-sm">Noch keine Rechnung erstellt — im Leistungsnachweis-Dialog „Als offene Rechnung speichern" aktivieren.</div>
+            <div className="text-white/35 text-sm">Noch keinen Abschnitt erstellt — im Leistungsnachweis-Dialog „Als neuen Abschnitt festhalten" aktivieren.</div>
           )}
-          {rechnungen.map((r) => (
-            <div key={r.id} className="glass rounded-2xl p-3 flex items-center gap-3">
-              <IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm truncate">{r.von ? dmy(r.von) : '…'} – {r.bis ? dmy(r.bis) : '…'}</div>
-                <div className="text-white/40 text-xs">{euro(r.betrag)}{r.bezahlt && r.bezahltAm ? ' · bezahlt am ' + dmy(r.bezahltAm) : ''}</div>
-              </div>
-              <button onClick={() => onTogglePaid(r)}
-                className={'shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full inline-flex items-center gap-1 transition ' + (r.bezahlt ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber/20 text-amber')}>
-                {r.bezahlt ? <><Check className="w-3.5 h-3.5" /> Bezahlt</> : 'Offen'}
-              </button>
-              <button onClick={() => onDelete(r)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
-            </div>
-          ))}
+          {rechnungen.map((r) => <RechnungRow key={r.id} r={r} onSavePayment={onSavePayment} onDelete={onDelete} />)}
         </div>
+        {rechnungen.length > 0 && (
+          <button onClick={onExportPdf} className="w-full rounded-2xl py-2.5 font-semibold bg-white/10 inline-flex items-center justify-center gap-2"><FileText className="w-4 h-4" /> Gesamtübersicht als PDF</button>
+        )}
         <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Schließen</button>
       </div>
     </div>
@@ -493,6 +532,18 @@ export default function ProjektDetail() {
   }
   useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); if (t) setTimer(JSON.parse(t)) }, [id])
   useEffect(() => { if (!timer || isPaused(timer)) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [timer])
+  // Nachweis-Dialog öffnen: Zeitraum an letzten Abschnitt anschließen, damit sich Abrechnungen nicht überschneiden
+  useEffect(() => {
+    if (!nachweis) return
+    const last = rechnungen.reduce((max, r) => (!max || (Number(r.nr) || 0) > (Number(max.nr) || 0) ? r : max), null)
+    if (last && last.bis) {
+      const d = new Date(last.bis); d.setDate(d.getDate() + 1)
+      const pad = (n) => String(n).padStart(2, '0')
+      setNvon(d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()))
+    } else setNvon('')
+    setNbis(new Date().toISOString().slice(0, 10))
+    setAlsRechnung(true)
+  }, [nachweis])
   // Mitarbeiter: nur zugewiesene Gewerke laden
   useEffect(() => {
     if (!isWorker || !projekt || !user) return
@@ -509,8 +560,11 @@ export default function ProjektDetail() {
   if (!projekt) return <div className="p-10 text-white/40">Lade…</div>
   const t = projektTotals(eintraege, projekt.hourlyRate)
   const epRows = !isWorker ? leistungAnalytics(eintraege, [projekt]) : []
-  const offeneRechnungen = rechnungen.filter((r) => !r.bezahlt)
-  const offeneSumme = offeneRechnungen.reduce((sum, r) => sum + (Number(r.betrag) || 0), 0)
+  const offeneRechnungen = rechnungen.filter((r) => (Number(r.saldo) || 0) > 0)
+  const offeneSumme = offeneRechnungen.reduce((sum, r) => sum + (Number(r.saldo) || 0), 0)
+  const letzterAbschnitt = rechnungen.reduce((max, r) => (!max || (Number(r.nr) || 0) > (Number(max.nr) || 0) ? r : max), null)
+  const vorherigerSaldo = letzterAbschnitt ? (Number(letzterAbschnitt.saldo) || 0) : 0
+  const naechsteAbschnittNr = (letzterAbschnitt ? Number(letzterAbschnitt.nr) || rechnungen.length : 0) + 1
   const gewerkeList = isWorker && allowedGewerke.length ? allowedGewerke : s.gewerke
   const paused = Boolean(timer && isPaused(timer))
   const workedMs = timer ? Math.max(0, now - timer.startTs - pausedMsOf(timer, now)) : 0
@@ -535,10 +589,12 @@ export default function ProjektDetail() {
     setNow(Date.now())
   }
   async function stopTimer() {
-    const stopTs = Date.now()
+    let stopTs = Date.now()
+    const rundung = Number(s.rundungMinuten) || 0
+    if (rundung > 0) { const stepMs = rundung * 60000; stopTs = Math.ceil(stopTs / stepMs) * stepMs }
     const ms = Math.max(0, stopTs - timer.startTs - pausedMsOf(timer, stopTs))
     const secs = Math.max(1, Math.round(ms / 1000))
-    const mins = secs / 60 // sekundengenau als Bruchteil-Minuten
+    const mins = secs / 60 // sekundengenau als Bruchteil-Minuten (bzw. gerundet auf Rundungsschritt)
     const startAt = new Date(timer.startTs).toISOString()
     const endAt = new Date(stopTs).toISOString()
     const pausen = (timer.pauses || []).map((p) => ({ start: new Date(p.startTs).toISOString(), end: new Date(p.endTs || stopTs).toISOString() }))
@@ -720,18 +776,31 @@ export default function ProjektDetail() {
             </label>
             <div className="text-white/40 text-xs">Aus = ohne Kosten (für den Kunden). Enthält Zeiterfassung mit Uhrzeiten, Leistungen, Bautagebuch & Fotos.</div>
             <label className="flex items-center justify-between py-2 border-t border-white/10">
-              <span className="text-white/70">Als offene Rechnung speichern</span>
+              <span className="text-white/70">Als neuen Abschnitt (Nr. {naechsteAbschnittNr}) festhalten</span>
               <input type="checkbox" checked={alsRechnung} onChange={(e) => setAlsRechnung(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
             </label>
-            <div className="text-white/40 text-xs">Merkt sich den Zeitraum & Betrag in „Rechnungen" — so weißt du immer, was schon abgerechnet und was noch offen ist.</div>
+            <div className="text-white/40 text-xs">Trennt diese Abrechnung sauber vom nächsten Abschnitt und merkt Zeitraum & Betrag in „Rechnungen".</div>
+            {alsRechnung && mitKosten && vorherigerSaldo !== 0 && (
+              <div className={'rounded-xl p-3 text-sm border ' + (vorherigerSaldo > 0 ? 'bg-ember/10 text-ember border-ember/25' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25')}>
+                {vorherigerSaldo > 0
+                  ? 'Offener Saldo aus Abschnitt ' + letzterAbschnitt.nr + ': ' + euro(vorherigerSaldo) + ' — wird zu diesem Abschnitt addiert und im PDF verrechnet.'
+                  : 'Guthaben aus Überzahlung (Abschnitt ' + letzterAbschnitt.nr + '): ' + euro(Math.abs(vorherigerSaldo)) + ' — wird von diesem Abschnitt abgezogen und im PDF verrechnet.'}
+              </div>
+            )}
             <button onClick={async () => {
               try {
-                const doc = buildLeistungsnachweis(projekt, eintraege, s, { mitKosten, von: nvon, bis: nbis })
+                const gefiltert = filterByRange(eintraege, nvon, nbis)
+                const betrag = projektTotals(gefiltert, projekt.hourlyRate).total
+                const pdfOpts = { mitKosten, von: nvon, bis: nbis }
+                if (alsRechnung) { pdfOpts.abschnittNr = naechsteAbschnittNr; pdfOpts.vorherigerSaldo = vorherigerSaldo }
+                const doc = buildLeistungsnachweis(projekt, eintraege, s, pdfOpts)
                 await sharePdf(doc, nachweisFilename(projekt))
                 if (alsRechnung) {
-                  const gefiltert = filterByRange(eintraege, nvon, nbis)
-                  const betrag = projektTotals(gefiltert, projekt.hourlyRate).total
-                  await createRechnung({ projektId: Number(id), von: nvon || null, bis: nbis || null, betrag })
+                  const gesamtbetrag = betrag + vorherigerSaldo
+                  await createRechnung({
+                    projektId: Number(id), nr: naechsteAbschnittNr, von: nvon || null, bis: nbis || null,
+                    betrag, vorherigerSaldo, gesamtbetrag, bezahlterBetrag: 0, saldo: gesamtbetrag, bezahlt: false,
+                  })
                   setRechnungen(await listRechnungen(id))
                 }
                 setNachweis(false)
@@ -743,8 +812,15 @@ export default function ProjektDetail() {
 
       {rechnungenOpen && (
         <RechnungenSheet rechnungen={rechnungen} onClose={() => setRechnungenOpen(false)}
-          onTogglePaid={async (r) => { await updateRechnung(r.id, { bezahlt: r.bezahlt ? 0 : 1, bezahltAm: r.bezahlt ? null : new Date().toISOString().slice(0, 10) }); setRechnungen(await listRechnungen(id)) }}
-          onDelete={async (r) => { await deleteRechnung(r.id); setRechnungen(await listRechnungen(id)) }} />
+          onSavePayment={async (r, valStr) => {
+            const bezahlterBetrag = Number(valStr) || 0
+            const gesamt = Number(r.gesamtbetrag ?? r.betrag) || 0
+            const saldo = gesamt - bezahlterBetrag
+            await updateRechnung(r.id, { bezahlterBetrag, saldo, bezahlt: saldo <= 0, bezahltAm: new Date().toISOString().slice(0, 10) })
+            setRechnungen(await listRechnungen(id))
+          }}
+          onDelete={async (r) => { await deleteRechnung(r.id); setRechnungen(await listRechnungen(id)) }}
+          onExportPdf={async () => { const doc = buildAbrechnungsUebersicht(projekt, rechnungen, s); await sharePdf(doc, uebersichtFilename(projekt)) }} />
       )}
     </div>
   )
