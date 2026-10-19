@@ -4,7 +4,13 @@ import { supabase } from './supabase'
 async function callAI(body) {
   if (!supabase) throw new Error('Keine Cloud-Verbindung — bitte einloggen.')
   const { data, error } = await supabase.functions.invoke('baulog-ai', { body })
-  if (error) throw new Error('KI-Fehler: ' + (error.message || String(error)))
+  if (error) {
+    // error.context ist bei FunctionsHttpError die rohe Response der Edge Function —
+    // dort steckt die eigentliche Fehlermeldung (JSON {error: "..."}), nicht im generischen error.message.
+    let detail = ''
+    try { const j = await error.context.clone().json(); detail = j && j.error ? j.error : '' } catch { /* kein JSON-Body */ }
+    throw new Error('KI-Fehler: ' + (detail || error.message || String(error)))
+  }
   if (data && data.error) throw new Error(data.error)
   return data || {}
 }
