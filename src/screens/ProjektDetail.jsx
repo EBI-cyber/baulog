@@ -281,7 +281,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
               <button type="button" disabled={korrBusy || dinBusy || !text.trim()}
                 onClick={async () => { try { setKorrBusy(true); const out = await korrekturText(text); if (out) setText(out) } catch (err) { alert(err.message) } finally { setKorrBusy(false) } }}
                 className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40 inline-flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4" />{korrBusy ? '…' : 'Rechtschreibung korrigieren'}
+                <Sparkles className="w-4 h-4" />{korrBusy ? '…' : 'Text überarbeiten'}
               </button>
               <button type="button" disabled={dinBusy || korrBusy || !text.trim()}
                 onClick={async () => { try { setDinBusy(true); const out = await dinText(text); if (out) setText(out) } catch (err) { alert(err.message) } finally { setDinBusy(false) } }}
@@ -290,7 +290,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
               </button>
             </div>
             <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Diktieren per Mikro oder tippen, dann optional korrigieren oder nach DIN formulieren…" rows={5} className={inp} />
-            <div className="text-white/35 text-[11px]">„Rechtschreibung korrigieren" behebt nur Tipp-/Grammatikfehler, „Nach DIN" formuliert den Text professionell um.</div>
+            <div className="text-white/35 text-[11px]">„Text überarbeiten" korrigiert Fehler und glättet Satzbau/Formulierung, behält aber deine Worte & Reihenfolge weitgehend bei. „Nach DIN" formuliert komplett im VOB-Stil um.</div>
           </>
         )}
 

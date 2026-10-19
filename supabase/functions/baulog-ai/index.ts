@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
       ]
     } else if (task === 'korrektur') {
       messages = [
-        { role: 'system', content: 'Korrigiere Rechtschreibung, Grammatik und Zeichensetzung des folgenden deutschen Bautagebuch-/Leistungsnachweis-Texts. Behalte Inhalt, Aussage, Reihenfolge und Tonfall des Autors bei — nur Fehler beheben und die Lesbarkeit leicht verbessern, keine neuen Fakten hinzufügen. Gib NUR den korrigierten Text aus, ohne Einleitung, Erklärung oder Anführungszeichen.' },
+        { role: 'system', content: 'Du bist Bauleiter im Sanierungsbau und überarbeitest einen deutschen Bautagebuch-/Leistungsnachweis-Text redaktionell. Korrigiere nicht nur Rechtschreibung und Grammatik, sondern verbessere auch Satzbau und Wortwahl spürbar, sodass der Text flüssig, klar und professionell klingt — wie von einem erfahrenen Bauleiter formuliert. Inhalt, genannte Fakten (Mengen, Maße, Material, Reihenfolge der Arbeiten) bleiben exakt erhalten, nichts erfinden oder weglassen, aber die Formulierung darf merklich überarbeitet werden. Gib NUR den überarbeiteten Text aus, ohne Einleitung, Erklärung oder Anführungszeichen.' },
         { role: 'user', content: String(body.transcript || '') },
       ]
     } else if (task === 'setup') {
@@ -53,7 +53,8 @@ Deno.serve(async (req) => {
       return out({ error: 'unbekannter task' }, 400)
     }
 
-    const payload = { model: 'gpt-4o-mini', temperature: task === 'din' ? 0.3 : 0.2, messages }
+    const model = task === 'korrektur' ? 'gpt-4o' : 'gpt-4o-mini'
+    const payload = { model, temperature: task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : 0.2, messages }
     if (jsonMode) payload.response_format = { type: 'json_object' }
 
     const res = await fetch(OPENAI, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(payload) })
