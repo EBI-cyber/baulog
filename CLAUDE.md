@@ -21,9 +21,15 @@
 
 ## Supabase (geteiltes Projekt `nhlhrqxmxtacaygnydxf`)
 - Auth: E-Mail/Passwort, **„Confirm email" AUS** (sofortige Anmeldung ohne Bestätigungsmail).
-- Tabellen: `bau_projekte`, `bau_eintraege`, `bau_members` (Team). SQL in `supabase/schema.sql` + `supabase/schema_team.sql` (idempotent, im SQL-Editor ausführen).
-- Edge Function `baulog-ai` (Deno, Secret `OPENAI_KEY`): Tasks `din` / `korrektur` / `nachtrag` / `setup` / `abschluss` (gpt-4o-mini, `korrektur` auf gpt-4o). **Wird NICHT automatisch deployed** — bei Änderungen an `supabase/functions/baulog-ai/index.ts` manuell im Supabase-Dashboard (Edge Functions → baulog-ai → Code → Deploy) nachziehen, sonst bleibt der alte Server-Code aktiv.
+- Tabellen: `bau_projekte`, `bau_eintraege`, `bau_rechnungen`, `bau_members` (Team). **Quelle: `supabase/migrations/`** — wird bei jedem Push auf `main` automatisch per GitHub Actions eingespielt (Job `datenbank`, läuft VOR dem App-Build). Neue DB-Änderungen immer als neue, idempotente Migrationsdatei anlegen. `schema.sql`/`schema_team.sql` sind nur noch die alte Handversion.
+- GitHub braucht dafür: Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, Variable `SUPABASE_PROJECT_REF` (= `nhlhrqxmxtacaygnydxf`). Fehlen sie, bricht der Deploy bewusst ab.
+- Edge Function `baulog-ai` (Deno, Secret `OPENAI_KEY`): Tasks `din` / `korrektur` / `nachtrag` / `setup` / `abschluss` (gpt-4o-mini, `korrektur` auf gpt-4o). Wird beim Push auf `main` automatisch mit ausgeliefert (Job `datenbank`).
 - Edge Function `invite-worker` (vorhanden, aktuell **inaktiv** — Auto-Einladung deaktiviert, s.u.).
+
+## Cloud-Sync
+- `src/lib/cloud.js`: automatischer Sync (1,5 s nach jeder lokalen Änderung, beim Zurückkehren in die App, bei wieder vorhandenem Netz, jede Minute). Upload erst als Paket, bei Fehler einzeln; Fehler landen in der Sync-Anzeige (`SyncBadge`).
+- Lokale, noch nicht hochgeladene Änderungen werden nie vom Cloud-Stand überschrieben. Löschungen laufen über die Dexie-Tabelle `geloescht` (Tombstones). In der Cloud gelöschte Datensätze verschwinden auch lokal.
+- Screens laden über `useCloudRefresh(load)` neu, wenn der Sync Cloud-Daten übernommen hat.
 
 ## Kernfunktionen
 - **Projekte** mit Einträgen: Zeit (Timer), Menge/Leistung, Material (EK), Maschine (Stundensatz), Foto, Tagebuch.
@@ -53,5 +59,4 @@ Folgt dem Skill **`baulog-design`** (dunkles Glas, lucide-Icons, IconChips, resp
 ## Offene Punkte / Ideen
 - Optional: vollautomatische Einladungs-Mail via funktionierendes SMTP (dann `invite-worker` + `SetPassword` reaktivieren).
 - Bundle ist groß (~1 MB) — bei Bedarf Code-Splitting.
-- Optional: Supabase-Edge-Function-Deploy per CI automatisieren (Supabase CLI + `SUPABASE_ACCESS_TOKEN`-Secret in GitHub Actions), damit der manuelle Dashboard-Schritt entfällt.
 - Nacherfassung ausstehender Arbeitszeiten (24./26.08.2026) über "Zeiten nachtragen (KI)" — Details in `HANDOFF.md`.

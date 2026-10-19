@@ -24,79 +24,120 @@ db.version(2).stores({
 db.version(3).stores({
   rechnungen: '++id, token, projektId, projektToken, bezahlt, createdAt, synced',
 })
+// Gelöschte Datensätze merken, bis die Löschung in der Cloud angekommen ist
+db.version(4).stores({
+  geloescht: '++id, &[tabelle+token]',
+})
+
+// Jede lokale Änderung meldet sich hier, damit der Cloud-Sync sofort anlaufen kann
+const listeners = new Set()
+export function onLocalChange(fn) { listeners.add(fn); return () => listeners.delete(fn) }
+function changed() { listeners.forEach((fn) => { try { fn() } catch {} }) }
+async function tombstone(tabelle, token) {
+  if (token) await db.geloescht.put({ tabelle, token })
+}
 
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'x' + Date.now() + Math.random().toString(16).slice(2))
 
 export async function createProjekt(p) {
-  return db.projekte.add({ status: 'aktiv', ...p, token: uuid(), createdAt: new Date().toISOString(), synced: 0 })
+  const id = await db.projekte.add({ status: 'aktiv', ...p, token: uuid(), createdAt: new Date().toISOString(), synced: 0 })
+  changed(); return id
 }
 export async function listProjekte() { return db.projekte.orderBy('createdAt').reverse().toArray() }
 export async function getProjekt(id) { return db.projekte.get(Number(id)) }
-export async function updateProjekt(id, patch) { return db.projekte.update(Number(id), { ...patch, synced: 0 }) }
+export async function updateProjekt(id, patch) { const r = await db.projekte.update(Number(id), { ...patch, synced: 0 }); changed(); return r }
 export async function deleteProjekt(id) {
+  const p = await db.projekte.get(Number(id))
+  const es = await db.eintraege.where('projektId').equals(Number(id)).toArray()
+  for (const e of es) await tombstone('eintraege', e.token)
+  if (p) await tombstone('projekte', p.token)
   await db.eintraege.where('projektId').equals(Number(id)).delete()
   await db.projekte.delete(Number(id))
+  changed()
 }
 
 export async function addEintrag(e) {
   const proj = await db.projekte.get(Number(e.projektId))
-  return db.eintraege.add({ ...e, token: uuid(), projektToken: proj ? proj.token : null, createdAt: e.createdAt || new Date().toISOString(), synced: 0 })
+  const id = await db.eintraege.add({ ...e, token: uuid(), projektToken: proj ? proj.token : null, createdAt: e.createdAt || new Date().toISOString(), synced: 0 })
+  changed(); return id
 }
 export async function listEintraege(projektId) {
   const arr = await db.eintraege.where('projektId').equals(Number(projektId)).toArray()
   return arr.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
 }
-export async function updateEintrag(id, patch) { return db.eintraege.update(Number(id), { ...patch, synced: 0 }) }
-export async function deleteEintrag(id) { return db.eintraege.delete(Number(id)) }
+export async function updateEintrag(id, patch) { const r = await db.eintraege.update(Number(id), { ...patch, synced: 0 }); changed(); return r }
+export async function deleteEintrag(id) {
+  const e = await db.eintraege.get(Number(id))
+  if (e) await tombstone('eintraege', e.token)
+  await db.eintraege.delete(Number(id)); changed()
+}
 export async function allEintraege() { return db.eintraege.toArray() }
 export async function projektMap() { const ps = await db.projekte.toArray(); const m = {}; ps.forEach((p) => { m[p.token] = p.owner }); return m }
 
 export async function createRechnung(r) {
   const proj = await db.projekte.get(Number(r.projektId))
-  return db.rechnungen.add({ bezahlt: 0, ...r, projektToken: proj ? proj.token : r.projektToken, token: uuid(), createdAt: r.createdAt || new Date().toISOString(), synced: 0 })
+  const id = await db.rechnungen.add({ bezahlt: 0, ...r, projektToken: proj ? proj.token : r.projektToken, token: uuid(), createdAt: r.createdAt || new Date().toISOString(), synced: 0 })
+  changed(); return id
 }
 export async function listRechnungen(projektId) {
   const arr = await db.rechnungen.where('projektId').equals(Number(projektId)).toArray()
   return arr.sort((a, b) => String(b.von || b.createdAt).localeCompare(String(a.von || a.createdAt)))
 }
-export async function updateRechnung(id, patch) { return db.rechnungen.update(Number(id), { ...patch, synced: 0 }) }
-export async function deleteRechnung(id) { return db.rechnungen.delete(Number(id)) }
+export async function updateRechnung(id, patch) { const r = await db.rechnungen.update(Number(id), { ...patch, synced: 0 }); changed(); return r }
+export async function deleteRechnung(id) {
+  const r = await db.rechnungen.get(Number(id))
+  if (r) await tombstone('rechnungen', r.token)
+  await db.rechnungen.delete(Number(id)); changed()
+}
 export async function allRechnungen() { return db.rechnungen.toArray() }
 
 // --- Cloud-Sync-Helfer ---
 export async function pendingProjekte() { return (await db.projekte.toArray()).filter((p) => !p.synced) }
 export async function pendingEintraege() { return (await db.eintraege.toArray()).filter((e) => !e.synced) }
 export async function pendingRechnungen() { return (await db.rechnungen.toArray()).filter((r) => !r.synced) }
-export async function markProjektSynced(token) { const p = await db.projekte.where('token').equals(token).first(); if (p) await db.projekte.update(p.id, { synced: 1 }) }
-export async function markEintragSynced(token) { const e = await db.eintraege.where('token').equals(token).first(); if (e) await db.eintraege.update(e.id, { synced: 1 }) }
-export async function markRechnungSynced(token) { const r = await db.rechnungen.where('token').equals(token).first(); if (r) await db.rechnungen.update(r.id, { synced: 1 }) }
+export async function pendingLoeschungen() { return db.geloescht.toArray() }
+export async function loeschungErledigt(tabelle, token) { await db.geloescht.where('[tabelle+token]').equals([tabelle, token]).delete() }
+export async function pendingCount() {
+  const [p, e, r, g] = await Promise.all([pendingProjekte(), pendingEintraege(), pendingRechnungen(), pendingLoeschungen()])
+  return p.length + e.length + r.length + g.length
+}
+// Nur als synchron markieren, wenn sich der Datensatz seit dem Hochladen nicht erneut geändert hat
+async function markSynced(table, row) {
+  const ex = await db[table].where('token').equals(row.token).first()
+  if (ex && !ex.synced && JSON.stringify({ ...ex, synced: 0 }) === JSON.stringify({ ...row, synced: 0 })) await db[table].update(ex.id, { synced: 1 })
+}
+export const markProjektSynced = (row) => markSynced('projekte', row)
+export const markEintragSynced = (row) => markSynced('eintraege', row)
+export const markRechnungSynced = (row) => markSynced('rechnungen', row)
 
-export async function upsertProjekteFromCloud(list) {
-  for (const p of list) {
-    const ex = await db.projekte.where('token').equals(p.token).first()
-    if (ex) await db.projekte.update(ex.id, { ...p, synced: 1 })
-    else await db.projekte.add({ ...p, synced: 1 })
+// Cloud-Stand übernehmen. Lokale, noch nicht hochgeladene Änderungen und lokal gelöschte Datensätze
+// werden dabei nie überschrieben. Datensätze, die in der Cloud gelöscht wurden, verschwinden auch lokal.
+// Rückgabe: true, wenn sich lokal etwas geändert hat.
+async function mergeFromCloud(table, tabelle, list, withProjektId) {
+  let geaendert = false
+  const deleted = new Set((await db.geloescht.where('tabelle').equals(tabelle).toArray()).map((g) => g.token))
+  const idByToken = {}
+  if (withProjektId) (await db.projekte.toArray()).forEach((p) => { idByToken[p.token] = p.id })
+  const cloudTokens = new Set()
+  for (const item of list) {
+    cloudTokens.add(item.token)
+    if (deleted.has(item.token)) continue
+    const ex = await db[table].where('token').equals(item.token).first()
+    if (ex && !ex.synced) continue
+    const row = { ...item, synced: 1 }
+    if (withProjektId) row.projektId = idByToken[item.projektToken] || item.projektId || (ex && ex.projektId) || null
+    if (ex) {
+      const same = Object.keys(row).every((k) => JSON.stringify(row[k] ?? null) === JSON.stringify(ex[k] ?? null))
+      if (!same) { await db[table].update(ex.id, row); geaendert = true }
+    } else { await db[table].add(row); geaendert = true }
   }
-}
-export async function upsertEintraegeFromCloud(list) {
-  const projs = await db.projekte.toArray()
-  const idByToken = {}; projs.forEach((p) => { idByToken[p.token] = p.id })
-  for (const e of list) {
-    const projektId = idByToken[e.projektToken] || e.projektId || null
-    const ex = await db.eintraege.where('token').equals(e.token).first()
-    const row = { ...e, projektId, synced: 1 }
-    if (ex) await db.eintraege.update(ex.id, row)
-    else await db.eintraege.add(row)
+  // Synchronisierte Datensätze, die es in der Cloud nicht mehr gibt, wurden woanders gelöscht
+  const lokal = await db[table].toArray()
+  for (const ex of lokal) {
+    if (ex.synced && ex.token && !cloudTokens.has(ex.token)) { await db[table].delete(ex.id); geaendert = true }
   }
+  return geaendert
 }
-export async function upsertRechnungenFromCloud(list) {
-  const projs = await db.projekte.toArray()
-  const idByToken = {}; projs.forEach((p) => { idByToken[p.token] = p.id })
-  for (const r of list) {
-    const projektId = idByToken[r.projektToken] || r.projektId || null
-    const ex = await db.rechnungen.where('token').equals(r.token).first()
-    const row = { ...r, projektId, synced: 1 }
-    if (ex) await db.rechnungen.update(ex.id, row)
-    else await db.rechnungen.add(row)
-  }
-}
+export const mergeProjekteFromCloud = (list) => mergeFromCloud('projekte', 'projekte', list, false)
+export const mergeEintraegeFromCloud = (list) => mergeFromCloud('eintraege', 'eintraege', list, true)
+export const mergeRechnungenFromCloud = (list) => mergeFromCloud('rechnungen', 'rechnungen', list, true)
