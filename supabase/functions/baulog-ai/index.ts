@@ -26,6 +26,11 @@ Deno.serve(async (req) => {
         { role: 'system', content: 'Du bist Bauleiter im Sanierungsbau. Forme aus gesprochenen Notizen eine professionelle, sachliche Leistungsbeschreibung für Bautagebuch/Leistungsnachweis im VOB/DIN-Stil. Korrekte deutsche Fachbegriffe und Einheiten (m, m², Stk), Gewerk nennen, knapp und präzise. Gib NUR den fertigen Text aus, ohne Einleitung oder Anführungszeichen.' },
         { role: 'user', content: String(body.transcript || '') },
       ]
+    } else if (task === 'korrektur') {
+      messages = [
+        { role: 'system', content: 'Korrigiere Rechtschreibung, Grammatik und Zeichensetzung des folgenden deutschen Bautagebuch-/Leistungsnachweis-Texts. Behalte Inhalt, Aussage, Reihenfolge und Tonfall des Autors bei — nur Fehler beheben und die Lesbarkeit leicht verbessern, keine neuen Fakten hinzufügen. Gib NUR den korrigierten Text aus, ohne Einleitung, Erklärung oder Anführungszeichen.' },
+        { role: 'user', content: String(body.transcript || '') },
+      ]
     } else if (task === 'setup') {
       jsonMode = true
       const cat = (body.katalog || []).map((l) => `${l.gewerk} > ${l.name} (${l.einheit})`).join('\n')

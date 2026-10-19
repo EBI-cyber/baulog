@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  getProjekt, listEintraege, addEintrag, deleteEintrag,
+  getProjekt, listEintraege, addEintrag, updateEintrag, deleteEintrag,
   listRechnungen, createRechnung, updateRechnung, deleteRechnung,
 } from '../lib/db'
 import { loadSettings, leistungenFor, einheitOf } from '../lib/settings'
@@ -9,7 +9,7 @@ import { projektTotals, leistungAnalytics, filterByRange } from '../lib/calc'
 import { euro, hrs, hms, dmy, dmyhm, hm, clock, dinMaschinenText } from '../lib/format'
 import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
-import { dinText, parseSetup, parseAbschluss } from '../lib/ai'
+import { dinText, korrekturText, parseSetup, parseAbschluss } from '../lib/ai'
 import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename } from '../lib/pdf'
 import { sharePdf, previewPdf } from '../lib/share'
 import { useRole } from '../lib/role'
@@ -18,7 +18,7 @@ import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } fro
 import IconChip from '../ui/IconChip'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
-  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check,
+  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check, Pencil,
 } from 'lucide-react'
 
 async function sendInvite(projektName, email) {
@@ -59,6 +59,14 @@ function quickDay(daysAgo, current) {
   const timePart = current && current.includes('T') ? current.slice(11) : new Date().toTimeString().slice(0, 5)
   return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + timePart
 }
+// ISO-Zeitstempel -> Wert fürs <input type="datetime-local"> (lokale Zeit, ohne Sekunden)
+function toLocalInput(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+}
 
 function StatTile({ icon, label, value, grad, big }) {
   return (
@@ -80,7 +88,7 @@ function ActionTile({ icon, label, span, onClick }) {
   )
 }
 
-function EntryRow({ e, rate, onDelete, hideCost }) {
+function EntryRow({ e, rate, onDelete, onEdit, hideCost }) {
   const I = ENTRY_ICON[e.type] || Clock
   let main = '', sub = ''
   if (e.type === 'zeit') {
@@ -100,6 +108,7 @@ function EntryRow({ e, rate, onDelete, hideCost }) {
         <div className="font-medium truncate">{main}</div>
         <div className="text-white/40 text-xs truncate">{dmyhm(e.createdAt)}{sub ? ' · ' + sub : ''}</div>
       </div>
+      {onEdit && <button onClick={onEdit} className="text-white/30 hover:text-white/70 transition p-1"><Pencil className="w-[17px] h-[17px]" /></button>}
       <button onClick={onDelete} className="text-white/30 hover:text-ember transition p-1"><X className="w-[18px] h-[18px]" /></button>
     </div>
   )
@@ -136,21 +145,24 @@ function MaschineCombo({ s, value, onChange, inp, wrapClass = '' }) {
   )
 }
 
-function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
+function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEntry }) {
   const gewerkeOpts = gewerkeList && gewerkeList.length ? gewerkeList : s.gewerke
-  const [gewerk, setGewerk] = useState(defaultGewerk)
+  const [gewerk, setGewerk] = useState((editEntry && editEntry.gewerk) || defaultGewerk)
   const leistungen = leistungenFor(s, gewerk)
-  const [leistung, setLeistung] = useState(leistungen[0] ? leistungen[0].name : '')
-  const [minutes, setMinutes] = useState('')
-  const [startzeit, setStartzeit] = useState('')
-  const [menge, setMenge] = useState('')
-  const [label, setLabel] = useState(''); const [qty, setQty] = useState('1'); const [unitCost, setUnitCost] = useState('')
-  const [note, setNote] = useState(''); const [dataUrl, setDataUrl] = useState('')
-  const [text, setText] = useState('')
+  const [leistung, setLeistung] = useState(editEntry ? (editEntry.leistung || '') : (leistungen[0] ? leistungen[0].name : ''))
+  const [minutes, setMinutes] = useState(editEntry && editEntry.minutes != null ? String(editEntry.minutes) : '')
+  const [startzeit, setStartzeit] = useState(editEntry && editEntry.startAt ? toLocalInput(editEntry.startAt) : '')
+  const [menge, setMenge] = useState(editEntry && editEntry.menge != null ? String(editEntry.menge) : '')
+  const [label, setLabel] = useState((editEntry && editEntry.label) || '')
+  const [qty, setQty] = useState(editEntry && editEntry.qty != null ? String(editEntry.qty) : '1')
+  const [unitCost, setUnitCost] = useState(editEntry && editEntry.unitCost != null ? String(editEntry.unitCost) : '')
+  const [note, setNote] = useState((editEntry && editEntry.note) || ''); const [dataUrl, setDataUrl] = useState((editEntry && editEntry.dataUrl) || '')
+  const [text, setText] = useState((editEntry && editEntry.text) || '')
   const [dinBusy, setDinBusy] = useState(false)
-  const [maschine, setMaschine] = useState(s.maschinen && s.maschinen[0] ? s.maschinen[0].name : '')
+  const [korrBusy, setKorrBusy] = useState(false)
+  const [maschine, setMaschine] = useState((editEntry && editEntry.maschine) || (s.maschinen && s.maschinen[0] ? s.maschinen[0].name : ''))
   const [dinNote, setDinNote] = useState('')
-  const [addDinNote, setAddDinNote] = useState(true)
+  const [addDinNote, setAddDinNote] = useState(!editEntry)
   const [dinNoteTouched, setDinNoteTouched] = useState(false)
 
   function changeGewerk(g) {
@@ -166,6 +178,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
   }, [type, gewerk, leistung, maschine, minutes, dinNoteTouched])
 
   function save() {
+    const withId = (d) => { if (editEntry) d.id = editEntry.id; return d }
     if (type === 'zeit') {
       if (!minutes) return
       const data = { type: 'zeit', gewerk, leistung, minutes: Number(minutes) || 0 }
@@ -175,22 +188,24 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
           data.startAt = start.toISOString()
           data.endAt = new Date(start.getTime() + (Number(minutes) || 0) * 60000).toISOString()
         }
-      }
-      onSave(data)
+      } else if (editEntry) { data.startAt = null; data.endAt = null }
+      onSave(withId(data))
     }
-    else if (type === 'menge') { if (!leistung || !menge) return; onSave({ type: 'menge', gewerk, leistung, einheit, menge: Number(menge) || 0 }) }
-    else if (type === 'material') { if (!label.trim()) return; onSave({ type: 'material', gewerk, leistung, label: label.trim(), qty: Number(qty) || 1, unitCost: Number(unitCost) || 0 }) }
+    else if (type === 'menge') { if (!leistung || !menge) return; onSave(withId({ type: 'menge', gewerk, leistung, einheit, menge: Number(menge) || 0 })) }
+    else if (type === 'material') { if (!label.trim()) return; onSave(withId({ type: 'material', gewerk, leistung, label: label.trim(), qty: Number(qty) || 1, unitCost: Number(unitCost) || 0 })) }
     else if (type === 'maschine') {
       if (!maschine || !minutes) return
       const m = (s.maschinen || []).find((x) => x.name === maschine)
-      const entries = [{ type: 'maschine', gewerk, leistung, maschine, minutes: Number(minutes) || 0, satz: m ? Number(m.satz) || 0 : 0 }]
+      const data = withId({ type: 'maschine', gewerk, leistung, maschine, minutes: Number(minutes) || 0, satz: m ? Number(m.satz) || 0 : 0 })
+      if (editEntry) { onSave(data); return }
+      const entries = [data]
       if (addDinNote && dinNote.trim()) entries.push({ type: 'tagebuch', gewerk, text: dinNote.trim() })
       onSave(entries)
     }
-    else if (type === 'foto') { if (!dataUrl) return; onSave({ type: 'foto', gewerk, leistung, dataUrl, note: note.trim() }) }
-    else if (type === 'tagebuch') { if (!text.trim()) return; onSave({ type: 'tagebuch', gewerk, text: text.trim() }) }
+    else if (type === 'foto') { if (!dataUrl) return; onSave(withId({ type: 'foto', gewerk, leistung, dataUrl, note: note.trim() })) }
+    else if (type === 'tagebuch') { if (!text.trim()) return; onSave(withId({ type: 'tagebuch', gewerk, text: text.trim() })) }
   }
-  const title = { zeit: 'Zeit erfassen', menge: 'Menge / Leistung', material: 'Material / Kosten', maschine: 'Maschine / Werkzeug', foto: 'Foto aufnehmen', tagebuch: 'Tagebuch-Eintrag' }[type]
+  const title = (editEntry ? 'Bearbeiten: ' : '') + { zeit: 'Zeit erfassen', menge: 'Menge / Leistung', material: 'Material / Kosten', maschine: 'Maschine / Werkzeug', foto: 'Foto aufnehmen', tagebuch: 'Tagebuch-Eintrag' }[type]
   const TitleIcon = { zeit: Clock, menge: Ruler, material: Package, maschine: Wrench, foto: Camera, tagebuch: NotebookPen }[type] || Clock
   const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
 
@@ -240,12 +255,16 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
           <>
             <MaschineCombo s={s} value={maschine} onChange={setMaschine} inp={inp} />
             <input value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" placeholder="Minuten (Werkzeug-Einsatz)" className={inp} />
-            <label className="flex items-center gap-2 pt-1">
-              <input type="checkbox" checked={addDinNote} onChange={(e) => setAddDinNote(e.target.checked)} className="w-4 h-4 accent-[#f59e0b]" />
-              <span className="text-white/60 text-xs">DIN-Text als Tagebuch-Notiz übernehmen</span>
-            </label>
-            {addDinNote && (
-              <textarea value={dinNote} onChange={(e) => { setDinNote(e.target.value); setDinNoteTouched(true) }} rows={2} className={inp} />
+            {!editEntry && (
+              <>
+                <label className="flex items-center gap-2 pt-1">
+                  <input type="checkbox" checked={addDinNote} onChange={(e) => setAddDinNote(e.target.checked)} className="w-4 h-4 accent-[#f59e0b]" />
+                  <span className="text-white/60 text-xs">DIN-Text als Tagebuch-Notiz übernehmen</span>
+                </label>
+                {addDinNote && (
+                  <textarea value={dinNote} onChange={(e) => { setDinNote(e.target.value); setDinNoteTouched(true) }} rows={2} className={inp} />
+                )}
+              </>
             )}
           </>
         )}
@@ -257,19 +276,25 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave }) {
         )}
         {type === 'tagebuch' && (
           <>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <VoiceInput onText={setText} />
-              <button type="button" disabled={dinBusy || !text.trim()}
+              <button type="button" disabled={korrBusy || dinBusy || !text.trim()}
+                onClick={async () => { try { setKorrBusy(true); const out = await korrekturText(text); if (out) setText(out) } catch (err) { alert(err.message) } finally { setKorrBusy(false) } }}
+                className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40 inline-flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" />{korrBusy ? '…' : 'Rechtschreibung korrigieren'}
+              </button>
+              <button type="button" disabled={dinBusy || korrBusy || !text.trim()}
                 onClick={async () => { try { setDinBusy(true); const out = await dinText(text); if (out) setText(out) } catch (err) { alert(err.message) } finally { setDinBusy(false) } }}
                 className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40 inline-flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" />{dinBusy ? '…' : 'Nach DIN'}
               </button>
             </div>
-            <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Diktieren per Mikro oder tippen, dann optional nach DIN formulieren…" rows={5} className={inp} />
+            <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Diktieren per Mikro oder tippen, dann optional korrigieren oder nach DIN formulieren…" rows={5} className={inp} />
+            <div className="text-white/35 text-[11px]">„Rechtschreibung korrigieren" behebt nur Tipp-/Grammatikfehler, „Nach DIN" formuliert den Text professionell um.</div>
           </>
         )}
 
-        <button onClick={save} className="w-full rounded-2xl py-3 font-bold btn-grad">Speichern</button>
+        <button onClick={save} className="w-full rounded-2xl py-3 font-bold btn-grad">{editEntry ? 'Änderungen speichern' : 'Speichern'}</button>
       </div>
     </div>
   )
@@ -516,6 +541,7 @@ export default function ProjektDetail() {
   const [timer, setTimer] = useState(null)
   const [now, setNow] = useState(Date.now())
   const [sheet, setSheet] = useState(null)
+  const [editingEntry, setEditingEntry] = useState(null)
   const [gewerk, setGewerk] = useState(s.gewerke[0])
   const [leistung, setLeistung] = useState('')
   const [setupText, setSetupText] = useState('')
@@ -741,17 +767,24 @@ export default function ProjektDetail() {
           <div className="text-white/50 text-sm mb-2 font-medium">Einträge ({eintraege.length})</div>
           <div className="space-y-2">
             {eintraege.length === 0 && <div className="glass rounded-2xl p-5 text-white/35 text-sm">Noch keine Einträge — starte den Timer oder erfasse eine Leistung.</div>}
-            {eintraege.map((e) => <EntryRow key={e.id} e={e} rate={projekt.hourlyRate} hideCost={isWorker} onDelete={() => remove(e.id)} />)}
+            {eintraege.map((e) => (
+              <EntryRow key={e.id} e={e} rate={projekt.hourlyRate} hideCost={isWorker} onDelete={() => remove(e.id)}
+                onEdit={(!isWorker || ['zeit', 'menge', 'foto', 'tagebuch'].includes(e.type)) ? () => { setEditingEntry(e); setSheet(e.type) } : null} />
+            ))}
           </div>
         </div>
       </div>
 
       {sheet && (
-        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} onClose={() => setSheet(null)}
+        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} editEntry={editingEntry}
+          onClose={() => { setSheet(null); setEditingEntry(null) }}
           onSave={async (data) => {
             const arr = Array.isArray(data) ? data : [data]
-            for (const d of arr) await addEintrag({ projektId: Number(id), ...d })
-            setSheet(null); await load()
+            for (const d of arr) {
+              if (d.id) { const { id: eid, ...patch } = d; await updateEintrag(eid, patch) }
+              else await addEintrag({ projektId: Number(id), ...d })
+            }
+            setSheet(null); setEditingEntry(null); await load()
           }} />
       )}
 

@@ -15,6 +15,12 @@ export async function dinText(transcript) {
   return (d.text || '').trim()
 }
 
+export async function korrekturText(text) {
+  if (!text || !text.trim()) throw new Error('Kein Text zum Korrigieren vorhanden.')
+  const d = await callAI({ task: 'korrektur', transcript: text })
+  return (d.text || '').trim()
+}
+
 export async function parseSetup(transcript, gewerke, katalog) {
   return callAI({ task: 'setup', transcript, gewerke, katalog })
 }

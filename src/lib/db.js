@@ -46,6 +46,7 @@ export async function listEintraege(projektId) {
   const arr = await db.eintraege.where('projektId').equals(Number(projektId)).toArray()
   return arr.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
 }
+export async function updateEintrag(id, patch) { return db.eintraege.update(Number(id), { ...patch, synced: 0 }) }
 export async function deleteEintrag(id) { return db.eintraege.delete(Number(id)) }
 export async function allEintraege() { return db.eintraege.toArray() }
 export async function projektMap() { const ps = await db.projekte.toArray(); const m = {}; ps.forEach((p) => { m[p.token] = p.owner }); return m }
