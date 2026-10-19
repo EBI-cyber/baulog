@@ -3,6 +3,9 @@
 > Mobile-first PWA: **Bautagebuch + Stunden/Material/Maschine-Erfassung + EP-Kalkulation** für
 > Sanierungs-/Renovierungsprojekte. Ziel: aus echten Ist-Kosten & -Zeiten genaue Einheitspreise
 > (EP) fürs Angebot ableiten.
+>
+> Siehe auch `HANDOFF.md` für den aktuellen Session-Stand, offene Punkte und
+> Übergabe-Hinweise an neue/lokale Claude-Sessions.
 
 ## Stack
 - Vite + React 18 + TailwindCSS 3 + Framer-Motion
@@ -19,7 +22,7 @@
 ## Supabase (geteiltes Projekt `nhlhrqxmxtacaygnydxf`)
 - Auth: E-Mail/Passwort, **„Confirm email" AUS** (sofortige Anmeldung ohne Bestätigungsmail).
 - Tabellen: `bau_projekte`, `bau_eintraege`, `bau_members` (Team). SQL in `supabase/schema.sql` + `supabase/schema_team.sql` (idempotent, im SQL-Editor ausführen).
-- Edge Function `baulog-ai` (Deno, gpt-4o-mini, Secret `OPENAI_KEY`): Tasks `din` / `setup` / `abschluss`.
+- Edge Function `baulog-ai` (Deno, Secret `OPENAI_KEY`): Tasks `din` / `korrektur` / `nachtrag` / `setup` / `abschluss` (gpt-4o-mini, `korrektur` auf gpt-4o). **Wird NICHT automatisch deployed** — bei Änderungen an `supabase/functions/baulog-ai/index.ts` manuell im Supabase-Dashboard (Edge Functions → baulog-ai → Code → Deploy) nachziehen, sonst bleibt der alte Server-Code aktiv.
 - Edge Function `invite-worker` (vorhanden, aktuell **inaktiv** — Auto-Einladung deaktiviert, s.u.).
 
 ## Kernfunktionen
@@ -50,3 +53,5 @@ Folgt dem Skill **`baulog-design`** (dunkles Glas, lucide-Icons, IconChips, resp
 ## Offene Punkte / Ideen
 - Optional: vollautomatische Einladungs-Mail via funktionierendes SMTP (dann `invite-worker` + `SetPassword` reaktivieren).
 - Bundle ist groß (~1 MB) — bei Bedarf Code-Splitting.
+- Optional: Supabase-Edge-Function-Deploy per CI automatisieren (Supabase CLI + `SUPABASE_ACCESS_TOKEN`-Secret in GitHub Actions), damit der manuelle Dashboard-Schritt entfällt.
+- Nacherfassung ausstehender Arbeitszeiten (24./26.08.2026) über "Zeiten nachtragen (KI)" — Details in `HANDOFF.md`.
