@@ -11,7 +11,7 @@ import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
 import { dinText, parseSetup, parseAbschluss } from '../lib/ai'
 import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename } from '../lib/pdf'
-import { sharePdf } from '../lib/share'
+import { sharePdf, previewPdf } from '../lib/share'
 import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
 import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
@@ -470,7 +470,7 @@ function RechnungRow({ r, onSavePayment, onDelete }) {
   )
 }
 
-function RechnungenSheet({ rechnungen, onClose, onSavePayment, onDelete, onExportPdf }) {
+function RechnungenSheet({ rechnungen, onClose, onSavePayment, onDelete, onPreviewPdf, onExportPdf }) {
   const gesamtRechnung = rechnungen.reduce((sum, r) => sum + (Number(r.gesamtbetrag ?? r.betrag) || 0), 0)
   const gesamtBezahlt = rechnungen.reduce((sum, r) => sum + (Number(r.bezahlterBetrag) || 0), 0)
   const aktuellerSaldo = rechnungen.length ? (Number(rechnungen[0].saldo) || 0) : 0
@@ -492,7 +492,10 @@ function RechnungenSheet({ rechnungen, onClose, onSavePayment, onDelete, onExpor
           {rechnungen.map((r) => <RechnungRow key={r.id} r={r} onSavePayment={onSavePayment} onDelete={onDelete} />)}
         </div>
         {rechnungen.length > 0 && (
-          <button onClick={onExportPdf} className="w-full rounded-2xl py-2.5 font-semibold bg-white/10 inline-flex items-center justify-center gap-2"><FileText className="w-4 h-4" /> Gesamtübersicht als PDF</button>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={onPreviewPdf} className="w-full rounded-2xl py-2.5 font-semibold bg-white/10 inline-flex items-center justify-center gap-2"><FileText className="w-4 h-4" /> Vorschau</button>
+            <button onClick={onExportPdf} className="w-full rounded-2xl py-2.5 font-semibold bg-white/10 inline-flex items-center justify-center gap-2"><FileText className="w-4 h-4" /> Teilen</button>
+          </div>
         )}
         <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Schließen</button>
       </div>
@@ -787,25 +790,34 @@ export default function ProjektDetail() {
                   : 'Guthaben aus Überzahlung (Abschnitt ' + letzterAbschnitt.nr + '): ' + euro(Math.abs(vorherigerSaldo)) + ' — wird von diesem Abschnitt abgezogen und im PDF verrechnet.'}
               </div>
             )}
-            <button onClick={async () => {
-              try {
-                const gefiltert = filterByRange(eintraege, nvon, nbis)
-                const betrag = projektTotals(gefiltert, projekt.hourlyRate).total
-                const pdfOpts = { mitKosten, von: nvon, bis: nbis }
-                if (alsRechnung) { pdfOpts.abschnittNr = naechsteAbschnittNr; pdfOpts.vorherigerSaldo = vorherigerSaldo }
-                const doc = buildLeistungsnachweis(projekt, eintraege, s, pdfOpts)
-                await sharePdf(doc, nachweisFilename(projekt))
-                if (alsRechnung) {
-                  const gesamtbetrag = betrag + vorherigerSaldo
-                  await createRechnung({
-                    projektId: Number(id), nr: naechsteAbschnittNr, von: nvon || null, bis: nbis || null,
-                    betrag, vorherigerSaldo, gesamtbetrag, bezahlterBetrag: 0, saldo: gesamtbetrag, bezahlt: false,
-                  })
-                  setRechnungen(await listRechnungen(id))
-                }
-                setNachweis(false)
-              } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
-            }} className="w-full rounded-2xl py-3 font-bold btn-grad">PDF erzeugen & teilen</button>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => {
+                try {
+                  const pdfOpts = { mitKosten, von: nvon, bis: nbis }
+                  if (alsRechnung) { pdfOpts.abschnittNr = naechsteAbschnittNr; pdfOpts.vorherigerSaldo = vorherigerSaldo }
+                  previewPdf(buildLeistungsnachweis(projekt, eintraege, s, pdfOpts))
+                } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
+              }} className="w-full rounded-2xl py-3 font-semibold bg-white/10">Vorschau</button>
+              <button onClick={async () => {
+                try {
+                  const gefiltert = filterByRange(eintraege, nvon, nbis)
+                  const betrag = projektTotals(gefiltert, projekt.hourlyRate).total
+                  const pdfOpts = { mitKosten, von: nvon, bis: nbis }
+                  if (alsRechnung) { pdfOpts.abschnittNr = naechsteAbschnittNr; pdfOpts.vorherigerSaldo = vorherigerSaldo }
+                  const doc = buildLeistungsnachweis(projekt, eintraege, s, pdfOpts)
+                  await sharePdf(doc, nachweisFilename(projekt))
+                  if (alsRechnung) {
+                    const gesamtbetrag = betrag + vorherigerSaldo
+                    await createRechnung({
+                      projektId: Number(id), nr: naechsteAbschnittNr, von: nvon || null, bis: nbis || null,
+                      betrag, vorherigerSaldo, gesamtbetrag, bezahlterBetrag: 0, saldo: gesamtbetrag, bezahlt: false,
+                    })
+                    setRechnungen(await listRechnungen(id))
+                  }
+                  setNachweis(false)
+                } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
+              }} className="w-full rounded-2xl py-3 font-bold btn-grad">Erzeugen & teilen</button>
+            </div>
           </div>
         </div>
       )}
@@ -820,6 +832,7 @@ export default function ProjektDetail() {
             setRechnungen(await listRechnungen(id))
           }}
           onDelete={async (r) => { await deleteRechnung(r.id); setRechnungen(await listRechnungen(id)) }}
+          onPreviewPdf={() => previewPdf(buildAbrechnungsUebersicht(projekt, rechnungen, s))}
           onExportPdf={async () => { const doc = buildAbrechnungsUebersicht(projekt, rechnungen, s); await sharePdf(doc, uebersichtFilename(projekt)) }} />
       )}
     </div>

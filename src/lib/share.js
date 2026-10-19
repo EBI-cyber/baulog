@@ -1,3 +1,14 @@
+// Vorschau: PDF in neuem Tab öffnen, ohne zu teilen/herunterladen oder Folgeaktionen auszulösen
+export function previewPdf(doc) {
+  try {
+    const blob = doc.output('blob')
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, '_blank')
+    if (!win) { alert('Pop-up blockiert — bitte Pop-ups für diese Seite erlauben.'); URL.revokeObjectURL(url); return }
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  } catch (e) { alert('PDF-Vorschau fehlgeschlagen: ' + (e && e.message ? e.message : e)) }
+}
+
 export async function sharePdf(doc, filename) {
   let blob = null
   try { blob = doc.output('blob') } catch { blob = null }
