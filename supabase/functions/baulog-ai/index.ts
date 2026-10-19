@@ -31,6 +31,16 @@ Deno.serve(async (req) => {
         { role: 'system', content: 'Du bist Bauleiter im Sanierungsbau und überarbeitest einen deutschen Bautagebuch-/Leistungsnachweis-Text redaktionell. Korrigiere nicht nur Rechtschreibung und Grammatik, sondern verbessere auch Satzbau und Wortwahl spürbar, sodass der Text flüssig, klar und professionell klingt — wie von einem erfahrenen Bauleiter formuliert. Inhalt, genannte Fakten (Mengen, Maße, Material, Reihenfolge der Arbeiten) bleiben exakt erhalten, nichts erfinden oder weglassen, aber die Formulierung darf merklich überarbeitet werden. Gib NUR den überarbeiteten Text aus, ohne Einleitung, Erklärung oder Anführungszeichen.' },
         { role: 'user', content: String(body.transcript || '') },
       ]
+    } else if (task === 'nachtrag') {
+      jsonMode = true
+      const heute = new Date().toISOString().slice(0, 10)
+      messages = [
+        { role: 'system', content: 'Du liest handschriftliche/diktierte Arbeitszeit-Notizen eines Bauleiters (oft mehrere Tage, je Tag ein oder mehrere Zeiträume und ein oder mehrere Beschreibungs-Absätze) und strukturierst sie. ' +
+          'Antworte NUR als JSON: {"tage":[{"datum":"YYYY-MM-DD","zeiten":[{"von":"HH:MM","bis":"HH:MM"}],"notizen":["..."]}]}. ' +
+          'Ein Tag-Objekt pro erkanntem Datum. "zeiten": jeder im Text genannte Zeitraum dieses Tages als eigener Eintrag, Uhrzeiten im 24h-Format HH:MM. "notizen": jeder Beschreibungs-Absatz dieses Tages als eigener String, Inhalt wortgetreu/sinngemäß übernehmen, nicht erfinden, nicht zusammenfassen, nur offensichtliche Tippfehler bereinigen. ' +
+          'Deutsche Datumsformate (z.B. "24.08.2026", "24.08.", "24.8.") in YYYY-MM-DD umwandeln; fehlt das Jahr, aktuelles Jahr annehmen (heute ist ' + heute + '). Kein Fließtext, keine Erklärung — nur das JSON-Objekt.' },
+        { role: 'user', content: String(body.transcript || '') },
+      ]
     } else if (task === 'setup') {
       jsonMode = true
       const cat = (body.katalog || []).map((l) => `${l.gewerk} > ${l.name} (${l.einheit})`).join('\n')

@@ -27,6 +27,12 @@ export async function korrekturText(text) {
   return (d.text || '').trim()
 }
 
+export async function parseNachtrag(transcript) {
+  if (!transcript || !transcript.trim()) throw new Error('Erst Notizen eingeben oder diktieren.')
+  const d = await callAI({ task: 'nachtrag', transcript })
+  return Array.isArray(d.tage) ? d.tage : []
+}
+
 export async function parseSetup(transcript, gewerke, katalog) {
   return callAI({ task: 'setup', transcript, gewerke, katalog })
 }

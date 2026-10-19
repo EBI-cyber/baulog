@@ -9,7 +9,7 @@ import { projektTotals, leistungAnalytics, filterByRange } from '../lib/calc'
 import { euro, hrs, hms, dmy, dmyhm, hm, clock, dinMaschinenText } from '../lib/format'
 import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
-import { dinText, korrekturText, parseSetup, parseAbschluss } from '../lib/ai'
+import { dinText, korrekturText, parseNachtrag, parseSetup, parseAbschluss } from '../lib/ai'
 import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename } from '../lib/pdf'
 import { sharePdf, previewPdf } from '../lib/share'
 import { useRole } from '../lib/role'
@@ -18,7 +18,7 @@ import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } fro
 import IconChip from '../ui/IconChip'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
-  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check, Pencil,
+  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check, Pencil, History,
 } from 'lucide-react'
 
 async function sendInvite(projektName, email) {
@@ -300,6 +300,134 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
   )
 }
 
+function hhmmToRange(datum, von, bis) {
+  const start = new Date(datum + 'T' + von)
+  const end = new Date(datum + 'T' + bis)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return { start: null, end: null, minutes: 0 }
+  const minutes = Math.max(0, Math.round((end - start) / 60000))
+  return { start, end, minutes }
+}
+
+function NachtragSheet({ s, defaultGewerk, gewerkeList, onClose, onSave }) {
+  const gewerkeOpts = gewerkeList && gewerkeList.length ? gewerkeList : s.gewerke
+  const [gewerk, setGewerk] = useState(defaultGewerk)
+  const [transcript, setTranscript] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [tage, setTage] = useState(null) // null = noch nicht analysiert
+  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+
+  async function analyse() {
+    try {
+      setBusy(true)
+      const r = await parseNachtrag(transcript)
+      setTage(r.map((t) => ({
+        datum: t.datum || '',
+        zeiten: (t.zeiten || []).map((z) => ({ von: z.von || '', bis: z.bis || '' })),
+        notizen: (t.notizen || []).slice(),
+      })))
+    } catch (e) { alert(e.message) } finally { setBusy(false) }
+  }
+
+  function updateTag(i, patch) { setTage((arr) => arr.map((t, idx) => (idx === i ? { ...t, ...patch } : t))) }
+  function updateZeit(ti, zi, patch) { setTage((arr) => arr.map((t, idx) => (idx !== ti ? t : { ...t, zeiten: t.zeiten.map((z, zidx) => (zidx === zi ? { ...z, ...patch } : z)) }))) }
+  function removeZeit(ti, zi) { setTage((arr) => arr.map((t, idx) => (idx !== ti ? t : { ...t, zeiten: t.zeiten.filter((_, zidx) => zidx !== zi) }))) }
+  function addZeit(ti) { setTage((arr) => arr.map((t, idx) => (idx !== ti ? t : { ...t, zeiten: t.zeiten.concat([{ von: '', bis: '' }]) }))) }
+  function updateNotiz(ti, ni, val) { setTage((arr) => arr.map((t, idx) => (idx !== ti ? t : { ...t, notizen: t.notizen.map((n, nidx) => (nidx === ni ? val : n)) }))) }
+  function removeNotiz(ti, ni) { setTage((arr) => arr.map((t, idx) => (idx !== ti ? t : { ...t, notizen: t.notizen.filter((_, nidx) => nidx !== ni) }))) }
+  function addNotiz(ti) { setTage((arr) => arr.map((t, idx) => (idx !== ti ? t : { ...t, notizen: t.notizen.concat(['']) }))) }
+  function removeTag(ti) { setTage((arr) => arr.filter((_, idx) => idx !== ti)) }
+
+  const gesamt = (tage || []).reduce((sum, t) => sum + t.zeiten.reduce((s2, z) => s2 + hhmmToRange(t.datum, z.von, z.bis).minutes, 0), 0)
+
+  function commit() {
+    const entries = []
+    for (const t of tage || []) {
+      if (!t.datum) continue
+      for (const z of t.zeiten) {
+        if (!z.von || !z.bis) continue
+        const { start, end, minutes } = hhmmToRange(t.datum, z.von, z.bis)
+        if (!start || !end || minutes <= 0) continue
+        entries.push({ type: 'zeit', gewerk, leistung: '', minutes, startAt: start.toISOString(), endAt: end.toISOString(), createdAt: start.toISOString() })
+      }
+      for (const n of t.notizen) {
+        if (!n.trim()) continue
+        entries.push({ type: 'tagebuch', gewerk, text: n.trim(), createdAt: new Date(t.datum + 'T12:00').toISOString() })
+      }
+    }
+    if (!entries.length) return
+    onSave(entries)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
+      <div className="glass w-full max-w-lg mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+        <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={History} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Zeiten nachtragen</div>
+
+        {tage === null ? (
+          <>
+            <div className="text-white/45 text-xs">Notizen von Papier/Gedächtnis einfügen oder diktieren — mit Datum, Uhrzeiten und was gemacht wurde. Die KI sortiert das automatisch nach Tagen.</div>
+            <VoiceInput onText={(t) => setTranscript((cur) => (cur ? cur + '\n' + t : t))} />
+            <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={10}
+              placeholder={'24.08.2026\n9:30 - 12:40 Uhr\n13:30 - 19:00 Uhr\nWasserleitungen angeschlossen…'} className={inp} />
+            <button type="button" disabled={busy || !transcript.trim()} onClick={analyse}
+              className="w-full rounded-2xl py-3 font-bold btn-grad disabled:opacity-40 inline-flex items-center justify-center gap-2">
+              <Sparkles className="w-4 h-4" />{busy ? 'Analysiere…' : 'Mit KI analysieren'}
+            </button>
+          </>
+        ) : (
+          <>
+            <select value={gewerk} onChange={(e) => setGewerk(e.target.value)} className={inp}>
+              {gewerkeOpts.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <div className="text-white/40 text-[11px]">Gewerk gilt für alle nachgetragenen Zeiten/Notizen. Nach dem Speichern kannst du jeden Eintrag einzeln über den Stift-Button anpassen.</div>
+
+            {tage.length === 0 && <div className="text-white/35 text-sm">Nichts erkannt — bitte Text anpassen und erneut versuchen.</div>}
+
+            {tage.map((t, ti) => (
+              <div key={ti} className="bg-white/5 rounded-2xl p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <input type="date" value={t.datum} onChange={(e) => updateTag(ti, { datum: e.target.value })} className={inp} />
+                  <button onClick={() => removeTag(ti)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
+                </div>
+                {t.zeiten.map((z, zi) => {
+                  const { minutes } = hhmmToRange(t.datum, z.von, z.bis)
+                  return (
+                    <div key={zi} className="flex items-center gap-2">
+                      <input type="time" value={z.von} onChange={(e) => updateZeit(ti, zi, { von: e.target.value })} className={inp} />
+                      <span className="text-white/30">–</span>
+                      <input type="time" value={z.bis} onChange={(e) => updateZeit(ti, zi, { bis: e.target.value })} className={inp} />
+                      <span className="text-white/40 text-xs w-14 shrink-0 text-right">{minutes > 0 ? hms(minutes * 60) : '—'}</span>
+                      <button onClick={() => removeZeit(ti, zi)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-4 h-4" /></button>
+                    </div>
+                  )
+                })}
+                <button type="button" onClick={() => addZeit(ti)} className="text-white/50 text-xs inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Zeitblock</button>
+
+                {t.notizen.map((n, ni) => (
+                  <div key={ni} className="flex items-start gap-2">
+                    <textarea value={n} onChange={(e) => updateNotiz(ti, ni, e.target.value)} rows={2} className={inp} />
+                    <button onClick={() => removeNotiz(ti, ni)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => addNotiz(ti)} className="text-white/50 text-xs inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Notiz</button>
+              </div>
+            ))}
+
+            <div className="flex items-center justify-between pt-1 text-sm">
+              <span className="text-white/50">Gesamt</span>
+              <span className="font-bold">{gesamt > 0 ? hms(gesamt * 60) : '—'}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setTage(null)} className="w-full rounded-2xl py-3 font-semibold bg-white/10">Zurück</button>
+              <button onClick={commit} className="w-full rounded-2xl py-3 font-bold btn-grad">Übernehmen</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function matchMaschine(s, name) {
   if (!name) return ''
   const list = s.maschinen || []
@@ -542,6 +670,7 @@ export default function ProjektDetail() {
   const [now, setNow] = useState(Date.now())
   const [sheet, setSheet] = useState(null)
   const [editingEntry, setEditingEntry] = useState(null)
+  const [nachtrag, setNachtrag] = useState(false)
   const [gewerk, setGewerk] = useState(s.gewerke[0])
   const [leistung, setLeistung] = useState('')
   const [setupText, setSetupText] = useState('')
@@ -735,7 +864,10 @@ export default function ProjektDetail() {
             <ActionTile icon={Camera} label="Foto" onClick={() => setSheet('foto')} />
             <ActionTile icon={NotebookPen} label="Tagebuch" onClick={() => setSheet('tagebuch')} />
           </div>
-          <button onClick={() => setSheet('zeit')} className="text-white/50 text-sm inline-flex items-center gap-1 hover:text-white/70 transition"><Plus className="w-4 h-4" /> Zeit manuell erfassen</button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button onClick={() => setSheet('zeit')} className="text-white/50 text-sm inline-flex items-center gap-1 hover:text-white/70 transition"><Plus className="w-4 h-4" /> Zeit manuell erfassen</button>
+            <button onClick={() => setNachtrag(true)} className="text-white/50 text-sm inline-flex items-center gap-1 hover:text-white/70 transition"><History className="w-4 h-4" /> Zeiten nachtragen (KI)</button>
+          </div>
 
           {!isWorker && epRows.length > 0 && (
             <div className="glass rounded-3xl p-5">
@@ -791,6 +923,11 @@ export default function ProjektDetail() {
       {abschluss && (
         <AbschlussSheet s={s} ctx={abschluss} onClose={() => setAbschluss(null)}
           onSaved={async (entries) => { for (const e of entries) await addEintrag({ projektId: Number(id), ...e }); setAbschluss(null); await load() }} />
+      )}
+
+      {nachtrag && (
+        <NachtragSheet s={s} defaultGewerk={gewerk} gewerkeList={gewerkeList} onClose={() => setNachtrag(false)}
+          onSave={async (entries) => { for (const e of entries) await addEintrag({ projektId: Number(id), ...e }); setNachtrag(false); await load() }} />
       )}
 
       {team && <TeamSheet projektToken={projekt.token} projektName={projekt.name} gewerke={s.gewerke} onClose={() => setTeam(false)} />}
