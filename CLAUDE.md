@@ -19,6 +19,10 @@
 - Deploy = einfach `git push` auf `main`. Build-Env (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) als Repo-Variablen.
 - Build lokal (Windows, cwd kann auf `C:\` zurückspringen): `npm --prefix C:/Users/eugen/Projekte/baulog run build`
 
+## Lokal testen
+- Siehe **`LOKAL-TESTEN.md`**: `npm run sb:start` (lokale Supabase via Docker) + `npm run dev:lokal`, Schnelltest `npm run test:lokal`.
+- Testdaten/-Logins in `supabase/seed.sql` (`chef@baulog.test` / `mitarbeiter@baulog.test`, PW `test1234`). KI lokal im Mock-Modus (`BAULOG_AI_MOCK=1` in `supabase/functions/.env`).
+
 ## Supabase (geteiltes Projekt `nhlhrqxmxtacaygnydxf`)
 - Auth: E-Mail/Passwort, **„Confirm email" AUS** (sofortige Anmeldung ohne Bestätigungsmail).
 - Tabellen: `bau_projekte`, `bau_eintraege`, `bau_members` (Team). SQL in `supabase/schema.sql` + `supabase/schema_team.sql` (idempotent, im SQL-Editor ausführen).

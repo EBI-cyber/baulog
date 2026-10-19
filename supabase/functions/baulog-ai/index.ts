@@ -11,9 +11,25 @@ function out(o, code = 200) {
   return new Response(JSON.stringify(o), { status: code, headers: { ...cors, 'Content-Type': 'application/json' } })
 }
 
+// Nur lokal (supabase/functions/.env): BAULOG_AI_MOCK=1 liefert feste Antworten ohne OpenAI-Aufruf.
+// Im Live-Projekt ist die Variable nicht gesetzt, dort ändert sich nichts.
+function mock(task, body) {
+  const t = String(body.transcript || '')
+  if (task === 'din' || task === 'korrektur') return { text: '[MOCK ' + task + '] ' + t }
+  if (task === 'nachtrag') return { tage: [{ datum: new Date().toISOString().slice(0, 10), zeiten: [{ von: '08:00', bis: '12:00' }], notizen: ['[MOCK] ' + t] }] }
+  if (task === 'setup') return { gewerk: (body.gewerke || [])[0] || '', leistung: '', beschreibung: '[MOCK] ' + t }
+  if (task === 'abschluss') return { menge: null, einheit: (body.ctx && body.ctx.einheit) || '', materials: [], maschinen: [], beschreibung: '[MOCK] ' + t }
+  return null
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
+    if (Deno.env.get('BAULOG_AI_MOCK') === '1') {
+      const body = await req.json()
+      const m = mock(body.task, body)
+      return m ? out(m) : out({ error: 'unbekannter task' }, 400)
+    }
     const key = Deno.env.get('OPENAI_KEY')
     if (!key) return out({ error: 'OPENAI_KEY Secret fehlt (in Supabase setzen).' }, 500)
     const body = await req.json()
