@@ -35,7 +35,7 @@ jobs:
           fi
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.121.0
       # Ohne "supabase link": der braucht mehr Token-Rechte als nötig.
       # Verbindung über den Supabase-Pooler (GitHub-Runner haben kein IPv6).
       - name: Datenbank-Verbindung ermitteln
