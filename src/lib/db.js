@@ -1,5 +1,5 @@
 import Dexie from 'dexie'
-import { ueberschneidung, ketteNeu } from './abrechnung'
+import { ketteNeu, nachAnlage } from './abrechnung'
 
 export const db = new Dexie('baulog')
 db.version(1).stores({
@@ -99,10 +99,17 @@ export async function updateRechnung(id, patch) { const r = await db.rechnungen.
 export async function deleteRechnung(id) {
   const r = await db.rechnungen.get(Number(id))
   await sichernVorLoeschen('Abschlag ' + (r && r.nr != null ? r.nr : id))
+  // Einträge dieses Abschlags gelten wieder als nicht abgerechnet
+  if (r && r.token) await db.eintraege.where('projektId').equals(Number(r.projektId)).filter((e) => e.abschlagToken === r.token).modify({ abschlagToken: null, synced: 0 })
   if (r) await tombstone('rechnungen', r.token)
   await db.rechnungen.delete(Number(id)); changed()
 }
 export async function allRechnungen() { return db.rechnungen.toArray() }
+// Einträge einem Abschlag zuordnen (= als abgerechnet markieren)
+export async function eintraegeZuordnen(ids, abschlagToken) {
+  await db.eintraege.where('id').anyOf(ids.map(Number)).modify({ abschlagToken, synced: 0 })
+  changed()
+}
 
 // --- Cloud-Sync-Helfer ---
 export async function pendingProjekte() { return (await db.projekte.toArray()).filter((p) => !p.synced) }
@@ -155,24 +162,18 @@ export const mergeProjekteFromCloud = (list) => mergeFromCloud('projekte', 'proj
 export const mergeEintraegeFromCloud = (list) => mergeFromCloud('eintraege', 'eintraege', list, true)
 export const mergeRechnungenFromCloud = (list) => mergeFromCloud('rechnungen', 'rechnungen', list, true)
 
-// Projekt „quelle“ in Projekt „ziel“ zusammenführen: Einträge und Abschläge wandern mit,
-// Abschläge werden nach Zeitraum neu nummeriert und der Übertrag neu gerechnet, danach wird
-// das leere Quell-Projekt gelöscht. Vorher wird gesichert. Überschneiden sich Abschläge, passiert nichts.
+// Projekt „quelle“ in Projekt „ziel“ zusammenführen: Einträge (mit ihrer Abschlag-Zuordnung) und Abschläge
+// wandern mit, Abschläge werden in Anlage-Reihenfolge neu nummeriert und der Übertrag neu gerechnet,
+// danach wird das leere Quell-Projekt gelöscht. Vorher wird gesichert.
 export async function projekteZusammenfuehren(quelleId, zielId) {
   const quelle = await db.projekte.get(Number(quelleId)), ziel = await db.projekte.get(Number(zielId))
   if (!quelle || !ziel || quelle.id === ziel.id) throw new Error('Projekt nicht gefunden.')
-  const rq = await db.rechnungen.where('projektId').equals(quelle.id).toArray()
-  const rz = await db.rechnungen.where('projektId').equals(ziel.id).toArray()
-  for (const r of rq) {
-    const k = ueberschneidung(rz, r.von, r.bis)
-    if (k) throw new Error('Abschlag ' + (r.nr ?? '') + ' aus „' + quelle.name.trim() + '“ überschneidet sich zeitlich mit Abschlag ' + (k.nr ?? '') + ' aus „' + ziel.name.trim() + '“. Bitte zuerst die Zeiträume unter „Abschläge & Zahlungen“ anpassen.')
-  }
   await sichernVorLoeschen('Zusammenführen ' + quelle.name.trim() + ' → ' + ziel.name.trim())
   await db.transaction('rw', db.projekte, db.eintraege, db.rechnungen, db.geloescht, async () => {
     await db.eintraege.where('projektId').equals(quelle.id).modify({ projektId: ziel.id, projektToken: ziel.token, synced: 0 })
     await db.rechnungen.where('projektId').equals(quelle.id).modify({ projektId: ziel.id, projektToken: ziel.token, synced: 0 })
-    const alle = (await db.rechnungen.where('projektId').equals(ziel.id).toArray())
-      .sort((a, b) => String(a.von || '').localeCompare(String(b.von || '')) || String(a.bis || '9999').localeCompare(String(b.bis || '9999')))
+    // Nummern in der Reihenfolge, in der die Abschläge gestellt wurden
+    const alle = nachAnlage(await db.rechnungen.where('projektId').equals(ziel.id).toArray())
     for (let i = 0; i < alle.length; i++) {
       const patch = { nr: i + 1 }
       if (i === 0) patch.vorherigerSaldo = 0
