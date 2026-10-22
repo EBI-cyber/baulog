@@ -39,28 +39,37 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   doc.text('Erstellt: ' + dmy(new Date().toISOString()), M, y); y += 8
   line()
 
-  // Zeiterfassung — chronologisch mit echten Uhrzeiten (Timer-Start/Pause/Ende)
+  // Tagesbericht: je Arbeitstag die Zeiten, darunter die ausgeführten Arbeiten aus dem Bautagebuch,
+  // rechts die Stunden des Tages – statt Zeiterfassung und Bautagebuch getrennt aufzulisten
+  const tagKey = (d) => { try { return new Date(d).toLocaleDateString('sv-SE') } catch { return String(d || '').slice(0, 10) } }
   const zeitEntries = eintraege.filter((e) => e.type === 'zeit')
-    .slice().sort((a, b) => String(a.startAt || a.createdAt).localeCompare(String(b.startAt || b.createdAt)))
-  if (zeitEntries.length) {
-    need(30); doc.setFont('helvetica', 'bold').setFontSize(11).text('Zeiterfassung', M, y); y += 16
-    doc.setFontSize(9)
-    zeitEntries.forEach((e) => {
-      const what = (e.gewerk || '') + (e.leistung ? ' › ' + e.leistung : '')
-      let head
-      if (e.startAt && e.endAt) {
-        head = dmy(e.startAt) + '  ' + hm(e.startAt) + '–' + hm(e.endAt) + ' Uhr'
-        if (e.pausen && e.pausen.length) {
-          head += '  (Pause ' + e.pausen.map((p) => hm(p.start) + '–' + hm(p.end)).join(', ') + ')'
-        }
-      } else {
-        head = dmy(e.createdAt) + '  Dauer ohne erfasste Uhrzeit'
-      }
-      const lines = doc.splitTextToSize(head + '   ·  ' + (what || '(allgemein)') + '   ·  ' + hh(e.minutes), R - M)
-      need(lines.length * 12 + 2)
-      doc.text(lines, M, y); y += lines.length * 12 + 2
+  const diaryEntries = eintraege.filter((e) => e.type === 'tagebuch' && e.text)
+  const tage = [...new Set([...zeitEntries.map((e) => tagKey(e.startAt || e.createdAt)), ...diaryEntries.map((e) => tagKey(e.createdAt))])].sort()
+  if (tage.length) {
+    need(30); doc.setFont('helvetica', 'bold').setFontSize(11).text('Tagesbericht', M, y); y += 16
+    tage.forEach((t) => {
+      const zeiten = zeitEntries.filter((e) => tagKey(e.startAt || e.createdAt) === t)
+        .sort((a, b) => String(a.startAt || a.createdAt).localeCompare(String(b.startAt || b.createdAt)))
+      const texte = diaryEntries.filter((e) => tagKey(e.createdAt) === t)
+        .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+      const minuten = zeiten.reduce((sum, e) => sum + (Number(e.minutes) || 0), 0)
+      const zeitText = zeiten.map((e) => {
+        let z = e.startAt && e.endAt ? hm(e.startAt) + '–' + hm(e.endAt) + ' Uhr (' + hh(e.minutes) + ')' : (zeiten.length > 1 ? hh(e.minutes) + ' ' : '') + 'Uhrzeit nicht erfasst'
+        if (e.startAt && e.pausen && e.pausen.length) z += ', Pause ' + e.pausen.map((pa) => hm(pa.start) + '–' + hm(pa.end)).join(', ')
+        if (e.leistung) z += ' · ' + e.leistung
+        return z
+      }).join('   ·   ')
+      const zeitLines = zeitText ? doc.setFontSize(9).splitTextToSize(zeitText, R - M) : []
+      const textLines = texte.length ? doc.setFontSize(9.5).splitTextToSize(texte.map((e) => e.text.trim()).join(' '), R - M) : []
+      need(18 + zeitLines.length * 11 + textLines.length * 12 + 10)
+      doc.setFont('helvetica', 'bold').setFontSize(10).text(dmy(t), M, y)
+      if (minuten) doc.text(hh(minuten), R, y, { align: 'right' })
+      y += 13
+      if (zeitLines.length) { doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(90); doc.text(zeitLines, M, y); y += zeitLines.length * 11; doc.setTextColor(0) }
+      if (textLines.length) { doc.setFont('helvetica', 'normal').setFontSize(9.5); y += 2; doc.text(textLines, M, y); y += textLines.length * 12 }
+      y += 6; doc.setDrawColor(230).line(M, y - 3, R, y - 3); y += 6
     })
-    doc.setFont('helvetica', 'normal'); y += 8; line()
+    doc.setFont('helvetica', 'normal'); y += 4
   }
 
   // Leistungen gruppieren
@@ -130,19 +139,6 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
     doc.setFont('helvetica', 'bold').setFontSize(10.5)
     doc.text(vs !== 0 ? 'Zu zahlen nach Verrechnung' : 'Zu zahlen', M, y); doc.text(eur(sumCost + vs), R, y, { align: 'right' }); y += 18
     doc.setFont('helvetica', 'normal')
-  }
-
-  // Tagebuch
-  const diary = eintraege.filter((e) => e.type === 'tagebuch' && e.text)
-  if (diary.length) {
-    need(30); doc.setFont('helvetica', 'bold').setFontSize(11).text('Bautagebuch', M, y); doc.setFont('helvetica', 'normal').setFontSize(9); y += 16
-    diary.forEach((e) => {
-      const txt = dmy(e.createdAt) + ': ' + e.text
-      const lines = doc.splitTextToSize(txt, R - M)
-      need(lines.length * 12 + 4)
-      doc.text(lines, M, y); y += lines.length * 12 + 4
-    })
-    y += 6
   }
 
   // Fotos
