@@ -1,4 +1,4 @@
-import { filterByRange } from './calc'
+import { filterByRange, projektTotals } from './calc'
 
 // Abschläge (intern: "rechnungen"): Zeiträume, Zahlungen, Übertrag-Kette und Prüfung vor dem Versenden.
 
@@ -52,6 +52,9 @@ const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDig
 // Fehler sperren das Festhalten als Abschlag, Hinweise nicht.
 export function pruefeNachweis({ projekt, eintraege, rechnungen, von, bis, alsAbschlag, betrag, vorherigerSaldo }) {
   const m = []
+  for (const a of abweichungen(rechnungen, eintraege, projekt && projekt.hourlyRate)) {
+    m.push({ stufe: 'hinweis', text: 'Im Zeitraum von Abschlag ' + (a.r.nr ?? '') + ' stehen inzwischen Leistungen über ' + eur(a.jetzt) + ', abgerechnet wurden ' + eur(a.r.betrag) + '. Vermutlich wurden Zeiten nachgetragen. Sie fehlen sonst in jeder Rechnung: Zeitraum von Abschlag ' + (a.r.nr ?? '') + ' unter „Abschläge & Zahlungen“ anpassen.' })
+  }
   const imZeitraum = filterByRange(eintraege, von, bis)
   if (alsAbschlag) {
     const k = ueberschneidung(rechnungen, von, bis)
@@ -69,4 +72,14 @@ export function pruefeNachweis({ projekt, eintraege, rechnungen, von, bis, alsAb
   if (ohneUhrzeit.length) m.push({ stufe: 'hinweis', text: ohneUhrzeit.length + ' Zeiteinträge ohne Uhrzeit. Im PDF steht dort „Dauer ohne erfasste Uhrzeit“.' })
   if (projekt && /unbekannt/i.test(String(projekt.address || '') + ' ' + String(projekt.customer || ''))) m.push({ stufe: 'hinweis', text: 'Kunde oder Adresse enthält „unbekannt“. Bitte im Projekt prüfen.' })
   return m
+}
+
+// Abschläge, deren Zeitraum heute andere Leistungen enthält als damals berechnet (z. B. nachgetragene Zeiten)
+export function abweichungen(rechnungen, eintraege, rate) {
+  const out = []
+  for (const r of rechnungen) {
+    const jetzt = projektTotals(filterByRange(eintraege, r.von, r.bis), rate).total
+    if (Math.abs(jetzt - (Number(r.betrag) || 0)) >= 1) out.push({ r, jetzt })
+  }
+  return out
 }

@@ -12,7 +12,7 @@ import VoiceInput from '../components/VoiceInput'
 import { dinText, korrekturText, parseNachtrag, parseSetup, parseAbschluss } from '../lib/ai'
 import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename } from '../lib/pdf'
 import { sharePdf, previewPdf } from '../lib/share'
-import { parseBetrag, ketteNeu, pruefeNachweis } from '../lib/abrechnung'
+import { parseBetrag, ketteNeu, pruefeNachweis, ueberschneidung, abweichungen } from '../lib/abrechnung'
 import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
 import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
@@ -595,7 +595,10 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
   )
 }
 
-function RechnungRow({ r, onSavePayment, onDelete }) {
+function RechnungRow({ r, abweichung, onSavePayment, onSaveZeitraum, onDelete }) {
+  const [zeitraum, setZeitraum] = useState(false)
+  const [zv, setZv] = useState(r.von ? String(r.von).slice(0, 10) : '')
+  const [zb, setZb] = useState(r.bis ? String(r.bis).slice(0, 10) : '')
   const [val, setVal] = useState(r.bezahlterBetrag ? String(r.bezahlterBetrag).replace('.', ',') : '')
   const [gespeichert, setGespeichert] = useState(false)
   const gesamt = Number(r.gesamtbetrag ?? r.betrag) || 0
@@ -612,8 +615,23 @@ function RechnungRow({ r, onSavePayment, onDelete }) {
             {' = '}{euro(gesamt)}
           </div>
         </div>
-        <button onClick={() => onDelete(r)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
+        <button onClick={() => setZeitraum((x) => !x)} title="Zeitraum ändern" className="text-white/30 hover:text-amber transition p-1 shrink-0"><Pencil className="w-4 h-4" /></button>
+        <button onClick={() => onDelete(r)} title="Abschlag löschen" className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
       </div>
+      {abweichung && (
+        <div className="rounded-xl px-3 py-2 text-xs border bg-amber/10 text-amber border-amber/25">
+          ⚠ Im Zeitraum stehen jetzt Leistungen über {euro(abweichung.jetzt)}, abgerechnet wurden {euro(r.betrag)}. Vermutlich nachgetragene Zeiten. Zeitraum anpassen, damit sie im nächsten Abschlag landen.
+        </div>
+      )}
+      {zeitraum && (
+        <div className="flex items-center gap-2 pl-1 flex-wrap">
+          <span className="text-white/45 text-xs shrink-0">Zeitraum</span>
+          <input type="date" value={zv} onChange={(e) => setZv(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm" />
+          <input type="date" value={zb} onChange={(e) => setZb(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm" />
+          <button onClick={async () => { if (await onSaveZeitraum(r, zv, zb)) setZeitraum(false) }} className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white/10">Speichern</button>
+          <div className="text-white/35 text-[11px] w-full">Der berechnete Betrag bleibt, wie er dem Kunden gestellt wurde. Nur die Zuordnung der Leistungen ändert sich.</div>
+        </div>
+      )}
       <div className="flex items-center gap-2 pl-1 flex-wrap">
         <span className="text-white/45 text-xs shrink-0">Zahlung erhalten €</span>
         <input value={val} onChange={(e) => { setVal(e.target.value); setGespeichert(false) }} inputMode="decimal" placeholder="z. B. 2.000" className="w-28 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm" />
@@ -627,7 +645,7 @@ function RechnungRow({ r, onSavePayment, onDelete }) {
   )
 }
 
-function RechnungenSheet({ rechnungen, onClose, onSavePayment, onDelete, onPreviewPdf, onExportPdf }) {
+function RechnungenSheet({ rechnungen, abweichend, onClose, onSavePayment, onSaveZeitraum, onDelete, onPreviewPdf, onExportPdf }) {
   // Summe der Leistungen (ohne Übertrag, sonst zählt ein offener Rest doppelt)
   const gesamtRechnung = rechnungen.reduce((sum, r) => sum + (Number(r.betrag) || 0), 0)
   const gesamtBezahlt = rechnungen.reduce((sum, r) => sum + (Number(r.bezahlterBetrag) || 0), 0)
@@ -648,7 +666,7 @@ function RechnungenSheet({ rechnungen, onClose, onSavePayment, onDelete, onPrevi
           {rechnungen.length === 0 && (
             <div className="text-white/35 text-sm">Noch kein Abschlag erstellt. Im Leistungsnachweis „Als Abschlag festhalten“ aktivieren.</div>
           )}
-          {rechnungen.map((r) => <RechnungRow key={r.id} r={r} onSavePayment={onSavePayment} onDelete={onDelete} />)}
+          {rechnungen.map((r) => <RechnungRow key={r.id} r={r} abweichung={abweichend.find((a) => a.r.id === r.id)} onSavePayment={onSavePayment} onSaveZeitraum={onSaveZeitraum} onDelete={onDelete} />)}
         </div>
         {rechnungen.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
@@ -1029,7 +1047,15 @@ export default function ProjektDetail() {
       )}
 
       {rechnungenOpen && (
-        <RechnungenSheet rechnungen={rechnungen} onClose={() => setRechnungenOpen(false)}
+        <RechnungenSheet rechnungen={rechnungen} abweichend={abweichungen(rechnungen, eintraege, projekt.hourlyRate)} onClose={() => setRechnungenOpen(false)}
+          onSaveZeitraum={async (r, von, bis) => {
+            if (von && bis && von > bis) { alert('Das Startdatum liegt nach dem Enddatum.'); return false }
+            const k = ueberschneidung(rechnungen, von, bis, r.id)
+            if (k) { alert('Dieser Zeitraum überschneidet sich mit Abschlag ' + (k.nr ?? '') + '. Bitte anders wählen.'); return false }
+            await updateRechnung(r.id, { von: von || null, bis: bis || null })
+            setRechnungen(await listRechnungen(id))
+            return true
+          }}
           onSavePayment={async (r, valStr) => {
             const bezahlterBetrag = parseBetrag(valStr)
             if (Number.isNaN(bezahlterBetrag) || bezahlterBetrag < 0) { alert('Bitte einen gültigen Betrag eingeben, z. B. 2.000 oder 1969,42.'); return false }
