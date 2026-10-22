@@ -50,16 +50,17 @@ Deno.serve(async (req) => {
       ]
     } else if (task === 'leistungen') {
       jsonMode = true
-      const cat = (body.katalog || []).map((l) => `${l.gewerk} > ${l.name} (${l.einheit})`).join('\n')
+      const cat = (body.katalog || []).map((l) => `${l.gewerk} > ${l.name}`).join('\n')
       const tage = (body.tage || []).map((t) => 'Tag ' + t.datum + '\nBautagebuch: ' + (t.text || '(kein Text)') + '\nZeiteinträge: ' +
         (t.zeiten || []).map((z) => 'id=' + z.id + ' ' + (z.von ? z.von + '–' + z.bis + ' Uhr ' : '') + z.stunden + ' h').join('; ')).join('\n\n')
       messages = [
-        { role: 'system', content: 'Du bist Bauleiter im Sanierungsbau. Für jeden Arbeitstag bekommst du den Bautagebuch-Text und die Zeiteinträge. ' +
-          'Ermittle, welche Leistungen ausgeführt wurden, und verteile die Stunden JEDES Zeiteintrags auf diese Leistungen (realistische Schätzung nach Umfang im Text; Summe je Eintrag = seine Stunden). ' +
-          'Bei mehreren Zeiteinträgen eines Tages: Leistungen möglichst sinnvoll auf die Zeitabschnitte verteilen. ' +
-          'gewerk EXAKT aus der Gewerke-Liste. leistung möglichst EXAKT aus dem Katalog dieses Gewerks; passt nichts, eine kurze fachliche Bezeichnung (2–5 Wörter) wählen. Nichts erfinden, was nicht im Text steht; ohne Text das bisherige Gewerk beibehalten und leistung leer lassen. ' +
+        { role: 'system', content: 'Du bist Bauleiter im Sanierungsbau und erstellst den Leistungsteil eines Nachweises für den Kunden. Für jeden Arbeitstag bekommst du den Bautagebuch-Text und die Zeiteinträge. ' +
+          'Aufgabe: die im Text TATSÄCHLICH genannten Tätigkeiten erkennen und die Stunden JEDES Zeiteintrags darauf verteilen (realistische Schätzung nach Umfang; Summe je Eintrag = seine Stunden; Stunden auf 0,25 h gerundet). ' +
+          'Strenge Regeln: Nur Tätigkeiten, die im Text stehen – nichts ergänzen oder ableiten (z. B. „Badewanne ausgebaut“ ist Rückbau, nicht „Badewanne setzen“; „Leitungen angeschlossen für WC“ ist Leitungsanschluss, nicht „WC montieren“). Jede genannte Tätigkeitsgruppe soll vorkommen, auch Stemm-, Schlitz-, Putz- und Rückbauarbeiten. Ähnliche Tätigkeiten eines Tages zusammenfassen, höchstens 5 Leistungen je Zeiteintrag. ' +
+          'gewerk EXAKT aus der Gewerke-Liste. leistung: kurze fachliche Bezeichnung (2–5 Wörter, ohne Einheit, ohne Klammern), nah am Text formuliert. Eine Katalogbezeichnung nur verwenden, wenn sie genau dieselbe Tätigkeit meint. Gleiche Tätigkeit an verschiedenen Tagen gleich benennen. ' +
+          'Bei mehreren Zeiteinträgen eines Tages die Tätigkeiten sinnvoll auf die Abschnitte verteilen. Ohne Text: leistungen leer lassen. ' +
           'Antworte NUR als JSON: {"eintraege":[{"id":"...","leistungen":[{"gewerk":"...","leistung":"...","stunden":number}]}]}' },
-        { role: 'user', content: `Gewerke: ${(body.gewerke || []).join(', ')}\nKatalog:\n${cat}\n\n${tage}` },
+        { role: 'user', content: `Gewerke: ${(body.gewerke || []).join(', ')}\nKatalog (nur als Orientierung):\n${cat}\n\n${tage}` },
       ]
     } else if (task === 'abschluss') {
       jsonMode = true
