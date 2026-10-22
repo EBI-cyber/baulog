@@ -598,12 +598,21 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
 }
 
 // Zeiteinträge ohne Uhrzeit: Beginn 9:30 Uhr annehmen, Ende aus der Dauer
-function UhrzeitenBox({ vorschlag, onEintragen }) {
+function UhrzeitenBox({ liste, standardBeginn, onEintragen }) {
   const [busy, setBusy] = useState(false)
+  const [beginn, setBeginn] = useState(standardBeginn || '09:30')
+  const [h, m] = (beginn || '09:30').split(':').map(Number)
+  const vorschlag = uhrzeitenVorschlag(liste, Number.isFinite(h) ? h : 9, Number.isFinite(m) ? m : 30)
+  if (!vorschlag.length) return null
   return (
     <div className="rounded-xl p-3 border border-white/20 bg-white/5 space-y-2">
       <div className="font-semibold text-sm">Fehlende Uhrzeiten ({vorschlag.length})</div>
-      <div className="text-white/75 text-xs">Diese Zeiten wurden nur als Dauer erfasst. Vorschlag: Beginn 9:30 Uhr, Ende ergibt sich aus den Stunden.</div>
+      <div className="text-white/75 text-xs">Diese Zeiten wurden nur als Dauer erfasst. Das Ende ergibt sich aus den Stunden.</div>
+      <div className="flex items-center gap-2">
+        <span className="text-white/80 text-sm shrink-0">Beginn</span>
+        <input type="time" value={beginn} onChange={(e) => setBeginn(e.target.value)} className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm outline-none focus:border-amber" />
+        <span className="text-white/60 text-xs">Uhr</span>
+      </div>
       {vorschlag.map((v) => (
         <div key={v.e.id} className="text-sm">{dmy(v.startAt)} · {hm(v.startAt)}–{hm(v.endAt)} Uhr <span className="text-white/60">({hms((Number(v.e.minutes) || 0) * 60)})</span></div>
       ))}
@@ -887,7 +896,6 @@ export default function ProjektDetail() {
   }
   const offene = offeneEintraege(eintraege, nbis)
   const offenZeitraum = leistungszeitraum(offene)
-  const uhrzeiten = nachweis && !isWorker ? uhrzeitenVorschlag(alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)) : []
   const verdacht = nachweis && !isWorker ? verdaechtigeEintraege(alsRechnung ? offene : filterByRange(eintraege, nvon, nbis), projekt.hourlyRate) : []
   const pruefung = nachweis && !isWorker ? pruefeNachweis({
     projekt, eintraege, rechnungen, von: nvon, bis: nbis, alsAbschlag: alsRechnung,
@@ -1154,8 +1162,8 @@ export default function ProjektDetail() {
                   : 'Guthaben aus Abschlag ' + letzterAbschnitt.nr + ': ' + euro(Math.abs(vorherigerSaldo)) + '. Wird von diesem Abschlag abgezogen.'}
               </div>
             )}
-            {uhrzeiten.length > 0 && (
-              <UhrzeitenBox vorschlag={uhrzeiten} onEintragen={async (vs) => {
+            {!isWorker && (
+              <UhrzeitenBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)} standardBeginn={s.arbeitsbeginn} onEintragen={async (vs) => {
                 await sicherungAnlegen('Vor dem Ergänzen von Uhrzeiten')
                 for (const v of vs) await updateEintrag(v.e.id, { startAt: v.startAt, endAt: v.endAt })
                 setEintraege(await listEintraege(id))
