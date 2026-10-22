@@ -208,7 +208,7 @@ export function buildAbrechnungsUebersicht(projekt, rechnungen, s) {
     const saldo = r.saldo != null ? Number(r.saldo) : gesamt - bezahlt
     sumBetrag += leistung; sumBezahlt += bezahlt
     doc.text(String(r.nr ?? '–'), M, y)
-    doc.text((r.von ? dmy(r.von) : '…') + ' – ' + (r.bis ? dmy(r.bis) : '…'), cZeit, y)
+    doc.text((r.von ? dmy(r.von) : 'Beginn') + ' – ' + (r.bis ? dmy(r.bis) : 'offen'), cZeit, y)
     doc.text(eur(leistung), cBetrag, y)
     doc.text(eur(bezahlt), cBezahlt, y)
     doc.text((saldo > 0 ? 'offen ' : saldo < 0 ? 'Guthaben ' : '') + eur(Math.abs(saldo)), R, y, { align: 'right' })

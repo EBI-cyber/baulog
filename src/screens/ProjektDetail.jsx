@@ -609,7 +609,7 @@ function RechnungRow({ r, abweichung, onSavePayment, onSaveZeitraum, onDelete })
       <div className="flex items-center gap-3">
         <IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate">Abschlag {r.nr ?? '–'} · {r.von ? dmy(r.von) : '…'} – {r.bis ? dmy(r.bis) : '…'}</div>
+          <div className="font-medium text-sm truncate">Abschlag {r.nr ?? '–'} · {r.von ? dmy(r.von) : 'Projektbeginn'} – {r.bis ? dmy(r.bis) : 'offen'}</div>
           <div className="text-white/70 text-xs">
             Leistungen {euro(r.betrag)}
             {r.vorherigerSaldo ? (r.vorherigerSaldo > 0 ? ' + Übertrag ' + euro(r.vorherigerSaldo) : ' − Übertrag ' + euro(Math.abs(r.vorherigerSaldo))) : ''}
