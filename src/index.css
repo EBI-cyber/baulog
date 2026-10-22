@@ -55,6 +55,9 @@ body {
   }
 }
 
+/* Aufklapplisten: Windows/Edge zeichnet die Optionen hell, die Schrift erbt aber Weiß */
+select option, select optgroup { background-color: #1c1917; color: #f5f0ea; }
+
 /* Platzhalter in Eingabefeldern gut lesbar */
 input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.5); }
 
