@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   getProjekt, listEintraege, addEintrag, updateEintrag, deleteEintrag,
-  listRechnungen, createRechnung, updateRechnung, deleteRechnung,
+  listRechnungen, createRechnung, updateRechnung, deleteRechnung, eintraegeZuordnen,
 } from '../lib/db'
 import { loadSettings, leistungenFor, einheitOf } from '../lib/settings'
 import { projektTotals, leistungAnalytics, filterByRange } from '../lib/calc'
@@ -12,7 +12,8 @@ import VoiceInput from '../components/VoiceInput'
 import { dinText, korrekturText, parseNachtrag, parseSetup, parseAbschluss } from '../lib/ai'
 import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename } from '../lib/pdf'
 import { sharePdf, previewPdf } from '../lib/share'
-import { parseBetrag, ketteNeu, pruefeNachweis, ueberschneidung, abweichungen } from '../lib/abrechnung'
+import { parseBetrag, ketteNeu, pruefeNachweis, abweichungen, offeneEintraege, eintraegeVon, leistungszeitraum, zuordnungVorschlag } from '../lib/abrechnung'
+import { sicherungAnlegen } from '../lib/backup'
 import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
 import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
@@ -596,10 +597,7 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
   )
 }
 
-function RechnungRow({ r, abweichung, onSavePayment, onSaveZeitraum, onDelete }) {
-  const [zeitraum, setZeitraum] = useState(false)
-  const [zv, setZv] = useState(r.von ? String(r.von).slice(0, 10) : '')
-  const [zb, setZb] = useState(r.bis ? String(r.bis).slice(0, 10) : '')
+function RechnungRow({ r, anzahl, abweichung, onSavePayment, onDelete }) {
   const [val, setVal] = useState(r.bezahlterBetrag ? String(r.bezahlterBetrag).replace('.', ',') : '')
   const [gespeichert, setGespeichert] = useState(false)
   const gesamt = Number(r.gesamtbetrag ?? r.betrag) || 0
@@ -609,28 +607,19 @@ function RechnungRow({ r, abweichung, onSavePayment, onSaveZeitraum, onDelete })
       <div className="flex items-center gap-3">
         <IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate">Abschlag {r.nr ?? '–'} · {r.von ? dmy(r.von) : 'Projektbeginn'} – {r.bis ? dmy(r.bis) : 'offen'}</div>
+          <div className="font-medium text-sm truncate">Abschlag {r.nr ?? '–'} · {r.von ? dmy(r.von) : '…'} – {r.bis ? dmy(r.bis) : '…'}</div>
+          <div className="text-white/60 text-xs">{anzahl ? anzahl + ' Einträge abgerechnet' : 'Noch keinen Einträgen zugeordnet'}</div>
           <div className="text-white/70 text-xs">
             Leistungen {euro(r.betrag)}
             {r.vorherigerSaldo ? (r.vorherigerSaldo > 0 ? ' + Übertrag ' + euro(r.vorherigerSaldo) : ' − Übertrag ' + euro(Math.abs(r.vorherigerSaldo))) : ''}
             {' = '}{euro(gesamt)}
           </div>
         </div>
-        <button onClick={() => setZeitraum((x) => !x)} title="Zeitraum ändern" className="text-white/60 hover:text-amber transition p-1 shrink-0"><Pencil className="w-4 h-4" /></button>
         <button onClick={() => onDelete(r)} title="Abschlag löschen" className="text-white/60 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
       </div>
       {abweichung && (
         <div className="rounded-xl px-3 py-2 text-xs border bg-amber/10 text-amber border-amber/25">
-          ⚠ Im Zeitraum stehen jetzt Leistungen über {euro(abweichung.jetzt)}, abgerechnet wurden {euro(r.betrag)}. Vermutlich nachgetragene Zeiten. Zeitraum anpassen, damit sie im nächsten Abschlag landen.
-        </div>
-      )}
-      {zeitraum && (
-        <div className="flex items-center gap-2 pl-1 flex-wrap">
-          <span className="text-white/70 text-xs shrink-0">Zeitraum</span>
-          <input type="date" value={zv} onChange={(e) => setZv(e.target.value)} className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm" />
-          <input type="date" value={zb} onChange={(e) => setZb(e.target.value)} className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm" />
-          <button onClick={async () => { if (await onSaveZeitraum(r, zv, zb)) setZeitraum(false) }} className="text-sm font-bold px-3 py-1.5 rounded-lg btn-grad">Speichern</button>
-          <div className="text-white/60 text-xs w-full">Der berechnete Betrag bleibt, wie er dem Kunden gestellt wurde. Nur die Zuordnung der Leistungen ändert sich.</div>
+          ⚠ Einträge dieses Abschlags wurden nachträglich geändert: jetzt {euro(abweichung.jetzt)}, berechnet wurden {euro(r.betrag)}.
         </div>
       )}
       <div className="flex items-center gap-2 pl-1 flex-wrap">
@@ -646,7 +635,7 @@ function RechnungRow({ r, abweichung, onSavePayment, onSaveZeitraum, onDelete })
   )
 }
 
-function RechnungenSheet({ rechnungen, abweichend, onClose, onSavePayment, onSaveZeitraum, onDelete, onPreviewPdf, onExportPdf }) {
+function RechnungenSheet({ rechnungen, eintraege, abweichend, hinweis, onClose, onSavePayment, onDelete, onPreviewPdf, onExportPdf }) {
   // Summe der Leistungen (ohne Übertrag, sonst zählt ein offener Rest doppelt)
   const gesamtRechnung = rechnungen.reduce((sum, r) => sum + (Number(r.betrag) || 0), 0)
   const gesamtBezahlt = rechnungen.reduce((sum, r) => sum + (Number(r.bezahlterBetrag) || 0), 0)
@@ -667,7 +656,8 @@ function RechnungenSheet({ rechnungen, abweichend, onClose, onSavePayment, onSav
           {rechnungen.length === 0 && (
             <div className="text-white/60 text-sm">Noch kein Abschlag erstellt. Im Leistungsnachweis „Als Abschlag festhalten“ aktivieren.</div>
           )}
-          {rechnungen.map((r) => <RechnungRow key={r.id} r={r} abweichung={abweichend.find((a) => a.r.id === r.id)} onSavePayment={onSavePayment} onSaveZeitraum={onSaveZeitraum} onDelete={onDelete} />)}
+          {hinweis && <div className="rounded-xl px-3 py-2 text-xs border bg-emerald-500/10 text-emerald-400 border-emerald-500/25">{hinweis}</div>}
+          {rechnungen.map((r) => <RechnungRow key={r.id} r={r} anzahl={eintraegeVon(eintraege, r).length} abweichung={abweichend.find((a) => a.r.id === r.id)} onSavePayment={onSavePayment} onDelete={onDelete} />)}
         </div>
         {rechnungen.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
@@ -710,9 +700,24 @@ export default function ProjektDetail() {
   const [nbis, setNbis] = useState('')
   const [alsRechnung, setAlsRechnung] = useState(false)
 
+  const [zuordnungHinweis, setZuordnungHinweis] = useState('')
   const load = async () => {
-    setProjekt(await getProjekt(id)); setEintraege(await listEintraege(id))
-    if (!isWorker) setRechnungen(await listRechnungen(id))
+    const p = await getProjekt(id)
+    setProjekt(p); setEintraege(await listEintraege(id))
+    if (!isWorker) { setRechnungen(await listRechnungen(id)); if (p) await automatischZuordnen(p) }
+  }
+  // Ältere Abschläge kennen ihre Einträge noch nicht: einmalig passend zum berechneten Betrag zuordnen
+  async function automatischZuordnen(p) {
+    const rs = await listRechnungen(id), es = await listEintraege(id)
+    const { zuordnungen } = zuordnungVorschlag(rs, es, p.hourlyRate)
+    if (!zuordnungen.length) return
+    await sicherungAnlegen('Vor automatischer Zuordnung der Abschläge')
+    for (const z of zuordnungen) {
+      await eintraegeZuordnen(z.ids, z.r.token)
+      await updateRechnung(z.r.id, { von: z.von, bis: z.bis })
+    }
+    setZuordnungHinweis('Abschlag ' + zuordnungen.map((z) => z.r.nr).join(', ') + ' wurde automatisch den passenden Einträgen zugeordnet. Der Zeitraum ergibt sich aus dem ersten und letzten Arbeitstag.')
+    setEintraege(await listEintraege(id)); setRechnungen(await listRechnungen(id))
   }
   useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); if (t) setTimer(JSON.parse(t)) }, [id])
   useCloudRefresh(load)
@@ -742,13 +747,6 @@ export default function ProjektDetail() {
     return () => { active = false }
   }, [isWorker, projekt, user])
 
-  // Abschlag speichert den tatsächlichen Leistungszeitraum (erster bis letzter Arbeitstag im gewählten Bereich).
-  // Später nachgetragene Arbeiten nach dem letzten Arbeitstag landen so automatisch im nächsten Abschlag.
-  function leistungszeitraum(liste, von, bis) {
-    const tage = liste.map((e) => String(e.createdAt || '').slice(0, 10)).filter(Boolean).sort()
-    return { von: tage[0] || von || null, bis: tage[tage.length - 1] || bis || null }
-  }
-
   // Nach Zahlung oder Löschen: Übertrag aller folgenden Abschläge neu rechnen
   async function ketteAktualisieren() {
     for (const { id: rid, patch } of ketteNeu(await listRechnungen(id))) await updateRechnung(rid, patch)
@@ -766,9 +764,11 @@ export default function ProjektDetail() {
     abschnittNr: naechsteAbschnittNr, vorherigerSaldo,
     vorherigerAbschlag: letzterAbschnitt ? { nr: letzterAbschnitt.nr, gesamtbetrag: Number(letzterAbschnitt.gesamtbetrag ?? letzterAbschnitt.betrag) || 0, bezahlt: Number(letzterAbschnitt.bezahlterBetrag) || 0 } : null,
   }
+  const offene = offeneEintraege(eintraege, nbis)
+  const offenZeitraum = leistungszeitraum(offene)
   const pruefung = nachweis && !isWorker ? pruefeNachweis({
     projekt, eintraege, rechnungen, von: nvon, bis: nbis, alsAbschlag: alsRechnung,
-    betrag: projektTotals(filterByRange(eintraege, nvon, nbis), projekt.hourlyRate).total, vorherigerSaldo,
+    betrag: projektTotals(alsRechnung ? offene : filterByRange(eintraege, nvon, nbis), projekt.hourlyRate).total, vorherigerSaldo,
   }) : []
   const gesperrt = alsRechnung && pruefung.some((x) => x.stufe === 'fehler')
   const gewerkeList = isWorker && allowedGewerke.length ? allowedGewerke : s.gewerke
@@ -994,13 +994,26 @@ export default function ProjektDetail() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={() => setNachweis(false)}>
           <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
             <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={FileText} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Leistungsnachweis erstellen</div>
-            <div>
-              <div className="text-white/75 text-xs mb-1">Zeitraum (optional — leer = alles)</div>
-              <div className="grid grid-cols-2 gap-2">
-                <input type="date" value={nvon} onChange={(e) => setNvon(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber" />
-                <input type="date" value={nbis} onChange={(e) => setNbis(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+            {alsRechnung ? (
+              <div className="rounded-xl p-3 text-sm border border-white/20 bg-white/5">
+                <div className="font-semibold">Enthält alle noch nicht abgerechneten Leistungen</div>
+                <div className="text-white/75 text-xs mt-1">
+                  {offene.length ? offene.length + ' Einträge · Leistungszeitraum ' + dmy(offenZeitraum.von) + ' – ' + dmy(offenZeitraum.bis) : 'Keine offenen Leistungen'}
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-white/75 text-xs shrink-0">nur bis einschließlich</span>
+                  <input type="date" value={nbis} onChange={(e) => setNbis(e.target.value)} className="flex-1 bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 outline-none focus:border-amber" />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div>
+                <div className="text-white/75 text-xs mb-1">Zeitraum (optional, leer = alles)</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" value={nvon} onChange={(e) => setNvon(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+                  <input type="date" value={nbis} onChange={(e) => setNbis(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+                </div>
+              </div>
+            )}
             <label className="flex items-center justify-between py-2">
               <span className="text-white/70">Mit Selbstkosten (intern)</span>
               <input type="checkbox" checked={mitKosten} onChange={(e) => setMitKosten(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
@@ -1010,7 +1023,7 @@ export default function ProjektDetail() {
               <span className="text-white/70">Als Abschlag Nr. {naechsteAbschnittNr} festhalten</span>
               <input type="checkbox" checked={alsRechnung} onChange={(e) => setAlsRechnung(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
             </label>
-            <div className="text-white/70 text-xs">Merkt Zeitraum und Betrag unter „Abschläge &amp; Zahlungen“. Dort trägst du ein, was der Kunde gezahlt hat. Ein Rest oder Guthaben wird im nächsten Abschlag verrechnet.</div>
+            <div className="text-white/70 text-xs">Die enthaltenen Einträge gelten danach als abgerechnet. Unter „Abschläge &amp; Zahlungen“ trägst du ein, was der Kunde gezahlt hat. Ein Rest oder Guthaben wird im nächsten Abschlag verrechnet.</div>
             {alsRechnung && mitKosten && vorherigerSaldo !== 0 && (
               <div className={'rounded-xl p-3 text-sm border ' + (vorherigerSaldo > 0 ? 'bg-ember/10 text-ember border-ember/25' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25')}>
                 {vorherigerSaldo > 0
@@ -1026,33 +1039,33 @@ export default function ProjektDetail() {
                     {x.stufe === 'fehler' ? '⛔ ' : '⚠ '}{x.text}
                   </div>
                 ))}
-                {gesperrt && <div className="text-white/70 text-xs">Als Abschlag festhalten ist gesperrt, solange ein ⛔ besteht. Zeitraum anpassen oder den Haken bei „Als Abschlag festhalten“ entfernen.</div>}
+                {gesperrt && <div className="text-white/70 text-xs">Als Abschlag festhalten ist gesperrt, solange ein ⛔ besteht.</div>}
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => {
                 try {
-                  const pdfOpts = { mitKosten, von: nvon, bis: nbis }
-                  if (alsRechnung) Object.assign(pdfOpts, abschlagOpts)
-                  previewPdf(buildLeistungsnachweis(projekt, eintraege, s, pdfOpts))
+                  if (alsRechnung) previewPdf(buildLeistungsnachweis(projekt, offene, s, { mitKosten, ...abschlagOpts }))
+                  else previewPdf(buildLeistungsnachweis(projekt, eintraege, s, { mitKosten, von: nvon, bis: nbis }))
                 } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
               }} className="w-full rounded-2xl py-3 font-semibold bg-white/10">Vorschau</button>
               <button onClick={async () => {
                 try {
-                  const gefiltert = filterByRange(eintraege, nvon, nbis)
-                  const betrag = projektTotals(gefiltert, projekt.hourlyRate).total
                   if (gesperrt) return
-                  const pdfOpts = { mitKosten, von: nvon, bis: nbis }
-                  if (alsRechnung) Object.assign(pdfOpts, abschlagOpts)
-                  const doc = buildLeistungsnachweis(projekt, eintraege, s, pdfOpts)
-                  await sharePdf(doc, nachweisFilename(projekt))
                   if (alsRechnung) {
+                    const liste = offene
+                    const betrag = projektTotals(liste, projekt.hourlyRate).total
+                    await sharePdf(buildLeistungsnachweis(projekt, liste, s, { mitKosten, ...abschlagOpts }), nachweisFilename(projekt))
                     const gesamtbetrag = betrag + vorherigerSaldo
-                    await createRechnung({
-                      projektId: Number(id), nr: naechsteAbschnittNr, ...leistungszeitraum(gefiltert, nvon, nbis),
+                    const rid = await createRechnung({
+                      projektId: Number(id), nr: naechsteAbschnittNr, ...leistungszeitraum(liste),
                       betrag, vorherigerSaldo, gesamtbetrag, bezahlterBetrag: 0, saldo: gesamtbetrag, bezahlt: false,
                     })
-                    setRechnungen(await listRechnungen(id))
+                    const neu = (await listRechnungen(id)).find((r) => r.id === rid)
+                    await eintraegeZuordnen(liste.map((e) => e.id), neu.token)
+                    setRechnungen(await listRechnungen(id)); setEintraege(await listEintraege(id))
+                  } else {
+                    await sharePdf(buildLeistungsnachweis(projekt, eintraege, s, { mitKosten, von: nvon, bis: nbis }), nachweisFilename(projekt))
                   }
                   setNachweis(false)
                 } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
@@ -1063,15 +1076,7 @@ export default function ProjektDetail() {
       )}
 
       {rechnungenOpen && (
-        <RechnungenSheet rechnungen={rechnungen} abweichend={abweichungen(rechnungen, eintraege, projekt.hourlyRate)} onClose={() => setRechnungenOpen(false)}
-          onSaveZeitraum={async (r, von, bis) => {
-            if (von && bis && von > bis) { alert('Das Startdatum liegt nach dem Enddatum.'); return false }
-            const k = ueberschneidung(rechnungen, von, bis, r.id)
-            if (k) { alert('Dieser Zeitraum überschneidet sich mit Abschlag ' + (k.nr ?? '') + '. Bitte anders wählen.'); return false }
-            await updateRechnung(r.id, { von: von || null, bis: bis || null })
-            setRechnungen(await listRechnungen(id))
-            return true
-          }}
+        <RechnungenSheet rechnungen={rechnungen} eintraege={eintraege} hinweis={zuordnungHinweis} abweichend={abweichungen(rechnungen, eintraege, projekt.hourlyRate)} onClose={() => setRechnungenOpen(false)}
           onSavePayment={async (r, valStr) => {
             const bezahlterBetrag = parseBetrag(valStr)
             if (Number.isNaN(bezahlterBetrag) || bezahlterBetrag < 0) { alert('Bitte einen gültigen Betrag eingeben, z. B. 2.000 oder 1969,42.'); return false }
@@ -1081,7 +1086,7 @@ export default function ProjektDetail() {
           }}
           onDelete={async (r) => {
             if (!confirm('Abschlag ' + (r.nr ?? '') + ' löschen?\n\nDer aktuelle Stand wird vorher automatisch gesichert (Einstellungen → Datensicherung).')) return
-            await deleteRechnung(r.id); await ketteAktualisieren()
+            await deleteRechnung(r.id); setEintraege(await listEintraege(id)); await ketteAktualisieren()
           }}
           onPreviewPdf={() => previewPdf(buildAbrechnungsUebersicht(projekt, rechnungen, s))}
           onExportPdf={async () => { const doc = buildAbrechnungsUebersicht(projekt, rechnungen, s); await sharePdf(doc, uebersichtFilename(projekt)) }} />
