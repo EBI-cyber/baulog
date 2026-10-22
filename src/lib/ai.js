@@ -33,6 +33,15 @@ export async function parseNachtrag(transcript) {
   return Array.isArray(d.tage) ? d.tage : []
 }
 
+// Aus dem Bautagebuch je Zeiteintrag die ausgeführten Leistungen ermitteln.
+// tage: [{ datum, text, zeiten: [{ id, stunden, von, bis }] }] → { [id]: [{ gewerk, leistung, stunden }] }
+export async function leistungenAusTagebuch(tage, gewerke, katalog) {
+  const d = await callAI({ task: 'leistungen', tage, gewerke, katalog })
+  const out = {}
+  for (const x of Array.isArray(d.eintraege) ? d.eintraege : []) if (x && x.id != null && Array.isArray(x.leistungen)) out[String(x.id)] = x.leistungen
+  return out
+}
+
 export async function parseSetup(transcript, gewerke, katalog) {
   return callAI({ task: 'setup', transcript, gewerke, katalog })
 }

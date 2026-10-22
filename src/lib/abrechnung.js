@@ -132,3 +132,18 @@ export function verdaechtigeEintraege(liste, rate) {
   }
   return nachDatum([...out.values()].map((x) => x.e)).map((e) => out.get(e.id))
 }
+
+// Zeiteinträge ohne Uhrzeit: Beginn 9:30 Uhr annehmen, Ende = Beginn + Dauer.
+// Mehrere solche Einträge am selben Tag werden nacheinander gelegt. Rückgabe: [{ e, startAt, endAt }]
+export function uhrzeitenVorschlag(liste, beginnStunde = 9, beginnMinute = 30) {
+  const ohne = nachDatum(liste.filter((e) => e.type === 'zeit' && !(e.startAt && e.endAt) && Number(e.minutes) > 0))
+  const naechster = {}
+  return ohne.map((e) => {
+    const d = new Date(e.createdAt)
+    const key = d.toDateString()
+    const start = naechster[key] || new Date(d.getFullYear(), d.getMonth(), d.getDate(), beginnStunde, beginnMinute)
+    const ende = new Date(start.getTime() + Math.round((Number(e.minutes) || 0) * 60) * 1000)
+    naechster[key] = ende
+    return { e, startAt: start.toISOString(), endAt: ende.toISOString() }
+  })
+}

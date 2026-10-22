@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf'
-import { filterByRange } from './calc'
+import { filterByRange, zeitAnteile } from './calc'
 
 const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' EUR'
 const hh = (min) => ((Number(min) || 0) / 60).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' h'
@@ -74,7 +74,8 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
 
   // Leistungen gruppieren
   const groups = {}
-  for (const e of eintraege) {
+  const gruppenEintraege = eintraege.flatMap((e) => e.type === 'zeit' ? zeitAnteile(e).map((t) => ({ ...e, gewerk: t.gewerk, leistung: t.leistung, minutes: t.minutes })) : [e])
+  for (const e of gruppenEintraege) {
     if (['zeit', 'menge', 'material', 'maschine'].indexOf(e.type) === -1) continue
     const key = (e.gewerk || '') + ' › ' + (e.leistung || '(allgemein)')
     if (!groups[key]) groups[key] = { gewerk: e.gewerk, leistung: e.leistung || '(allgemein)', minutes: 0, menge: 0, einheit: '', material: 0, maschine: 0 }

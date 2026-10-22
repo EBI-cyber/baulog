@@ -9,10 +9,10 @@ import { projektTotals, leistungAnalytics, filterByRange } from '../lib/calc'
 import { euro, hrs, hms, dmy, dmyhm, hm, clock, dinMaschinenText } from '../lib/format'
 import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
-import { dinText, korrekturText, parseNachtrag, parseSetup, parseAbschluss } from '../lib/ai'
+import { dinText, korrekturText, parseNachtrag, parseSetup, parseAbschluss, leistungenAusTagebuch } from '../lib/ai'
 import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename } from '../lib/pdf'
 import { sharePdf, previewPdf } from '../lib/share'
-import { parseBetrag, ketteNeu, pruefeNachweis, abweichungen, offeneEintraege, eintraegeVon, leistungszeitraum, zuordnungVorschlag, verdaechtigeEintraege } from '../lib/abrechnung'
+import { parseBetrag, ketteNeu, pruefeNachweis, abweichungen, offeneEintraege, eintraegeVon, leistungszeitraum, zuordnungVorschlag, verdaechtigeEintraege, uhrzeitenVorschlag } from '../lib/abrechnung'
 import { sicherungAnlegen } from '../lib/backup'
 import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
@@ -597,6 +597,78 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
   )
 }
 
+// Zeiteinträge ohne Uhrzeit: Beginn 9:30 Uhr annehmen, Ende aus der Dauer
+function UhrzeitenBox({ vorschlag, onEintragen }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <div className="rounded-xl p-3 border border-white/20 bg-white/5 space-y-2">
+      <div className="font-semibold text-sm">Fehlende Uhrzeiten ({vorschlag.length})</div>
+      <div className="text-white/75 text-xs">Diese Zeiten wurden nur als Dauer erfasst. Vorschlag: Beginn 9:30 Uhr, Ende ergibt sich aus den Stunden.</div>
+      {vorschlag.map((v) => (
+        <div key={v.e.id} className="text-sm">{dmy(v.startAt)} · {hm(v.startAt)}–{hm(v.endAt)} Uhr <span className="text-white/60">({hms((Number(v.e.minutes) || 0) * 60)})</span></div>
+      ))}
+      <button disabled={busy} onClick={async () => { setBusy(true); try { await onEintragen(vorschlag) } finally { setBusy(false) } }}
+        className="w-full rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-50">{busy ? 'Trage ein …' : 'Uhrzeiten eintragen'}</button>
+    </div>
+  )
+}
+
+// KI liest das Bautagebuch und verteilt die Stunden jedes Zeiteintrags auf die ausgeführten Leistungen
+function LeistungenKiBox({ liste, alleEintraege, s, onUebernehmen }) {
+  const [vorschlag, setVorschlag] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const tagKey = (d) => { try { return new Date(d).toLocaleDateString('sv-SE') } catch { return String(d || '').slice(0, 10) } }
+  const zeiten = liste.filter((e) => e.type === 'zeit' && Number(e.minutes) > 0)
+  if (!zeiten.length) return null
+  const tage = [...new Set(zeiten.map((e) => tagKey(e.startAt || e.createdAt)))].sort().map((t) => ({
+    datum: t,
+    text: alleEintraege.filter((e) => e.type === 'tagebuch' && e.text && tagKey(e.createdAt) === t).map((e) => e.text.trim()).join(' '),
+    zeiten: zeiten.filter((e) => tagKey(e.startAt || e.createdAt) === t).map((e) => ({
+      id: String(e.id), stunden: Math.round((Number(e.minutes) || 0) / 6) / 10,
+      von: e.startAt && e.endAt ? hm(e.startAt) : '', bis: e.startAt && e.endAt ? hm(e.endAt) : '',
+    })),
+  }))
+  const ermitteln = async () => {
+    setBusy(true)
+    try { setVorschlag(await leistungenAusTagebuch(tage, s.gewerke, s.leistungskatalog)) }
+    catch (err) { alert(err && err.message ? err.message : String(err)) }
+    setBusy(false)
+  }
+  const std = (n) => (Math.round(Number(n) * 100) / 100).toLocaleString('de-DE') + ' h'
+  return (
+    <div className="rounded-xl p-3 border border-white/20 bg-white/5 space-y-2">
+      <div className="font-semibold text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber" /> Ausgeführte Leistungen</div>
+      {!vorschlag ? (
+        <>
+          <div className="text-white/75 text-xs">Die KI liest das Bautagebuch und ordnet die Stunden jedes Arbeitstags den passenden Gewerken und Leistungen zu. Du siehst den Vorschlag, bevor etwas gespeichert wird.</div>
+          <button onClick={ermitteln} disabled={busy} className="w-full rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-50">{busy ? 'KI liest das Bautagebuch …' : 'Leistungen aus Bautagebuch ermitteln'}</button>
+        </>
+      ) : (
+        <>
+          {tage.map((t) => (
+            <div key={t.datum} className="text-sm border-t border-white/10 pt-2">
+              <div className="font-semibold">{dmy(t.datum)}</div>
+              {t.zeiten.map((z) => (
+                <div key={z.id} className="pl-2">
+                  <div className="text-white/60 text-xs">{z.von ? z.von + '–' + z.bis + ' Uhr · ' : ''}{std(z.stunden)}</div>
+                  {(vorschlag[z.id] || []).map((l, i) => (
+                    <div key={i} className="text-white/90">{l.gewerk} › {l.leistung || '(allgemein)'} <span className="text-white/60">· {std(l.stunden)}</span></div>
+                  ))}
+                  {!(vorschlag[z.id] || []).length && <div className="text-white/60 text-xs">kein Vorschlag, bleibt wie bisher</div>}
+                </div>
+              ))}
+            </div>
+          ))}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button onClick={() => setVorschlag(null)} className="rounded-xl py-2 text-sm bg-white/10">Verwerfen</button>
+            <button disabled={busy} onClick={async () => { setBusy(true); try { await onUebernehmen(vorschlag); setVorschlag(null) } finally { setBusy(false) } }} className="rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-50">Übernehmen</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // Mögliche Test-Einträge mit Haken auswählen und auf einmal löschen
 function AufraeumenBox({ verdacht, onDelete }) {
   const [weg, setWeg] = useState(() => new Set(verdacht.map((x) => x.e.id)))
@@ -800,6 +872,7 @@ export default function ProjektDetail() {
   }
   const offene = offeneEintraege(eintraege, nbis)
   const offenZeitraum = leistungszeitraum(offene)
+  const uhrzeiten = nachweis && !isWorker ? uhrzeitenVorschlag(alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)) : []
   const verdacht = nachweis && !isWorker ? verdaechtigeEintraege(alsRechnung ? offene : filterByRange(eintraege, nvon, nbis), projekt.hourlyRate) : []
   const pruefung = nachweis && !isWorker ? pruefeNachweis({
     projekt, eintraege, rechnungen, von: nvon, bis: nbis, alsAbschlag: alsRechnung,
@@ -1065,6 +1138,28 @@ export default function ProjektDetail() {
                   ? 'Noch offen aus Abschlag ' + letzterAbschnitt.nr + ': ' + euro(vorherigerSaldo) + '. Wird zu diesem Abschlag addiert.'
                   : 'Guthaben aus Abschlag ' + letzterAbschnitt.nr + ': ' + euro(Math.abs(vorherigerSaldo)) + '. Wird von diesem Abschlag abgezogen.'}
               </div>
+            )}
+            {uhrzeiten.length > 0 && (
+              <UhrzeitenBox vorschlag={uhrzeiten} onEintragen={async (vs) => {
+                await sicherungAnlegen('Vor dem Ergänzen von Uhrzeiten')
+                for (const v of vs) await updateEintrag(v.e.id, { startAt: v.startAt, endAt: v.endAt })
+                setEintraege(await listEintraege(id))
+              }} />
+            )}
+            {!isWorker && (
+              <LeistungenKiBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)} alleEintraege={eintraege} s={s} onUebernehmen={async (vorschlag) => {
+                await sicherungAnlegen('Vor KI-Zuordnung der Leistungen')
+                for (const [eid, ls] of Object.entries(vorschlag)) {
+                  const teile = (ls || []).filter((l) => l && l.gewerk && Number(l.stunden) > 0)
+                  if (!teile.length) continue
+                  const haupt = teile.reduce((a, b) => (Number(b.stunden) > Number(a.stunden) ? b : a))
+                  await updateEintrag(Number(eid), {
+                    aufteilung: teile.map((l) => ({ gewerk: l.gewerk, leistung: l.leistung || '', minuten: Math.round(Number(l.stunden) * 60) })),
+                    gewerk: haupt.gewerk, leistung: haupt.leistung || '',
+                  })
+                }
+                setEintraege(await listEintraege(id))
+              }} />
             )}
             {verdacht.length > 0 && (
               <AufraeumenBox key={verdacht.map((x) => x.e.id).join(',')} verdacht={verdacht} onDelete={async (ids) => {
