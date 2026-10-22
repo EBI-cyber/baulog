@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import { syncAll } from '../lib/cloud'
 import { useRole } from '../lib/role'
 import IconChip from '../ui/IconChip'
+import Datensicherung from '../components/Datensicherung'
 
 function Section({ icon, title, hint, children }) {
   return (
@@ -82,6 +83,8 @@ export default function Einstellungen() {
 
       <div className="space-y-3">
         {AccountCard}
+
+        <Datensicherung />
 
         <Section icon={Building2} title="Firmendaten" hint="für den Leistungsnachweis">
           <input value={s.company} onChange={(e) => upd('company', e.target.value)} placeholder="Firmenname" className={inp + ' mb-2'} />

@@ -38,3 +38,21 @@ export async function sharePdf(doc, filename) {
   // 3) Letzter Ausweg: jsPDF-eigener Save
   try { doc.save(filename) } catch {}
 }
+
+// Beliebige Datei teilen (Handy) oder herunterladen (PC)
+export async function shareFile(blob, filename) {
+  try {
+    const file = new File([blob], filename, { type: blob.type })
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename })
+      return
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.rel = 'noopener'
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 8000)
+}
