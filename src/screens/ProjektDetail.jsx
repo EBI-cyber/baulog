@@ -12,7 +12,7 @@ import VoiceInput from '../components/VoiceInput'
 import { dinText, korrekturText, parseNachtrag, parseSetup, parseAbschluss } from '../lib/ai'
 import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename } from '../lib/pdf'
 import { sharePdf, previewPdf } from '../lib/share'
-import { parseBetrag, ketteNeu, pruefeNachweis, abweichungen, offeneEintraege, eintraegeVon, leistungszeitraum, zuordnungVorschlag } from '../lib/abrechnung'
+import { parseBetrag, ketteNeu, pruefeNachweis, abweichungen, offeneEintraege, eintraegeVon, leistungszeitraum, zuordnungVorschlag, verdaechtigeEintraege } from '../lib/abrechnung'
 import { sicherungAnlegen } from '../lib/backup'
 import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
@@ -597,6 +597,40 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
   )
 }
 
+// Mögliche Test-Einträge mit Haken auswählen und auf einmal löschen
+function AufraeumenBox({ verdacht, onDelete }) {
+  const [weg, setWeg] = useState(() => new Set(verdacht.map((x) => x.e.id)))
+  const [busy, setBusy] = useState(false)
+  const typName = { zeit: 'Zeit', menge: 'Menge', material: 'Material', maschine: 'Maschine', foto: 'Foto', tagebuch: 'Tagebuch' }
+  const text = (e) => e.type === 'zeit' ? hms((Number(e.minutes) || 0) * 60)
+    : e.type === 'foto' ? (e.note || 'Foto')
+    : e.type === 'menge' ? [e.leistung, e.menge != null ? e.menge + ' ' + (e.einheit || '') : ''].filter(Boolean).join(' · ')
+    : e.type === 'material' ? (e.label || e.leistung || '')
+    : (e.text || e.note || e.leistung || '')
+  const toggle = (id) => setWeg((alt) => { const n = new Set(alt); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  return (
+    <div className="rounded-xl p-3 border border-amber/30 bg-amber/10 space-y-2">
+      <div className="text-amber font-semibold text-sm">Mögliche Test-Einträge ({verdacht.length})</div>
+      <div className="text-white/75 text-xs">Diese Einträge sehen nicht nach echter Arbeit aus. Was angehakt ist, wird gelöscht. Vorher wird automatisch gesichert.</div>
+      {verdacht.map(({ e, grund }) => (
+        <label key={e.id} className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={weg.has(e.id)} onChange={() => toggle(e.id)} className="w-4 h-4 mt-0.5 accent-[#f59e0b] shrink-0" />
+          {e.type === 'foto' && e.dataUrl && <img src={e.dataUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />}
+          <span className="min-w-0">
+            <span className="font-medium">{dmy(e.createdAt)} · {typName[e.type] || e.type}</span>
+            {text(e) ? <span className="text-white/80"> · {text(e)}</span> : null}
+            <span className="block text-white/60 text-xs">{grund}</span>
+          </span>
+        </label>
+      ))}
+      <button disabled={!weg.size || busy} onClick={async () => {
+        if (!confirm(weg.size + ' Einträge löschen? Der aktuelle Stand wird vorher gesichert.')) return
+        setBusy(true); try { await onDelete([...weg]) } finally { setBusy(false) }
+      }} className="w-full rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-40">{busy ? 'Lösche …' : 'Ausgewählte löschen (' + weg.size + ')'}</button>
+    </div>
+  )
+}
+
 function RechnungRow({ r, anzahl, abweichung, onSavePayment, onDelete }) {
   const [val, setVal] = useState(r.bezahlterBetrag ? String(r.bezahlterBetrag).replace('.', ',') : '')
   const [gespeichert, setGespeichert] = useState(false)
@@ -766,6 +800,7 @@ export default function ProjektDetail() {
   }
   const offene = offeneEintraege(eintraege, nbis)
   const offenZeitraum = leistungszeitraum(offene)
+  const verdacht = nachweis && !isWorker ? verdaechtigeEintraege(alsRechnung ? offene : filterByRange(eintraege, nvon, nbis), projekt.hourlyRate) : []
   const pruefung = nachweis && !isWorker ? pruefeNachweis({
     projekt, eintraege, rechnungen, von: nvon, bis: nbis, alsAbschlag: alsRechnung,
     betrag: projektTotals(alsRechnung ? offene : filterByRange(eintraege, nvon, nbis), projekt.hourlyRate).total, vorherigerSaldo,
@@ -858,7 +893,7 @@ export default function ProjektDetail() {
                 <button onClick={() => setRechnungenOpen(true)} className="w-full glass card-hover rounded-2xl p-3 flex items-center gap-3 text-left">
                   <IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-white/70 text-xs">Abschläge &amp; Zahlungen · {rechnungen.length} Abschlag{rechnungen.length === 1 ? '' : 'e'}</div>
+                    <div className="text-white/70 text-xs">Abschläge &amp; Zahlungen · {rechnungen.length} {rechnungen.length === 1 ? 'Abschlag' : 'Abschläge'}</div>
                     <div className={'font-bold ' + (vorherigerSaldo > 0 ? 'text-amber' : vorherigerSaldo < 0 ? 'text-emerald-400' : 'text-white/80')}>
                       {vorherigerSaldo > 0 ? 'Offen ' + euro(vorherigerSaldo) : vorherigerSaldo < 0 ? 'Guthaben ' + euro(Math.abs(vorherigerSaldo)) : 'Alles bezahlt'}
                     </div>
@@ -1030,6 +1065,13 @@ export default function ProjektDetail() {
                   ? 'Noch offen aus Abschlag ' + letzterAbschnitt.nr + ': ' + euro(vorherigerSaldo) + '. Wird zu diesem Abschlag addiert.'
                   : 'Guthaben aus Abschlag ' + letzterAbschnitt.nr + ': ' + euro(Math.abs(vorherigerSaldo)) + '. Wird von diesem Abschlag abgezogen.'}
               </div>
+            )}
+            {verdacht.length > 0 && (
+              <AufraeumenBox key={verdacht.map((x) => x.e.id).join(',')} verdacht={verdacht} onDelete={async (ids) => {
+                await sicherungAnlegen('Vor dem Löschen von ' + ids.length + ' Test-Einträgen')
+                for (const eid of ids) await deleteEintrag(eid)
+                setEintraege(await listEintraege(id))
+              }} />
             )}
             {pruefung.length > 0 && (
               <div className="space-y-1.5">

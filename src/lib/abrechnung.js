@@ -112,3 +112,23 @@ export function pruefeNachweis({ projekt, eintraege, rechnungen, von, bis, alsAb
   if (projekt && /unbekannt/i.test(String(projekt.address || '') + ' ' + String(projekt.customer || ''))) m.push({ stufe: 'hinweis', text: 'Kunde oder Adresse enthält „unbekannt“. Bitte im Projekt prüfen.' })
   return m
 }
+
+// Mögliche Test-Einträge: Zeiten unter 1 Minute und einzelne Einträge,
+// die mehr als 30 Tage vor dem eigentlichen Arbeitsbeginn liegen und zusammen kaum etwas kosten.
+// Rückgabe: [{ e, grund }]
+export function verdaechtigeEintraege(liste, rate) {
+  const out = new Map()
+  const merk = (e, grund) => { if (!out.has(e.id)) out.set(e.id, { e, grund }) }
+  for (const e of liste) {
+    if (e.type === 'zeit' && !(Number(e.minutes) >= 1)) merk(e, 'Zeit unter 1 Minute')
+  }
+  const tage = [...new Set(liste.map(tag).filter(Boolean))].sort()
+  for (let i = 1; i < tage.length; i++) {
+    const luecke = (new Date(tage[i]) - new Date(tage[i - 1])) / 86400000
+    if (luecke <= 30) continue
+    const frueh = liste.filter((e) => tag(e) < tage[i])
+    if (projektTotals(frueh, rate).total < 5) frueh.forEach((e) => merk(e, 'Einzeln, ' + Math.round(luecke) + ' Tage vor Arbeitsbeginn'))
+    break
+  }
+  return nachDatum([...out.values()].map((x) => x.e)).map((e) => out.get(e.id))
+}
