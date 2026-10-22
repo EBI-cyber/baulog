@@ -17,6 +17,7 @@ import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
 import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
 import IconChip from '../ui/IconChip'
+import ProjektSheet from '../components/ProjektSheet'
 import { useCloudRefresh } from '../lib/useCloudRefresh'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
@@ -687,6 +688,7 @@ export default function ProjektDetail() {
   const isWorker = useRole() === 'worker'
   const { user } = useAuth()
   const [team, setTeam] = useState(false)
+  const [bearbeiten, setBearbeiten] = useState(false)
   const [allowedGewerke, setAllowedGewerke] = useState([])
   const [projekt, setProjekt] = useState(null)
   const [eintraege, setEintraege] = useState([])
@@ -822,6 +824,7 @@ export default function ProjektDetail() {
         </div>
         {!isWorker && (
           <div className="flex gap-2 shrink-0">
+            <button onClick={() => setBearbeiten(true)} title="Projekt bearbeiten" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Pencil className="w-5 h-5" /></button>
             <button onClick={() => setTeam(true)} title="Team" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Users className="w-5 h-5" /></button>
             <button onClick={() => setRechnungenOpen(true)} title="Abschläge & Zahlungen" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Receipt className="w-5 h-5" /></button>
             <button onClick={() => setNachweis(true)} title="Leistungsnachweis" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><FileText className="w-5 h-5" /></button>
@@ -970,6 +973,12 @@ export default function ProjektDetail() {
       {nachtrag && (
         <NachtragSheet s={s} defaultGewerk={gewerk} gewerkeList={gewerkeList} onClose={() => setNachtrag(false)}
           onSave={async (entries) => { for (const e of entries) await addEintrag({ projektId: Number(id), ...e }); setNachtrag(false); await load() }} />
+      )}
+
+      {bearbeiten && (
+        <ProjektSheet projekt={projekt} onClose={() => setBearbeiten(false)}
+          onSaved={async () => { setBearbeiten(false); await load() }}
+          onGone={(zielId) => { setBearbeiten(false); nav(zielId ? '/projekt/' + zielId : '/') }} />
       )}
 
       {team && <TeamSheet projektToken={projekt.token} projektName={projekt.name} gewerke={s.gewerke} onClose={() => setTeam(false)} />}
