@@ -5,9 +5,9 @@ import { getSyncStatus, onSyncStatus, syncAll } from '../lib/cloud'
 // Kleine Anzeige oben rechts: Ist alles in der Cloud gesichert?
 const LOOK = {
   ok: { Icon: Cloud, text: 'Gesichert', cls: 'text-emerald-300/80' },
-  laeuft: { Icon: RefreshCw, text: 'Sync …', cls: 'text-white/60', spin: true },
+  laeuft: { Icon: RefreshCw, text: 'Sync …', cls: 'text-white/80', spin: true },
   wartet: { Icon: CloudUpload, text: 'Wartet', cls: 'text-amber' },
-  offline: { Icon: CloudOff, text: 'Offline', cls: 'text-white/50' },
+  offline: { Icon: CloudOff, text: 'Offline', cls: 'text-white/75' },
   fehler: { Icon: AlertTriangle, text: 'Sync-Problem', cls: 'text-ember' },
 }
 
@@ -32,13 +32,13 @@ export default function SyncBadge() {
           <div className="glass rounded-3xl p-5 w-full max-w-md m-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-2">
               <div className="font-semibold flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-ember" /> Nicht alles ist in der Cloud</div>
-              <button onClick={() => setOpen(false)} className="text-white/40 p-1"><X className="w-5 h-5" /></button>
+              <button onClick={() => setOpen(false)} className="text-white/70 p-1"><X className="w-5 h-5" /></button>
             </div>
-            <p className="text-white/55 text-sm mb-3">
+            <p className="text-white/75 text-sm mb-3">
               {st.pending ? st.pending + ' Änderung(en) sind nur auf diesem Gerät gespeichert. ' : ''}
               Sie gehen nicht verloren und werden automatisch erneut gesendet.
             </p>
-            <ul className="text-xs text-white/45 space-y-1 max-h-40 overflow-auto mb-4">
+            <ul className="text-xs text-white/70 space-y-1 max-h-40 overflow-auto mb-4">
               {st.fehler.slice(0, 8).map((f) => <li key={f} className="bg-white/5 rounded-lg px-2 py-1 break-words">{f}</li>)}
             </ul>
             <button onClick={() => { setOpen(false); syncAll() }} className="btn-grad w-full rounded-2xl py-2.5 font-semibold inline-flex items-center justify-center gap-2">

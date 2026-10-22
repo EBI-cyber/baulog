@@ -10,7 +10,7 @@ export default function SetPassword() {
   const [pw2, setPw2] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
-  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 outline-none focus:border-amber'
+  const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-3 outline-none focus:border-amber'
 
   async function save(e) {
     e?.preventDefault?.()
@@ -33,11 +33,11 @@ export default function SetPassword() {
           </div>
         </div>
         <h1 className="text-3xl font-extrabold grad-text text-center">Willkommen bei BauLog!</h1>
-        <p className="text-white/55 text-center mt-2 mb-7 text-sm">
+        <p className="text-white/75 text-center mt-2 mb-7 text-sm">
           Schön, dass du dabei bist{user?.email ? ' (' + user.email + ')' : ''}. Leg jetzt dein Passwort fest, dann kannst du loslegen und deine Zeiten erfassen.
         </p>
         <form onSubmit={save} className="glass rounded-3xl p-5 space-y-3">
-          <div className="flex items-center gap-2 text-white/60 text-sm"><KeyRound className="w-4 h-4" /> Passwort wählen</div>
+          <div className="flex items-center gap-2 text-white/80 text-sm"><KeyRound className="w-4 h-4" /> Passwort wählen</div>
           <input value={pw} onChange={(e) => setPw(e.target.value)} type="password" placeholder="Neues Passwort" className={inp} autoComplete="new-password" />
           <input value={pw2} onChange={(e) => setPw2(e.target.value)} type="password" placeholder="Passwort wiederholen" className={inp} autoComplete="new-password" />
           {msg && <div className="text-amber text-sm">{msg}</div>}

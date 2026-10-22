@@ -4,7 +4,7 @@ export default function IconChip({ icon: I, size = 'w-10 h-10', iconClass = 'w-5
   const look = variant === 'grad'
     ? 'btn-grad shadow-glow'
     : variant === 'plain'
-      ? 'bg-white/[0.06] border border-white/10 text-white/70'
+      ? 'bg-white/[0.06] border border-white/20 text-white/70'
       : 'icon-chip'
   return (
     <div className={base + look + ' ' + className}>

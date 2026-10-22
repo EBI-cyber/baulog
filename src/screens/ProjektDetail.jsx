@@ -76,7 +76,7 @@ function StatTile({ icon, label, value, grad, big }) {
     <div className="glass rounded-3xl p-4 flex items-center gap-3 min-w-0">
       <IconChip icon={icon} size={big ? 'w-11 h-11' : 'w-9 h-9'} iconClass={big ? 'w-5 h-5' : 'w-[18px] h-[18px]'} />
       <div className="min-w-0">
-        <div className="text-white/40 text-xs truncate">{label}</div>
+        <div className="text-white/70 text-xs truncate">{label}</div>
         <div className={(big ? 'text-2xl' : 'text-base') + ' font-bold truncate ' + (grad ? 'grad-text' : '')}>{value}</div>
       </div>
     </div>
@@ -109,10 +109,10 @@ function EntryRow({ e, rate, onDelete, onEdit, hideCost }) {
       {e.type === 'foto' && e.dataUrl ? <img src={e.dataUrl} alt="" className="w-11 h-11 rounded-xl object-cover shrink-0" /> : <IconChip icon={I} size="w-11 h-11" />}
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{main}</div>
-        <div className="text-white/40 text-xs truncate">{dmyhm(e.createdAt)}{sub ? ' · ' + sub : ''}</div>
+        <div className="text-white/70 text-xs truncate">{dmyhm(e.createdAt)}{sub ? ' · ' + sub : ''}</div>
       </div>
-      {onEdit && <button onClick={onEdit} className="text-white/30 hover:text-white/70 transition p-1"><Pencil className="w-[17px] h-[17px]" /></button>}
-      <button onClick={onDelete} className="text-white/30 hover:text-ember transition p-1"><X className="w-[18px] h-[18px]" /></button>
+      {onEdit && <button onClick={onEdit} className="text-white/60 hover:text-white/70 transition p-1"><Pencil className="w-[17px] h-[17px]" /></button>}
+      <button onClick={onDelete} className="text-white/60 hover:text-ember transition p-1"><X className="w-[18px] h-[18px]" /></button>
     </div>
   )
 }
@@ -139,7 +139,7 @@ function MaschineCombo({ s, value, onChange, inp, wrapClass = '' }) {
           {filtered.map((m) => (
             <button type="button" key={m.name} onMouseDown={() => { onChange(m.name); setQ(m.name); setOpen(false) }}
               className="w-full text-left px-3 py-2 hover:bg-white/10 text-sm flex justify-between items-center gap-2 transition">
-              <span className="truncate">{m.name}</span><span className="text-white/40 text-xs shrink-0">{m.satz} €/h</span>
+              <span className="truncate">{m.name}</span><span className="text-white/70 text-xs shrink-0">{m.satz} €/h</span>
             </button>
           ))}
         </div>
@@ -210,7 +210,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
   }
   const title = (editEntry ? 'Bearbeiten: ' : '') + { zeit: 'Zeit erfassen', menge: 'Menge / Leistung', material: 'Material / Kosten', maschine: 'Maschine / Werkzeug', foto: 'Foto aufnehmen', tagebuch: 'Tagebuch-Eintrag' }[type]
   const TitleIcon = { zeit: Clock, menge: Ruler, material: Package, maschine: Wrench, foto: Camera, tagebuch: NotebookPen }[type] || Clock
-  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+  const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-20" onClick={onClose}>
@@ -231,18 +231,18 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
             <input value={minutes} onChange={(e) => setMinutes(e.target.value)} inputMode="numeric" placeholder="Minuten (z.B. 90)" className={inp} />
             <div>
               <div className="flex gap-1.5 mb-1.5">
-                <button type="button" onClick={() => setStartzeit(quickDay(0, startzeit))} className="px-2.5 py-1 rounded-full text-xs border border-white/15 text-white/60 hover:border-white/30">Heute</button>
-                <button type="button" onClick={() => setStartzeit(quickDay(1, startzeit))} className="px-2.5 py-1 rounded-full text-xs border border-white/15 text-white/60 hover:border-white/30">Gestern</button>
+                <button type="button" onClick={() => setStartzeit(quickDay(0, startzeit))} className="px-2.5 py-1 rounded-full text-xs border border-white/15 text-white/80 hover:border-white/30">Heute</button>
+                <button type="button" onClick={() => setStartzeit(quickDay(1, startzeit))} className="px-2.5 py-1 rounded-full text-xs border border-white/15 text-white/80 hover:border-white/30">Gestern</button>
               </div>
               <input type="datetime-local" value={startzeit} onChange={(e) => setStartzeit(e.target.value)} className={inp} />
-              <div className="text-white/35 text-[11px] mt-1">Startzeit (optional) — für genaue Uhrzeiten im Leistungsnachweis, z.B. zum Nachtragen von gestern</div>
+              <div className="text-white/60 text-xs mt-1">Startzeit (optional) — für genaue Uhrzeiten im Leistungsnachweis, z.B. zum Nachtragen von gestern</div>
             </div>
           </>
         )}
         {type === 'menge' && (
           <div className="flex gap-2 items-center">
             <input value={menge} onChange={(e) => setMenge(e.target.value)} inputMode="decimal" placeholder="Menge" className={inp} />
-            <span className="text-white/60 w-12 text-center">{einheit || '—'}</span>
+            <span className="text-white/80 w-12 text-center">{einheit || '—'}</span>
           </div>
         )}
         {type === 'material' && (
@@ -262,7 +262,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
               <>
                 <label className="flex items-center gap-2 pt-1">
                   <input type="checkbox" checked={addDinNote} onChange={(e) => setAddDinNote(e.target.checked)} className="w-4 h-4 accent-[#f59e0b]" />
-                  <span className="text-white/60 text-xs">DIN-Text als Tagebuch-Notiz übernehmen</span>
+                  <span className="text-white/80 text-xs">DIN-Text als Tagebuch-Notiz übernehmen</span>
                 </label>
                 {addDinNote && (
                   <textarea value={dinNote} onChange={(e) => { setDinNote(e.target.value); setDinNoteTouched(true) }} rows={2} className={inp} />
@@ -293,7 +293,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
               </button>
             </div>
             <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Diktieren per Mikro oder tippen, dann optional korrigieren oder nach DIN formulieren…" rows={5} className={inp} />
-            <div className="text-white/35 text-[11px]">„Text überarbeiten" korrigiert Fehler und glättet Satzbau/Formulierung, behält aber deine Worte & Reihenfolge weitgehend bei. „Nach DIN" formuliert komplett im VOB-Stil um.</div>
+            <div className="text-white/60 text-xs">„Text überarbeiten" korrigiert Fehler und glättet Satzbau/Formulierung, behält aber deine Worte & Reihenfolge weitgehend bei. „Nach DIN" formuliert komplett im VOB-Stil um.</div>
           </>
         )}
 
@@ -317,7 +317,7 @@ function NachtragSheet({ s, defaultGewerk, gewerkeList, onClose, onSave }) {
   const [transcript, setTranscript] = useState('')
   const [busy, setBusy] = useState(false)
   const [tage, setTage] = useState(null) // null = noch nicht analysiert
-  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+  const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
 
   async function analyse() {
     try {
@@ -368,7 +368,7 @@ function NachtragSheet({ s, defaultGewerk, gewerkeList, onClose, onSave }) {
 
         {tage === null ? (
           <>
-            <div className="text-white/45 text-xs">Notizen von Papier/Gedächtnis einfügen oder diktieren — mit Datum, Uhrzeiten und was gemacht wurde. Die KI sortiert das automatisch nach Tagen.</div>
+            <div className="text-white/70 text-xs">Notizen von Papier/Gedächtnis einfügen oder diktieren — mit Datum, Uhrzeiten und was gemacht wurde. Die KI sortiert das automatisch nach Tagen.</div>
             <VoiceInput onText={(t) => setTranscript((cur) => (cur ? cur + '\n' + t : t))} />
             <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={10}
               placeholder={'24.08.2026\n9:30 - 12:40 Uhr\n13:30 - 19:00 Uhr\nWasserleitungen angeschlossen…'} className={inp} />
@@ -382,42 +382,42 @@ function NachtragSheet({ s, defaultGewerk, gewerkeList, onClose, onSave }) {
             <select value={gewerk} onChange={(e) => setGewerk(e.target.value)} className={inp}>
               {gewerkeOpts.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
-            <div className="text-white/40 text-[11px]">Gewerk gilt für alle nachgetragenen Zeiten/Notizen. Nach dem Speichern kannst du jeden Eintrag einzeln über den Stift-Button anpassen.</div>
+            <div className="text-white/70 text-xs">Gewerk gilt für alle nachgetragenen Zeiten/Notizen. Nach dem Speichern kannst du jeden Eintrag einzeln über den Stift-Button anpassen.</div>
 
-            {tage.length === 0 && <div className="text-white/35 text-sm">Nichts erkannt — bitte Text anpassen und erneut versuchen.</div>}
+            {tage.length === 0 && <div className="text-white/60 text-sm">Nichts erkannt — bitte Text anpassen und erneut versuchen.</div>}
 
             {tage.map((t, ti) => (
               <div key={ti} className="bg-white/5 rounded-2xl p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <input type="date" value={t.datum} onChange={(e) => updateTag(ti, { datum: e.target.value })} className={inp} />
-                  <button onClick={() => removeTag(ti)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
+                  <button onClick={() => removeTag(ti)} className="text-white/60 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
                 </div>
                 {t.zeiten.map((z, zi) => {
                   const { minutes } = hhmmToRange(t.datum, z.von, z.bis)
                   return (
                     <div key={zi} className="flex items-center gap-2">
                       <input type="time" value={z.von} onChange={(e) => updateZeit(ti, zi, { von: e.target.value })} className={inp} />
-                      <span className="text-white/30">–</span>
+                      <span className="text-white/60">–</span>
                       <input type="time" value={z.bis} onChange={(e) => updateZeit(ti, zi, { bis: e.target.value })} className={inp} />
-                      <span className="text-white/40 text-xs w-14 shrink-0 text-right">{minutes > 0 ? hms(minutes * 60) : '—'}</span>
-                      <button onClick={() => removeZeit(ti, zi)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-4 h-4" /></button>
+                      <span className="text-white/70 text-xs w-14 shrink-0 text-right">{minutes > 0 ? hms(minutes * 60) : '—'}</span>
+                      <button onClick={() => removeZeit(ti, zi)} className="text-white/60 hover:text-ember transition p-1 shrink-0"><X className="w-4 h-4" /></button>
                     </div>
                   )
                 })}
-                <button type="button" onClick={() => addZeit(ti)} className="text-white/50 text-xs inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Zeitblock</button>
+                <button type="button" onClick={() => addZeit(ti)} className="text-white/75 text-xs inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Zeitblock</button>
 
                 {t.notizen.map((n, ni) => (
                   <div key={ni} className="flex items-start gap-2">
                     <textarea value={n} onChange={(e) => updateNotiz(ti, ni, e.target.value)} rows={2} className={inp} />
-                    <button onClick={() => removeNotiz(ti, ni)} className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-4 h-4" /></button>
+                    <button onClick={() => removeNotiz(ti, ni)} className="text-white/60 hover:text-ember transition p-1 shrink-0"><X className="w-4 h-4" /></button>
                   </div>
                 ))}
-                <button type="button" onClick={() => addNotiz(ti)} className="text-white/50 text-xs inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Notiz</button>
+                <button type="button" onClick={() => addNotiz(ti)} className="text-white/75 text-xs inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Notiz</button>
               </div>
             ))}
 
             <div className="flex items-center justify-between pt-1 text-sm">
-              <span className="text-white/50">Gesamt</span>
+              <span className="text-white/75">Gesamt</span>
               <span className="font-bold">{gesamt > 0 ? hms(gesamt * 60) : '—'}</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -444,7 +444,7 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
   const [transcript, setTranscript] = useState('')
   const [busy, setBusy] = useState(false)
   const [p, setP] = useState(null)
-  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+  const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
 
   async function auswerten() {
     try {
@@ -475,7 +475,7 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
       <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[92dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
         <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={Sparkles} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Abschluss: {ctx.leistung || ctx.gewerk}</div>
-        <div className="text-white/50 text-sm">Sprich frei: <b>Wie viel {ctx.einheit ? '(' + ctx.einheit + ')' : ''}? Was verbraucht? Welches Werkzeug?</b></div>
+        <div className="text-white/75 text-sm">Sprich frei: <b>Wie viel {ctx.einheit ? '(' + ctx.einheit + ')' : ''}? Was verbraucht? Welches Werkzeug?</b></div>
         <div className="flex gap-2">
           <VoiceInput onText={setTranscript} />
           <button type="button" disabled={busy || !transcript.trim()} onClick={auswerten} className="rounded-xl px-3 py-2 text-sm font-semibold btn-grad disabled:opacity-40 inline-flex items-center gap-1.5"><Sparkles className="w-4 h-4" />{busy ? '…' : 'Auswerten'}</button>
@@ -483,14 +483,14 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
         <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={3} placeholder="z.B. 12 Quadratmeter verlegt, 5 Sack Kleber, Fliesenschneider benutzt" className={inp} />
 
         {p && (
-          <div className="space-y-3 pt-2 border-t border-white/10">
+          <div className="space-y-3 pt-2 border-t border-white/20">
             <div className="flex gap-2 items-center">
-              <span className="text-white/50 text-sm w-16">Menge</span>
+              <span className="text-white/75 text-sm w-16">Menge</span>
               <input value={p.menge} onChange={(e) => setP({ ...p, menge: e.target.value })} inputMode="decimal" className={inp} />
-              <span className="text-white/60 w-10 text-center">{p.einheit}</span>
+              <span className="text-white/80 w-10 text-center">{p.einheit}</span>
             </div>
             <div>
-              <div className="text-white/50 text-sm mb-1">Material (EK €)</div>
+              <div className="text-white/75 text-sm mb-1">Material (EK €)</div>
               {p.materials.map((m, i) => (
                 <div key={i} className="flex gap-2 mb-1">
                   <input value={m.label} onChange={(e) => setMat(i, 'label', e.target.value)} placeholder="Material" className="flex-1 bg-white/5 rounded-lg px-2 py-1 text-sm" />
@@ -498,10 +498,10 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
                   <input value={m.unitCost} onChange={(e) => setMat(i, 'unitCost', e.target.value)} inputMode="decimal" placeholder="€" className="w-16 text-right bg-white/5 rounded-lg px-1 py-1 text-sm" />
                 </div>
               ))}
-              {p.materials.length === 0 && <div className="text-white/30 text-xs">– kein Material erkannt –</div>}
+              {p.materials.length === 0 && <div className="text-white/60 text-xs">– kein Material erkannt –</div>}
             </div>
             <div>
-              <div className="text-white/50 text-sm mb-1">Maschinen (Min)</div>
+              <div className="text-white/75 text-sm mb-1">Maschinen (Min)</div>
               {p.maschinen.map((m, i) => (
                 <div key={i} className="flex gap-2 mb-1">
                   <MaschineCombo s={s} value={m.name} onChange={(v) => setMas(i, 'name', v)}
@@ -509,12 +509,12 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
                   <input value={m.minutes} onChange={(e) => setMas(i, 'minutes', e.target.value)} inputMode="numeric" className="w-16 text-center bg-white/5 rounded-lg px-1 py-1 text-sm" />
                 </div>
               ))}
-              {p.maschinen.length === 0 && <div className="text-white/30 text-xs">– kein Werkzeug erkannt –</div>}
+              {p.maschinen.length === 0 && <div className="text-white/60 text-xs">– kein Werkzeug erkannt –</div>}
             </div>
             <button onClick={save} className="w-full rounded-2xl py-3 font-bold btn-grad">Übernehmen & Kalkulation fertig</button>
           </div>
         )}
-        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Überspringen</button>
+        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/75 text-sm">Überspringen</button>
       </div>
     </div>
   )
@@ -527,7 +527,7 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [ok, setOk] = useState('')
-  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+  const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
   const reload = async () => { try { setErr(''); setMembers(await listMembers(projektToken)) } catch (e) { setErr(e.message); setMembers([]) } }
   useEffect(() => { reload() }, [projektToken])
   const toggle = (list, g) => (list.includes(g) ? list.filter((x) => x !== g) : [...list, g])
@@ -552,45 +552,45 @@ function TeamSheet({ projektToken, projektName, gewerke, onClose }) {
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
       <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
         <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={Users} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Team für dieses Projekt</div>
-        <div className="text-white/45 text-sm">Mitarbeiter sehen <b>keine Kosten</b> und nur ihre zugewiesenen Gewerke. Sie müssen sich mit derselben E-Mail in BauLog registrieren.</div>
+        <div className="text-white/70 text-sm">Mitarbeiter sehen <b>keine Kosten</b> und nur ihre zugewiesenen Gewerke. Sie müssen sich mit derselben E-Mail in BauLog registrieren.</div>
 
         {err && <div className="rounded-xl bg-ember/15 border border-ember/30 text-ember text-sm p-3">{err}</div>}
         {ok && <div className="rounded-xl bg-lime/15 border border-lime/30 text-lime text-sm p-3">{ok}</div>}
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-3 space-y-2">
+        <div className="bg-white/10 border border-white/20 rounded-2xl p-3 space-y-2">
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" placeholder="mitarbeiter@mail.de" className={inp} />
-          <div className="text-white/50 text-xs">Gewerke (leer = alle erlaubt):</div>
+          <div className="text-white/75 text-xs">Gewerke (leer = alle erlaubt):</div>
           <div className="flex flex-wrap gap-1.5">
             {gewerke.map((g) => (
               <button key={g} type="button" onClick={() => setPickGewerke((l) => toggle(l, g))}
-                className={'px-2.5 py-1 rounded-full text-xs border transition ' + (pickGewerke.includes(g) ? 'bg-amber text-ink border-amber font-semibold' : 'border-white/15 text-white/60 hover:border-white/30')}>{g}</button>
+                className={'px-2.5 py-1 rounded-full text-xs border transition ' + (pickGewerke.includes(g) ? 'bg-amber text-ink border-amber font-semibold' : 'border-white/15 text-white/80 hover:border-white/30')}>{g}</button>
             ))}
           </div>
           <button onClick={add} disabled={busy} className="w-full rounded-xl py-2.5 font-semibold btn-grad disabled:opacity-40 inline-flex items-center justify-center gap-2"><UserPlus className="w-4 h-4" strokeWidth={2} />{busy ? '…' : 'Mitarbeiter zuweisen'}</button>
         </div>
 
         <div className="space-y-2 pt-1">
-          {members === null && <div className="text-white/35 text-sm">Lade…</div>}
-          {members && members.length === 0 && <div className="text-white/35 text-sm">Noch keine Mitarbeiter zugewiesen.</div>}
+          {members === null && <div className="text-white/60 text-sm">Lade…</div>}
+          {members && members.length === 0 && <div className="text-white/60 text-sm">Noch keine Mitarbeiter zugewiesen.</div>}
           {members && members.map((m) => (
             <div key={m.email} className="glass rounded-2xl p-3">
               <div className="flex items-center gap-2">
                 <IconChip icon={HardHat} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                 <div className="flex-1 min-w-0 truncate text-sm">{m.email}</div>
-                <button onClick={() => sendInvite(projektName, m.email)} title="Einladung senden" className="text-amber/80 hover:text-amber transition p-1.5 rounded-lg border border-white/10"><Send className="w-[18px] h-[18px]" /></button>
-                <button onClick={() => del(m.email)} className="text-white/30 hover:text-ember transition p-1"><X className="w-[18px] h-[18px]" /></button>
+                <button onClick={() => sendInvite(projektName, m.email)} title="Einladung senden" className="text-amber/80 hover:text-amber transition p-1.5 rounded-lg border border-white/20"><Send className="w-[18px] h-[18px]" /></button>
+                <button onClick={() => del(m.email)} className="text-white/60 hover:text-ember transition p-1"><X className="w-[18px] h-[18px]" /></button>
               </div>
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {gewerke.map((g) => (
                   <button key={g} type="button" onClick={() => saveGewerke(m, toggle(m.gewerke, g))}
-                    className={'px-2.5 py-1 rounded-full text-xs border ' + (m.gewerke.includes(g) ? 'bg-amber/80 text-ink border-amber font-semibold' : 'border-white/15 text-white/45')}>{g}</button>
+                    className={'px-2.5 py-1 rounded-full text-xs border ' + (m.gewerke.includes(g) ? 'bg-amber/80 text-ink border-amber font-semibold' : 'border-white/15 text-white/70')}>{g}</button>
                 ))}
               </div>
-              {m.gewerke.length === 0 && <div className="text-white/30 text-[11px] mt-1">Alle Gewerke erlaubt</div>}
+              {m.gewerke.length === 0 && <div className="text-white/60 text-xs mt-1">Alle Gewerke erlaubt</div>}
             </div>
           ))}
         </div>
-        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Schließen</button>
+        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/75 text-sm">Schließen</button>
       </div>
     </div>
   )
@@ -609,15 +609,15 @@ function RechnungRow({ r, abweichung, onSavePayment, onSaveZeitraum, onDelete })
       <div className="flex items-center gap-3">
         <IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate">Abschlag {r.nr ?? '–'} · {r.von ? dmy(r.von) : '…'} – {r.bis ? dmy(r.bis) : '…'}</div>
-          <div className="text-white/40 text-xs">
+          <div className="font-medium text-sm truncate">Abschlag {r.nr ?? '–'} · {r.von ? dmy(r.von) : 'Projektbeginn'} – {r.bis ? dmy(r.bis) : 'offen'}</div>
+          <div className="text-white/70 text-xs">
             Leistungen {euro(r.betrag)}
             {r.vorherigerSaldo ? (r.vorherigerSaldo > 0 ? ' + Übertrag ' + euro(r.vorherigerSaldo) : ' − Übertrag ' + euro(Math.abs(r.vorherigerSaldo))) : ''}
             {' = '}{euro(gesamt)}
           </div>
         </div>
-        <button onClick={() => setZeitraum((x) => !x)} title="Zeitraum ändern" className="text-white/30 hover:text-amber transition p-1 shrink-0"><Pencil className="w-4 h-4" /></button>
-        <button onClick={() => onDelete(r)} title="Abschlag löschen" className="text-white/30 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
+        <button onClick={() => setZeitraum((x) => !x)} title="Zeitraum ändern" className="text-white/60 hover:text-amber transition p-1 shrink-0"><Pencil className="w-4 h-4" /></button>
+        <button onClick={() => onDelete(r)} title="Abschlag löschen" className="text-white/60 hover:text-ember transition p-1 shrink-0"><X className="w-[18px] h-[18px]" /></button>
       </div>
       {abweichung && (
         <div className="rounded-xl px-3 py-2 text-xs border bg-amber/10 text-amber border-amber/25">
@@ -626,19 +626,19 @@ function RechnungRow({ r, abweichung, onSavePayment, onSaveZeitraum, onDelete })
       )}
       {zeitraum && (
         <div className="flex items-center gap-2 pl-1 flex-wrap">
-          <span className="text-white/45 text-xs shrink-0">Zeitraum</span>
-          <input type="date" value={zv} onChange={(e) => setZv(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm" />
-          <input type="date" value={zb} onChange={(e) => setZb(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm" />
-          <button onClick={async () => { if (await onSaveZeitraum(r, zv, zb)) setZeitraum(false) }} className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white/10">Speichern</button>
-          <div className="text-white/35 text-[11px] w-full">Der berechnete Betrag bleibt, wie er dem Kunden gestellt wurde. Nur die Zuordnung der Leistungen ändert sich.</div>
+          <span className="text-white/70 text-xs shrink-0">Zeitraum</span>
+          <input type="date" value={zv} onChange={(e) => setZv(e.target.value)} className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm" />
+          <input type="date" value={zb} onChange={(e) => setZb(e.target.value)} className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm" />
+          <button onClick={async () => { if (await onSaveZeitraum(r, zv, zb)) setZeitraum(false) }} className="text-sm font-bold px-3 py-1.5 rounded-lg btn-grad">Speichern</button>
+          <div className="text-white/60 text-xs w-full">Der berechnete Betrag bleibt, wie er dem Kunden gestellt wurde. Nur die Zuordnung der Leistungen ändert sich.</div>
         </div>
       )}
       <div className="flex items-center gap-2 pl-1 flex-wrap">
-        <span className="text-white/45 text-xs shrink-0">Zahlung erhalten €</span>
-        <input value={val} onChange={(e) => { setVal(e.target.value); setGespeichert(false) }} inputMode="decimal" placeholder="z. B. 2.000" className="w-28 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm" />
-        <button onClick={async () => { if (await onSavePayment(r, val)) setGespeichert(true) }} className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white/10">{gespeichert ? 'Gespeichert ✓' : 'Speichern'}</button>
-        {r.bezahltAm && Number(r.bezahlterBetrag) > 0 && <span className="text-white/30 text-[11px]">am {dmy(r.bezahltAm)}</span>}
-        <span className={'ml-auto text-xs font-semibold px-2.5 py-1 rounded-full ' + (saldo > 0 ? 'bg-ember/20 text-ember' : saldo < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/50')}>
+        <span className="text-white/85 text-sm shrink-0">Zahlung erhalten €</span>
+        <input value={val} onChange={(e) => { setVal(e.target.value); setGespeichert(false) }} inputMode="decimal" placeholder="z. B. 2.000" className="w-28 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm" />
+        <button onClick={async () => { if (await onSavePayment(r, val)) setGespeichert(true) }} className="text-sm font-bold px-3 py-1.5 rounded-lg btn-grad">{gespeichert ? 'Gespeichert ✓' : 'Speichern'}</button>
+        {r.bezahltAm && Number(r.bezahlterBetrag) > 0 && <span className="text-white/60 text-xs">am {dmy(r.bezahltAm)}</span>}
+        <span className={'ml-auto text-xs font-semibold px-2.5 py-1 rounded-full ' + (saldo > 0 ? 'bg-ember/20 text-ember' : saldo < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/75')}>
           {saldo > 0 ? 'Offen ' + euro(saldo) : saldo < 0 ? 'Überzahlt ' + euro(Math.abs(saldo)) : 'Ausgeglichen'}
         </span>
       </div>
@@ -658,14 +658,14 @@ function RechnungenSheet({ rechnungen, abweichend, onClose, onSavePayment, onSav
         <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Abschläge &amp; Zahlungen</div>
         {rechnungen.length > 0 && (
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-white/5 rounded-xl p-2"><div className="text-white/40 text-[11px]">Leistungen</div><div className="font-bold text-sm">{euro(gesamtRechnung)}</div></div>
-            <div className="bg-white/5 rounded-xl p-2"><div className="text-white/40 text-[11px]">Bezahlt</div><div className="font-bold text-sm">{euro(gesamtBezahlt)}</div></div>
-            <div className="bg-white/5 rounded-xl p-2"><div className="text-white/40 text-[11px]">Saldo</div><div className={'font-bold text-sm ' + (aktuellerSaldo > 0 ? 'text-ember' : aktuellerSaldo < 0 ? 'text-emerald-400' : '')}>{euro(aktuellerSaldo)}</div></div>
+            <div className="bg-white/5 rounded-xl p-2"><div className="text-white/70 text-xs">Leistungen</div><div className="font-bold text-sm">{euro(gesamtRechnung)}</div></div>
+            <div className="bg-white/5 rounded-xl p-2"><div className="text-white/70 text-xs">Bezahlt</div><div className="font-bold text-sm">{euro(gesamtBezahlt)}</div></div>
+            <div className="bg-white/5 rounded-xl p-2"><div className="text-white/70 text-xs">Saldo</div><div className={'font-bold text-sm ' + (aktuellerSaldo > 0 ? 'text-ember' : aktuellerSaldo < 0 ? 'text-emerald-400' : '')}>{euro(aktuellerSaldo)}</div></div>
           </div>
         )}
         <div className="space-y-2">
           {rechnungen.length === 0 && (
-            <div className="text-white/35 text-sm">Noch kein Abschlag erstellt. Im Leistungsnachweis „Als Abschlag festhalten“ aktivieren.</div>
+            <div className="text-white/60 text-sm">Noch kein Abschlag erstellt. Im Leistungsnachweis „Als Abschlag festhalten“ aktivieren.</div>
           )}
           {rechnungen.map((r) => <RechnungRow key={r.id} r={r} abweichung={abweichend.find((a) => a.r.id === r.id)} onSavePayment={onSavePayment} onSaveZeitraum={onSaveZeitraum} onDelete={onDelete} />)}
         </div>
@@ -675,7 +675,7 @@ function RechnungenSheet({ rechnungen, abweichend, onClose, onSavePayment, onSav
             <button onClick={onExportPdf} className="w-full rounded-2xl py-2.5 font-semibold bg-white/10 inline-flex items-center justify-center gap-2"><FileText className="w-4 h-4" /> Teilen</button>
           </div>
         )}
-        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Schließen</button>
+        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/75 text-sm">Schließen</button>
       </div>
     </div>
   )
@@ -742,13 +742,20 @@ export default function ProjektDetail() {
     return () => { active = false }
   }, [isWorker, projekt, user])
 
+  // Abschlag speichert den tatsächlichen Leistungszeitraum (erster bis letzter Arbeitstag im gewählten Bereich).
+  // Später nachgetragene Arbeiten nach dem letzten Arbeitstag landen so automatisch im nächsten Abschlag.
+  function leistungszeitraum(liste, von, bis) {
+    const tage = liste.map((e) => String(e.createdAt || '').slice(0, 10)).filter(Boolean).sort()
+    return { von: tage[0] || von || null, bis: tage[tage.length - 1] || bis || null }
+  }
+
   // Nach Zahlung oder Löschen: Übertrag aller folgenden Abschläge neu rechnen
   async function ketteAktualisieren() {
     for (const { id: rid, patch } of ketteNeu(await listRechnungen(id))) await updateRechnung(rid, patch)
     setRechnungen(await listRechnungen(id))
   }
 
-  if (!projekt) return <div className="p-10 text-white/40">Lade…</div>
+  if (!projekt) return <div className="p-10 text-white/70">Lade…</div>
   const t = projektTotals(eintraege, projekt.hourlyRate)
   const epRows = !isWorker ? leistungAnalytics(eintraege, [projekt]) : []
   const letzterAbschnitt = rechnungen.reduce((max, r) => (!max || (Number(r.nr) || 0) > (Number(max.nr) || 0) ? r : max), null)
@@ -820,7 +827,7 @@ export default function ProjektDetail() {
         <button onClick={() => nav('/')} className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"><ChevronLeft className="w-5 h-5" /></button>
         <div className="min-w-0 flex-1">
           <div className="font-bold text-xl md:text-2xl truncate">{projekt.name}</div>
-          <div className="text-white/40 text-xs md:text-sm truncate">{[projekt.customer, projekt.address].filter(Boolean).join(' · ')}</div>
+          <div className="text-white/70 text-xs md:text-sm truncate">{[projekt.customer, projekt.address].filter(Boolean).join(' · ')}</div>
         </div>
         {!isWorker && (
           <div className="flex gap-2 shrink-0">
@@ -851,8 +858,8 @@ export default function ProjektDetail() {
                 <button onClick={() => setRechnungenOpen(true)} className="w-full glass card-hover rounded-2xl p-3 flex items-center gap-3 text-left">
                   <IconChip icon={Receipt} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-white/40 text-xs">Abschläge &amp; Zahlungen · {rechnungen.length} Abschlag{rechnungen.length === 1 ? '' : 'e'}</div>
-                    <div className={'font-bold ' + (vorherigerSaldo > 0 ? 'text-amber' : vorherigerSaldo < 0 ? 'text-emerald-400' : 'text-white/60')}>
+                    <div className="text-white/70 text-xs">Abschläge &amp; Zahlungen · {rechnungen.length} Abschlag{rechnungen.length === 1 ? '' : 'e'}</div>
+                    <div className={'font-bold ' + (vorherigerSaldo > 0 ? 'text-amber' : vorherigerSaldo < 0 ? 'text-emerald-400' : 'text-white/80')}>
                       {vorherigerSaldo > 0 ? 'Offen ' + euro(vorherigerSaldo) : vorherigerSaldo < 0 ? 'Guthaben ' + euro(Math.abs(vorherigerSaldo)) : 'Alles bezahlt'}
                     </div>
                   </div>
@@ -863,11 +870,11 @@ export default function ProjektDetail() {
           )}
 
           <div className="glass rounded-3xl p-5">
-            <div className="text-white/45 text-[11px] mb-3 uppercase tracking-wider font-semibold">Zeit-Timer</div>
+            <div className="text-white/70 text-xs mb-3 uppercase tracking-wider font-semibold">Zeit-Timer</div>
             {timer ? (
               <>
-                <div className={'text-5xl font-extrabold text-center tabular-nums ' + (paused ? 'text-white/35' : '')}>{clock(workedMs)}</div>
-                <div className="text-center text-white/40 text-xs mt-1 mb-4 flex items-center justify-center gap-1.5">
+                <div className={'text-5xl font-extrabold text-center tabular-nums ' + (paused ? 'text-white/60' : '')}>{clock(workedMs)}</div>
+                <div className="text-center text-white/70 text-xs mt-1 mb-4 flex items-center justify-center gap-1.5">
                   <span>{timer.gewerk}{timer.leistung ? ' · ' + timer.leistung : ''}</span>
                   {paused && <span className="inline-flex items-center gap-1 text-amber font-semibold"><Pause className="w-3.5 h-3.5" /> Pause</span>}
                 </div>
@@ -880,19 +887,19 @@ export default function ProjektDetail() {
               </>
             ) : (
               <>
-                <div className="mb-2 p-2 rounded-xl bg-white/5 border border-white/10">
+                <div className="mb-2 p-2 rounded-xl bg-white/10 border border-white/20">
                   <div className="flex gap-2 items-center">
                     <VoiceInput onText={setSetupText} />
                     <button type="button" disabled={setupBusy || !setupText.trim()} onClick={kiSetup} className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40 inline-flex items-center gap-1.5"><Sparkles className="w-4 h-4" />{setupBusy ? '…' : 'KI-Setup'}</button>
-                    <span className="text-white/40 text-xs flex-1 leading-tight">kurz sagen, was du machst</span>
+                    <span className="text-white/70 text-xs flex-1 leading-tight">kurz sagen, was du machst</span>
                   </div>
-                  {setupText && <div className="text-white/50 text-xs mt-1 truncate">„{setupText}"</div>}
+                  {setupText && <div className="text-white/75 text-xs mt-1 truncate">„{setupText}"</div>}
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-2">
-                  <select value={gewerk} onChange={(e) => { setGewerk(e.target.value); setLeistung('') }} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
+                  <select value={gewerk} onChange={(e) => { setGewerk(e.target.value); setLeistung('') }} className="bg-white/10 border border-white/20 rounded-lg px-2 py-2 text-sm">
                     {gewerkeList.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
-                  <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className="bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-sm">
+                  <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className="bg-white/10 border border-white/20 rounded-lg px-2 py-2 text-sm">
                     <option value="">— allgemein —</option>
                     {leistungenG.map((l) => <option key={l.name} value={l.name}>{l.name}</option>)}
                   </select>
@@ -910,8 +917,8 @@ export default function ProjektDetail() {
             <ActionTile icon={NotebookPen} label="Tagebuch" onClick={() => setSheet('tagebuch')} />
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <button onClick={() => setSheet('zeit')} className="text-white/50 text-sm inline-flex items-center gap-1 hover:text-white/70 transition"><Plus className="w-4 h-4" /> Zeit manuell erfassen</button>
-            <button onClick={() => setNachtrag(true)} className="text-white/50 text-sm inline-flex items-center gap-1 hover:text-white/70 transition"><History className="w-4 h-4" /> Zeiten nachtragen (KI)</button>
+            <button onClick={() => setSheet('zeit')} className="text-white/75 text-sm inline-flex items-center gap-1 hover:text-white/70 transition"><Plus className="w-4 h-4" /> Zeit manuell erfassen</button>
+            <button onClick={() => setNachtrag(true)} className="text-white/75 text-sm inline-flex items-center gap-1 hover:text-white/70 transition"><History className="w-4 h-4" /> Zeiten nachtragen (KI)</button>
           </div>
 
           {!isWorker && epRows.length > 0 && (
@@ -920,7 +927,7 @@ export default function ProjektDetail() {
                 <IconChip icon={Calculator} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                 <div>
                   <div className="font-semibold">EP-Vorschau</div>
-                  <div className="text-white/35 text-xs">Selbstkosten je Einheit — Basis fürs Angebot</div>
+                  <div className="text-white/60 text-xs">Selbstkosten je Einheit — Basis fürs Angebot</div>
                 </div>
               </div>
               <div className="space-y-2">
@@ -930,7 +937,7 @@ export default function ProjektDetail() {
                       <div className="font-medium truncate text-sm">{l.leistung}</div>
                       <div className="grad-text font-bold whitespace-nowrap text-sm">{l.ep != null ? euro(l.ep) + ' / ' + l.einheit : '—'}</div>
                     </div>
-                    <div className="text-white/40 text-[11px] mt-0.5">
+                    <div className="text-white/70 text-xs mt-0.5">
                       {l.menge ? l.menge.toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' ' + l.einheit + ' · ' : ''}{euro(l.total)} Selbstkosten{l.ep == null ? ' · Menge erfassen für EP' : ''}
                     </div>
                   </div>
@@ -941,9 +948,9 @@ export default function ProjektDetail() {
         </div>
 
         <div className="lg:col-span-7 mt-5 lg:mt-0">
-          <div className="text-white/50 text-sm mb-2 font-medium">Einträge ({eintraege.length})</div>
+          <div className="text-white/75 text-sm mb-2 font-medium">Einträge ({eintraege.length})</div>
           <div className="space-y-2">
-            {eintraege.length === 0 && <div className="glass rounded-2xl p-5 text-white/35 text-sm">Noch keine Einträge — starte den Timer oder erfasse eine Leistung.</div>}
+            {eintraege.length === 0 && <div className="glass rounded-2xl p-5 text-white/60 text-sm">Noch keine Einträge — starte den Timer oder erfasse eine Leistung.</div>}
             {eintraege.map((e) => (
               <EntryRow key={e.id} e={e} rate={projekt.hourlyRate} hideCost={isWorker} onDelete={() => remove(e.id)}
                 onEdit={(!isWorker || ['zeit', 'menge', 'foto', 'tagebuch'].includes(e.type)) ? () => { setEditingEntry(e); setSheet(e.type) } : null} />
@@ -988,22 +995,22 @@ export default function ProjektDetail() {
           <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
             <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={FileText} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Leistungsnachweis erstellen</div>
             <div>
-              <div className="text-white/50 text-xs mb-1">Zeitraum (optional — leer = alles)</div>
+              <div className="text-white/75 text-xs mb-1">Zeitraum (optional — leer = alles)</div>
               <div className="grid grid-cols-2 gap-2">
-                <input type="date" value={nvon} onChange={(e) => setNvon(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber" />
-                <input type="date" value={nbis} onChange={(e) => setNbis(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+                <input type="date" value={nvon} onChange={(e) => setNvon(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+                <input type="date" value={nbis} onChange={(e) => setNbis(e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber" />
               </div>
             </div>
             <label className="flex items-center justify-between py-2">
               <span className="text-white/70">Mit Selbstkosten (intern)</span>
               <input type="checkbox" checked={mitKosten} onChange={(e) => setMitKosten(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
             </label>
-            <div className="text-white/40 text-xs">Aus = ohne Kosten (für den Kunden). Enthält Zeiterfassung mit Uhrzeiten, Leistungen, Bautagebuch & Fotos.</div>
-            <label className="flex items-center justify-between py-2 border-t border-white/10">
+            <div className="text-white/70 text-xs">Aus = ohne Kosten (für den Kunden). Enthält Zeiterfassung mit Uhrzeiten, Leistungen, Bautagebuch & Fotos.</div>
+            <label className="flex items-center justify-between py-2 border-t border-white/20">
               <span className="text-white/70">Als Abschlag Nr. {naechsteAbschnittNr} festhalten</span>
               <input type="checkbox" checked={alsRechnung} onChange={(e) => setAlsRechnung(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
             </label>
-            <div className="text-white/40 text-xs">Merkt Zeitraum und Betrag unter „Abschläge &amp; Zahlungen“. Dort trägst du ein, was der Kunde gezahlt hat. Ein Rest oder Guthaben wird im nächsten Abschlag verrechnet.</div>
+            <div className="text-white/70 text-xs">Merkt Zeitraum und Betrag unter „Abschläge &amp; Zahlungen“. Dort trägst du ein, was der Kunde gezahlt hat. Ein Rest oder Guthaben wird im nächsten Abschlag verrechnet.</div>
             {alsRechnung && mitKosten && vorherigerSaldo !== 0 && (
               <div className={'rounded-xl p-3 text-sm border ' + (vorherigerSaldo > 0 ? 'bg-ember/10 text-ember border-ember/25' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25')}>
                 {vorherigerSaldo > 0
@@ -1013,13 +1020,13 @@ export default function ProjektDetail() {
             )}
             {pruefung.length > 0 && (
               <div className="space-y-1.5">
-                <div className="text-white/50 text-xs font-semibold">Prüfung vor dem Versenden</div>
+                <div className="text-white/75 text-xs font-semibold">Prüfung vor dem Versenden</div>
                 {pruefung.map((x, i) => (
                   <div key={i} className={'rounded-xl px-3 py-2 text-xs border ' + (x.stufe === 'fehler' ? 'bg-ember/10 text-ember border-ember/25' : 'bg-amber/10 text-amber border-amber/25')}>
                     {x.stufe === 'fehler' ? '⛔ ' : '⚠ '}{x.text}
                   </div>
                 ))}
-                {gesperrt && <div className="text-white/45 text-xs">Als Abschlag festhalten ist gesperrt, solange ein ⛔ besteht. Zeitraum anpassen oder den Haken bei „Als Abschlag festhalten“ entfernen.</div>}
+                {gesperrt && <div className="text-white/70 text-xs">Als Abschlag festhalten ist gesperrt, solange ein ⛔ besteht. Zeitraum anpassen oder den Haken bei „Als Abschlag festhalten“ entfernen.</div>}
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">
@@ -1042,7 +1049,7 @@ export default function ProjektDetail() {
                   if (alsRechnung) {
                     const gesamtbetrag = betrag + vorherigerSaldo
                     await createRechnung({
-                      projektId: Number(id), nr: naechsteAbschnittNr, von: nvon || null, bis: nbis || null,
+                      projektId: Number(id), nr: naechsteAbschnittNr, ...leistungszeitraum(gefiltert, nvon, nbis),
                       betrag, vorherigerSaldo, gesamtbetrag, bezahlterBetrag: 0, saldo: gesamtbetrag, bezahlt: false,
                     })
                     setRechnungen(await listRechnungen(id))

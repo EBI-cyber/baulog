@@ -41,7 +41,7 @@ export default function CameraCapture({ onCapture }) {
   if (error) {
     return (
       <div>
-        <div className="text-white/50 text-sm mb-2">{error}</div>
+        <div className="text-white/75 text-sm mb-2">{error}</div>
         <input type="file" accept="image/*" capture="environment" onChange={onFile} className="text-sm" />
       </div>
     )

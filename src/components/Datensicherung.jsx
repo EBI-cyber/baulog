@@ -48,7 +48,7 @@ export default function Datensicherung() {
         <IconChip icon={ShieldCheck} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
         <div>
           <div className="font-semibold">Datensicherung</div>
-          <div className="text-white/35 text-xs">Alles inkl. Fotos und Zahlungen · automatisch täglich und vor jedem Löschen</div>
+          <div className="text-white/60 text-xs">Alles inkl. Fotos und Zahlungen · automatisch täglich und vor jedem Löschen</div>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -61,13 +61,13 @@ export default function Datensicherung() {
         <input ref={datei} type="file" accept="application/json,.json" className="hidden" onChange={ausDatei} />
       </div>
       <div className="mt-3 space-y-1.5">
-        <div className="text-white/45 text-xs">Sicherungen in diesem Gerät</div>
-        {liste.length === 0 && <div className="text-white/30 text-xs">Noch keine — die erste entsteht automatisch.</div>}
+        <div className="text-white/70 text-xs">Sicherungen in diesem Gerät</div>
+        {liste.length === 0 && <div className="text-white/60 text-xs">Noch keine — die erste entsteht automatisch.</div>}
         {liste.map((x) => (
           <div key={x.id} className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2">
             <div className="flex-1 min-w-0">
               <div className="text-sm">{zeit(x.createdAt)} · {x.grund}</div>
-              <div className="text-white/35 text-[11px]">{inhalt(x.anzahl)}</div>
+              <div className="text-white/60 text-xs">{inhalt(x.anzahl)}</div>
             </div>
             <button onClick={async () => zurueck(await sicherungLesen(x.id), 'Sicherung im Gerät')} disabled={!!busy} title="Diesen Stand zurückspielen" className="text-amber p-1.5 shrink-0"><RotateCcw className="w-4 h-4" /></button>
           </div>

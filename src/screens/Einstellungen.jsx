@@ -14,7 +14,7 @@ function Section({ icon, title, hint, children }) {
         <IconChip icon={icon} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
         <div>
           <div className="font-semibold">{title}</div>
-          {hint && <div className="text-white/35 text-xs">{hint}</div>}
+          {hint && <div className="text-white/60 text-xs">{hint}</div>}
         </div>
       </div>
       {children}
@@ -42,8 +42,8 @@ export default function Einstellungen() {
     const clean = { ...s, gewerke: s.gewerke.filter((g) => g.trim()) }
     saveSettings(clean); setS(clean); setMsg(true); setTimeout(() => setMsg(false), 1500)
   }
-  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
-  const xBtn = 'text-white/35 hover:text-ember transition p-1'
+  const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
+  const xBtn = 'text-white/60 hover:text-ember transition p-1'
 
   const AccountCard = (
     isCloudReady && (
@@ -52,12 +52,12 @@ export default function Einstellungen() {
           <IconChip icon={Cloud} size="w-9 h-9" iconClass="w-[18px] h-[18px]" variant={isWorker ? 'plain' : 'tint'} />
           <div className="min-w-0">
             <div className="font-semibold">{isWorker ? 'Angemeldet' : 'Cloud-Sync aktiv'}</div>
-            <div className="text-white/40 text-xs truncate">{user?.email}</div>
+            <div className="text-white/70 text-xs truncate">{user?.email}</div>
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
-          <button onClick={async () => { const r = await syncAll(); if (r.fehler && r.fehler.length) alert('Nicht alles konnte in die Cloud übertragen werden:\n\n' + r.fehler.slice(0, 5).join('\n')) }} className="text-amber text-sm px-2.5 py-1.5 rounded-xl border border-white/10 inline-flex items-center gap-1.5"><RefreshCw className="w-4 h-4" /><span className="hidden sm:inline">Sync</span></button>
-          <button onClick={signOut} className="text-white/60 text-sm px-2.5 py-1.5 rounded-xl border border-white/10 inline-flex items-center gap-1.5"><LogOut className="w-4 h-4" /><span className="hidden sm:inline">Abmelden</span></button>
+          <button onClick={async () => { const r = await syncAll(); if (r.fehler && r.fehler.length) alert('Nicht alles konnte in die Cloud übertragen werden:\n\n' + r.fehler.slice(0, 5).join('\n')) }} className="text-amber text-sm px-2.5 py-1.5 rounded-xl border border-white/20 inline-flex items-center gap-1.5"><RefreshCw className="w-4 h-4" /><span className="hidden sm:inline">Sync</span></button>
+          <button onClick={signOut} className="text-white/80 text-sm px-2.5 py-1.5 rounded-xl border border-white/20 inline-flex items-center gap-1.5"><LogOut className="w-4 h-4" /><span className="hidden sm:inline">Abmelden</span></button>
         </div>
       </div>
     )
@@ -69,7 +69,7 @@ export default function Einstellungen() {
         <h2 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight mb-5">Einstellungen</h2>
         <div className="space-y-3">
           {AccountCard}
-          <div className="glass rounded-3xl p-5 text-white/45 text-sm">
+          <div className="glass rounded-3xl p-5 text-white/70 text-sm">
             Mitarbeiter-Ansicht: Du erfasst nur deine Zeiten in den freigegebenen Projekten. Kalkulation &amp; Firmendaten verwaltet dein Chef.
           </div>
         </div>
@@ -91,8 +91,8 @@ export default function Einstellungen() {
           <input value={s.owner} onChange={(e) => upd('owner', e.target.value)} placeholder="Inhaber" className={inp + ' mb-2'} />
           <input value={s.street} onChange={(e) => upd('street', e.target.value)} placeholder="Straße & Nr." className={inp + ' mb-2'} />
           <div className="grid grid-cols-3 gap-2 mb-2">
-            <input value={s.zip} onChange={(e) => upd('zip', e.target.value)} placeholder="PLZ" className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber" />
-            <input value={s.city} onChange={(e) => upd('city', e.target.value)} placeholder="Ort" className="col-span-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+            <input value={s.zip} onChange={(e) => upd('zip', e.target.value)} placeholder="PLZ" className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber" />
+            <input value={s.city} onChange={(e) => upd('city', e.target.value)} placeholder="Ort" className="col-span-2 bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber" />
           </div>
           <input value={s.taxId} onChange={(e) => upd('taxId', e.target.value)} placeholder="Steuernummer" className={inp} />
         </Section>
@@ -123,7 +123,7 @@ export default function Einstellungen() {
         <Section icon={ListChecks} title="Leistungskatalog" hint="mit Einheiten · Basis für die EP-Kalkulation">
           <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
             {s.leistungskatalog.map((l, i) => (
-              <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-2">
+              <div key={i} className="bg-white/10 border border-white/20 rounded-xl p-2">
                 <div className="flex gap-2 items-center">
                   <input value={l.name} onChange={(e) => updKat(i, 'name', e.target.value)} placeholder="Leistung" className="flex-1 bg-transparent outline-none px-1 py-1" />
                   <button onClick={() => delKat(i)} className={xBtn}><X className="w-5 h-5" /></button>
@@ -149,7 +149,7 @@ export default function Einstellungen() {
           {(s.maschinen || []).map((m, i) => (
             <div key={i} className="flex gap-2 mb-2 items-center">
               <input value={m.name} onChange={(e) => updMasch(i, 'name', e.target.value)} placeholder="Maschine / Werkzeug" className={inp} />
-              <input value={m.satz} onChange={(e) => updMasch(i, 'satz', e.target.value)} inputMode="decimal" placeholder="€/h" className="w-20 text-right bg-white/5 border border-white/10 rounded-xl px-2 py-2 outline-none focus:border-amber" />
+              <input value={m.satz} onChange={(e) => updMasch(i, 'satz', e.target.value)} inputMode="decimal" placeholder="€/h" className="w-20 text-right bg-white/10 border border-white/20 rounded-xl px-2 py-2 outline-none focus:border-amber" />
               <button onClick={() => delMasch(i)} className={xBtn}><X className="w-5 h-5" /></button>
             </div>
           ))}
@@ -157,7 +157,7 @@ export default function Einstellungen() {
         </Section>
 
         <Section icon={Sparkles} title="KI-Texte">
-          <div className="text-white/45 text-sm">„Nach DIN", KI-Setup &amp; KI-Abschluss laufen <b>serverseitig sicher</b> — kein Key mehr nötig auf dem Gerät.</div>
+          <div className="text-white/70 text-sm">„Nach DIN", KI-Setup &amp; KI-Abschluss laufen <b>serverseitig sicher</b> — kein Key mehr nötig auf dem Gerät.</div>
         </Section>
 
         <button onClick={save} className="w-full mt-2 rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2">

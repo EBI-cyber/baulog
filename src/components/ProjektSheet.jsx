@@ -10,7 +10,7 @@ export default function ProjektSheet({ projekt, onClose, onSaved, onGone }) {
   const [ziel, setZiel] = useState('')
   const [busy, setBusy] = useState(false)
   useEffect(() => { listProjekte().then((ps) => setAndere(ps.filter((p) => p.id !== projekt.id && (!p.owner || !projekt.owner || p.owner === projekt.owner)))) }, [projekt.id])
-  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+  const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
   const upd = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
   const speichern = async () => {
@@ -43,15 +43,15 @@ export default function ProjektSheet({ projekt, onClose, onSaved, onGone }) {
         <input value={form.customer} onChange={(e) => upd('customer', e.target.value)} placeholder="Kunde" className={inp} />
         <input value={form.address} onChange={(e) => upd('address', e.target.value)} placeholder="Adresse der Baustelle" className={inp} />
         <div className="flex items-center gap-2">
-          <span className="text-white/50 text-sm shrink-0">Stundensatz €/h</span>
+          <span className="text-white/75 text-sm shrink-0">Stundensatz €/h</span>
           <input value={form.hourlyRate} onChange={(e) => upd('hourlyRate', e.target.value)} inputMode="decimal" className={inp} />
         </div>
         <button onClick={speichern} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2"><Save className="w-5 h-5" /> Speichern</button>
 
         {andere.length > 0 && (
-          <div className="border-t border-white/10 pt-3 space-y-2">
+          <div className="border-t border-white/20 pt-3 space-y-2">
             <div className="text-white/70 font-semibold text-sm flex items-center gap-2"><Merge className="w-4 h-4" /> Mit anderem Projekt zusammenführen</div>
-            <div className="text-white/40 text-xs">Für dieselbe Baustelle in zwei Projekten: Alles aus diesem Projekt wandert in das gewählte.</div>
+            <div className="text-white/70 text-xs">Für dieselbe Baustelle in zwei Projekten: Alles aus diesem Projekt wandert in das gewählte.</div>
             <select value={ziel} onChange={(e) => setZiel(e.target.value)} className={inp}>
               <option value="">Zielprojekt wählen …</option>
               {andere.map((p) => <option key={p.id} value={p.id}>{p.name.trim()}{p.customer ? ' · ' + p.customer : ''}</option>)}
@@ -60,10 +60,10 @@ export default function ProjektSheet({ projekt, onClose, onSaved, onGone }) {
           </div>
         )}
 
-        <div className="border-t border-white/10 pt-3">
+        <div className="border-t border-white/20 pt-3">
           <button onClick={loeschen} className="w-full rounded-2xl py-2.5 text-ember text-sm inline-flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Projekt löschen</button>
         </div>
-        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/50 text-sm">Schließen</button>
+        <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/75 text-sm">Schließen</button>
       </div>
     </div>
   )
