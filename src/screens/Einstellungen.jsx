@@ -110,6 +110,10 @@ export default function Einstellungen() {
           </select>
         </Section>
 
+        <Section icon={Timer} title="Üblicher Arbeitsbeginn" hint="Vorschlag, wenn eine Zeit nur als Dauer erfasst wurde">
+          <input type="time" value={s.arbeitsbeginn || '09:30'} onChange={(e) => upd('arbeitsbeginn', e.target.value)} className={inp} />
+        </Section>
+
         <Section icon={Layers} title="Gewerke">
           {s.gewerke.map((g, i) => (
             <div key={i} className="flex gap-2 mb-2">
