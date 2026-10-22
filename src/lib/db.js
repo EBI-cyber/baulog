@@ -97,7 +97,7 @@ export async function listRechnungen(projektId) {
 export async function updateRechnung(id, patch) { const r = await db.rechnungen.update(Number(id), { ...patch, synced: 0 }); changed(); return r }
 export async function deleteRechnung(id) {
   const r = await db.rechnungen.get(Number(id))
-  await sichernVorLoeschen('Abschnitt ' + (r && r.nr != null ? r.nr : id))
+  await sichernVorLoeschen('Abschlag ' + (r && r.nr != null ? r.nr : id))
   if (r) await tombstone('rechnungen', r.token)
   await db.rechnungen.delete(Number(id)); changed()
 }
