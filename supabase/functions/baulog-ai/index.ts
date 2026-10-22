@@ -50,17 +50,17 @@ Deno.serve(async (req) => {
       ]
     } else if (task === 'leistungen') {
       jsonMode = true
-      const cat = (body.katalog || []).map((l) => `${l.gewerk} > ${l.name}`).join('\n')
       const tage = (body.tage || []).map((t) => 'Tag ' + t.datum + '\nBautagebuch: ' + (t.text || '(kein Text)') + '\nZeiteinträge: ' +
         (t.zeiten || []).map((z) => 'id=' + z.id + ' ' + (z.von ? z.von + '–' + z.bis + ' Uhr ' : '') + z.stunden + ' h').join('; ')).join('\n\n')
       messages = [
         { role: 'system', content: 'Du bist Bauleiter im Sanierungsbau und erstellst den Leistungsteil eines Nachweises für den Kunden. Für jeden Arbeitstag bekommst du den Bautagebuch-Text und die Zeiteinträge. ' +
           'Aufgabe: die im Text TATSÄCHLICH genannten Tätigkeiten erkennen und die Stunden JEDES Zeiteintrags darauf verteilen (realistische Schätzung nach Umfang; Summe je Eintrag = seine Stunden; Stunden auf 0,25 h gerundet). ' +
           'Strenge Regeln: Nur Tätigkeiten, die im Text stehen – nichts ergänzen oder ableiten (z. B. „Badewanne ausgebaut“ ist Rückbau, nicht „Badewanne setzen“; „Leitungen angeschlossen für WC“ ist Leitungsanschluss, nicht „WC montieren“). Jede genannte Tätigkeitsgruppe soll vorkommen, auch Stemm-, Schlitz-, Putz- und Rückbauarbeiten. Ähnliche Tätigkeiten eines Tages zusammenfassen, höchstens 5 Leistungen je Zeiteintrag. ' +
-          'gewerk EXAKT aus der Gewerke-Liste. leistung: Leistungsposition wie in einem Angebot – Substantiv oder Infinitiv, 2–5 Wörter, ohne Zeitform, ohne Einheit, ohne Klammern (z. B. „Stemmarbeiten“, „Gefälleestrich einbauen“, „Wasserleitungen verlegen“, „Wasserverteiler installieren“, „Badewanne ausbauen“, „Fliesen abschlagen“), nie „… vorgenommen/durchgeführt/eingebaut“. Eine Katalogbezeichnung nur verwenden, wenn sie genau dieselbe Tätigkeit meint. Dieselbe Tätigkeit an allen Tagen exakt gleich benennen und demselben Gewerk zuordnen (Stemm- und Schlitzarbeiten für Leitungen gehören zu Sanitär). ' +
+          'gewerk EXAKT aus der Gewerke-Liste. leistung: Leistungsposition wie in einem Angebot – Substantiv oder Infinitiv, 2–5 Wörter, ohne Zeitform, ohne Einheit, ohne Klammern (z. B. „Stemmarbeiten“, „Gefälleestrich einbauen“, „Wasserleitungen verlegen“, „Wasserverteiler installieren“, „Badewanne ausbauen“, „Fliesen abschlagen“), nie „… vorgenommen/durchgeführt/eingebaut“. Dieselbe Tätigkeit an allen Tagen exakt gleich benennen und demselben Gewerk zuordnen (Stemm- und Schlitzarbeiten für Leitungen gehören zu Sanitär). ' +
+          'Typische Zuordnungen: Schlitze/Stemmstellen wieder verputzen, verschließen oder egalisieren = „Schlitze verschließen“ (Sanitär), nicht Trockenbau/Spachteln. Aufmaß = „Aufmaß erstellen“ (Sonstiges). Keine Sammelpositionen wie „Stundenlohnarbeiten“. ' +
           'Bei mehreren Zeiteinträgen eines Tages die Tätigkeiten sinnvoll auf die Abschnitte verteilen. Ohne Text: leistungen leer lassen. ' +
           'Antworte NUR als JSON: {"eintraege":[{"id":"...","leistungen":[{"gewerk":"...","leistung":"...","stunden":number}]}]}' },
-        { role: 'user', content: `Gewerke: ${(body.gewerke || []).join(', ')}\nKatalog (nur als Orientierung):\n${cat}\n\n${tage}` },
+        { role: 'user', content: `Gewerke: ${(body.gewerke || []).join(', ')}\n\n${tage}` },
       ]
     } else if (task === 'abschluss') {
       jsonMode = true
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     }
 
     const model = task === 'korrektur' || task === 'leistungen' ? 'gpt-4o' : 'gpt-4o-mini'
-    const payload = { model, temperature: task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : 0.2, messages }
+    const payload = { model, temperature: task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2, messages }
     if (jsonMode) payload.response_format = { type: 'json_object' }
 
     const res = await fetch(OPENAI, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(payload) })

@@ -623,7 +623,8 @@ function LeistungenKiBox({ liste, alleEintraege, s, onUebernehmen }) {
   const tage = [...new Set(zeiten.map((e) => tagKey(e.startAt || e.createdAt)))].sort().map((t) => ({
     datum: t,
     text: alleEintraege.filter((e) => e.type === 'tagebuch' && e.text && tagKey(e.createdAt) === t).map((e) => e.text.trim()).join(' '),
-    zeiten: zeiten.filter((e) => tagKey(e.startAt || e.createdAt) === t).map((e) => ({
+    zeiten: zeiten.filter((e) => tagKey(e.startAt || e.createdAt) === t)
+      .sort((a, b) => String(a.startAt || a.createdAt).localeCompare(String(b.startAt || b.createdAt))).map((e) => ({
       id: String(e.id), stunden: Math.round((Number(e.minutes) || 0) / 6) / 10,
       von: e.startAt && e.endAt ? hm(e.startAt) : '', bis: e.startAt && e.endAt ? hm(e.endAt) : '',
     })),
@@ -635,12 +636,17 @@ function LeistungenKiBox({ liste, alleEintraege, s, onUebernehmen }) {
     setBusy(false)
   }
   const std = (n) => (Math.round(Number(n) * 100) / 100).toLocaleString('de-DE') + ' h'
+  // Vorschlag bearbeiten: Zeile ändern oder entfernen
+  const aendern = (zid, i, patch) => setVorschlag((v) => ({ ...v, [zid]: (v[zid] || []).map((l, j) => (j === i ? { ...l, ...patch } : l)) }))
+  const entfernen = (zid, i) => setVorschlag((v) => ({ ...v, [zid]: (v[zid] || []).filter((_, j) => j !== i) }))
+  const hinzufuegen = (zid) => setVorschlag((v) => ({ ...v, [zid]: [...(v[zid] || []), { gewerk: s.gewerke[0], leistung: '', stunden: 0 }] }))
+  const feld = 'bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm outline-none focus:border-amber'
   return (
     <div className="rounded-xl p-3 border border-white/20 bg-white/5 space-y-2">
       <div className="font-semibold text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber" /> Ausgeführte Leistungen</div>
       {!vorschlag ? (
         <>
-          <div className="text-white/75 text-xs">Die KI liest das Bautagebuch und ordnet die Stunden jedes Arbeitstags den passenden Gewerken und Leistungen zu. Du siehst den Vorschlag, bevor etwas gespeichert wird.</div>
+          <div className="text-white/75 text-xs">Die KI liest das Bautagebuch und ordnet die Stunden jedes Arbeitstags den passenden Gewerken und Leistungen zu. Du siehst den Vorschlag und kannst jede Zeile ändern oder entfernen, bevor etwas gespeichert wird.</div>
           <button onClick={ermitteln} disabled={busy} className="w-full rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-50">{busy ? 'KI liest das Bautagebuch …' : 'Leistungen aus Bautagebuch ermitteln'}</button>
         </>
       ) : (
@@ -652,9 +658,18 @@ function LeistungenKiBox({ liste, alleEintraege, s, onUebernehmen }) {
                 <div key={z.id} className="pl-2">
                   <div className="text-white/60 text-xs">{z.von ? z.von + '–' + z.bis + ' Uhr · ' : ''}{std(z.stunden)}</div>
                   {(vorschlag[z.id] || []).map((l, i) => (
-                    <div key={i} className="text-white/90">{l.gewerk} › {l.leistung || '(allgemein)'} <span className="text-white/60">· {std(l.stunden)}</span></div>
+                    <div key={i} className="flex flex-wrap items-center gap-1.5 py-1">
+                      <select value={l.gewerk} onChange={(ev) => aendern(z.id, i, { gewerk: ev.target.value })} className={feld + ' max-w-[9rem]'}>
+                        {[...new Set([...s.gewerke, l.gewerk])].map((g) => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                      <input value={l.leistung} onChange={(ev) => aendern(z.id, i, { leistung: ev.target.value })} placeholder="Leistung" className={feld + ' flex-1 min-w-[8rem]'} />
+                      <input value={String(l.stunden).replace('.', ',')} onChange={(ev) => aendern(z.id, i, { stunden: Number(ev.target.value.replace(',', '.')) || 0 })} inputMode="decimal" className={feld + ' w-14 text-right'} />
+                      <span className="text-white/60 text-xs">h</span>
+                      <button onClick={() => entfernen(z.id, i)} title="Zeile entfernen" className="text-white/60 hover:text-ember p-1"><X className="w-4 h-4" /></button>
+                    </div>
                   ))}
-                  {!(vorschlag[z.id] || []).length && <div className="text-white/60 text-xs">kein Vorschlag, bleibt wie bisher</div>}
+                  {(() => { const sum = (vorschlag[z.id] || []).reduce((a, l) => a + (Number(l.stunden) || 0), 0); return Math.abs(sum - z.stunden) > 0.05 ? <div className="text-amber text-xs">Summe {std(sum)} statt {std(z.stunden)}, wird beim Übernehmen anteilig angepasst.</div> : null })()}
+                  <button onClick={() => hinzufuegen(z.id)} className="text-amber text-xs inline-flex items-center gap-1 py-1"><Plus className="w-3.5 h-3.5" /> Zeile hinzufügen</button>
                 </div>
               ))}
             </div>
@@ -1100,7 +1115,7 @@ export default function ProjektDetail() {
 
       {nachweis && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={() => setNachweis(false)}>
-          <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+          <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 m-0 md:m-4 max-h-[90dvh] overflow-y-auto overscroll-contain" onClick={(e) => e.stopPropagation()}>
             <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={FileText} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> Leistungsnachweis erstellen</div>
             {alsRechnung ? (
               <div className="rounded-xl p-3 text-sm border border-white/20 bg-white/5">
