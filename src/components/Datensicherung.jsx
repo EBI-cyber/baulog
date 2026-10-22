@@ -6,7 +6,7 @@ import { syncAll } from '../lib/cloud'
 import { shareFile } from '../lib/share'
 
 const zeit = (iso) => new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-const inhalt = (a) => a.projekte + ' Projekte · ' + a.eintraege + ' Einträge · ' + a.rechnungen + ' Abschnitte'
+const inhalt = (a) => a.projekte + ' Projekte · ' + a.eintraege + ' Einträge · ' + a.rechnungen + ' Abschläge'
 
 export default function Datensicherung() {
   const [liste, setListe] = useState([])

@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import { filterByRange } from './calc'
 
-const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' EUR'
+const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' EUR'
 const hh = (min) => ((Number(min) || 0) / 60).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' h'
 const num = (n) => (Number(n) || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 })
 const dmy = (d) => { try { return new Date(d).toLocaleDateString('de-DE') } catch { return '' } }
@@ -18,22 +18,24 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   const need = (h) => { if (y + h > 800) { doc.addPage(); y = 56 } }
 
   // Kopf
-  doc.setFont('helvetica', 'bold').setFontSize(18).text(s.company || 'Leistungsnachweis', M, y)
+  // Firmenkopf nur, wenn Firmendaten eingetragen sind (sonst stand „Leistungsnachweis“ doppelt da)
+  if (s.company) { doc.setFont('helvetica', 'bold').setFontSize(18).text(s.company, M, y); y += 16 }
   doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(90)
-  y += 16
   ;[s.owner, s.street, [s.zip, s.city].filter(Boolean).join(' '), s.taxId ? 'Steuernr.: ' + s.taxId : '']
     .filter(Boolean).forEach((t) => { doc.text(String(t), M, y); y += 12 })
   doc.setTextColor(0)
 
-  y += 14
-  doc.setFont('helvetica', 'bold').setFontSize(15).text('Leistungsnachweis', M, y)
+  y += s.company ? 14 : 0
+  const titel = mitKosten && opts.abschnittNr != null ? 'Abschlagsrechnung Nr. ' + opts.abschnittNr : 'Leistungsnachweis'
+  doc.setFont('helvetica', 'bold').setFontSize(15).text(titel, M, y)
   doc.setFont('helvetica', 'normal').setFontSize(10)
   y += 20
   doc.text('Projekt: ' + (projekt.name || ''), M, y); y += 14
   if (projekt.customer) { doc.text('Kunde: ' + projekt.customer, M, y); y += 14 }
   if (projekt.address) { doc.text('Adresse: ' + projekt.address, M, y); y += 14 }
   const dates = eintraege.map((e) => e.createdAt).filter(Boolean).sort()
-  if (dates.length) { doc.text('Zeitraum: ' + dmy(dates[0]) + ' – ' + dmy(dates[dates.length - 1]), M, y); y += 14 }
+  if (opts.von || opts.bis) { doc.text('Abrechnungszeitraum: ' + (opts.von ? dmy(opts.von) : 'Beginn') + ' – ' + (opts.bis ? dmy(opts.bis) : 'heute'), M, y); y += 14 }
+  else if (dates.length) { doc.text('Zeitraum: ' + dmy(dates[0]) + ' – ' + dmy(dates[dates.length - 1]), M, y); y += 14 }
   doc.text('Erstellt: ' + dmy(new Date().toISOString()), M, y); y += 8
   line()
 
@@ -107,18 +109,26 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
 
   // Abrechnungs-Abschnitt: Verrechnung mit Saldo aus dem vorherigen Abschnitt
   if (mitKosten && opts.abschnittNr != null) {
-    need(56)
-    doc.setFont('helvetica', 'bold').setFontSize(11).text('Abrechnung — Abschnitt Nr. ' + opts.abschnittNr, M, y); y += 16
+    need(90)
+    doc.setFont('helvetica', 'bold').setFontSize(11).text('Abrechnung — Abschlag Nr. ' + opts.abschnittNr, M, y); y += 16
     doc.setFont('helvetica', 'normal').setFontSize(9.5)
-    doc.text('Leistungen dieses Abschnitts', M, y); doc.text(eur(sumCost), R, y, { align: 'right' }); y += 14
+    doc.text('Leistungen dieses Abschlags', M, y); doc.text(eur(sumCost), R, y, { align: 'right' }); y += 14
     const vs = Number(opts.vorherigerSaldo) || 0
+    const va = opts.vorherigerAbschlag
     if (vs !== 0) {
-      doc.text(vs > 0 ? 'Übertrag — noch offen aus Abschnitt ' + (opts.abschnittNr - 1) : 'Übertrag — Guthaben aus Abschnitt ' + (opts.abschnittNr - 1), M, y)
-      doc.text((vs > 0 ? '+' : '') + eur(vs), R, y, { align: 'right' }); y += 14
+      const nr = va && va.nr != null ? va.nr : opts.abschnittNr - 1
+      // Herleitung des Übertrags, damit der Kunde sieht, was schon gezahlt wurde
+      if (va) {
+        doc.setTextColor(110)
+        doc.text('Abschlag ' + nr + ': berechnet ' + eur(va.gesamtbetrag) + ', gezahlt ' + eur(va.bezahlt), M, y); y += 13
+        doc.setTextColor(0)
+      }
+      doc.text(vs > 0 ? 'Noch offen aus Abschlag ' + nr : 'Guthaben aus Abschlag ' + nr, M, y)
+      doc.text((vs > 0 ? '+ ' : '- ') + eur(Math.abs(vs)), R, y, { align: 'right' }); y += 14
     }
     line()
     doc.setFont('helvetica', 'bold').setFontSize(10.5)
-    doc.text('Gesamtbetrag nach Verrechnung', M, y); doc.text(eur(sumCost + vs), R, y, { align: 'right' }); y += 18
+    doc.text(vs !== 0 ? 'Zu zahlen nach Verrechnung' : 'Zu zahlen', M, y); doc.text(eur(sumCost + vs), R, y, { align: 'right' }); y += 18
     doc.setFont('helvetica', 'normal')
   }
 
@@ -162,7 +172,7 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
 
 export const nachweisFilename = (projekt) => 'Leistungsnachweis_' + String(projekt.name || 'Projekt').replace(/[^\w\-]+/g, '_') + '.pdf'
 
-// Gesamtübersicht aller Abrechnungs-Abschnitte eines Projekts (Betrag/bezahlt/Saldo, chronologisch)
+// Gesamtübersicht aller Abschläge eines Projekts (Betrag/bezahlt/Saldo, chronologisch)
 export function buildAbrechnungsUebersicht(projekt, rechnungen, s) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const M = 48, R = 547
@@ -170,12 +180,11 @@ export function buildAbrechnungsUebersicht(projekt, rechnungen, s) {
   const line = () => { doc.setDrawColor(210).line(M, y, R, y); y += 14 }
   const need = (h) => { if (y + h > 800) { doc.addPage(); y = 56 } }
 
-  doc.setFont('helvetica', 'bold').setFontSize(18).text(s.company || 'Abrechnungsübersicht', M, y)
+  if (s.company) { doc.setFont('helvetica', 'bold').setFontSize(18).text(s.company, M, y); y += 16 }
   doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(90)
-  y += 16
   ;[s.owner, s.street, [s.zip, s.city].filter(Boolean).join(' ')].filter(Boolean).forEach((t) => { doc.text(String(t), M, y); y += 12 })
   doc.setTextColor(0)
-  y += 14
+  y += s.company ? 14 : 0
   doc.setFont('helvetica', 'bold').setFontSize(15).text('Abrechnungsübersicht', M, y); y += 20
   doc.setFont('helvetica', 'normal').setFontSize(10)
   doc.text('Projekt: ' + (projekt.name || ''), M, y); y += 14
@@ -184,21 +193,23 @@ export function buildAbrechnungsUebersicht(projekt, rechnungen, s) {
   line()
 
   const asc = rechnungen.slice().sort((a, b) => (Number(a.nr) || 0) - (Number(b.nr) || 0))
-  const cZeit = 118, cBetrag = 350, cBezahlt = 425
+  const cZeit = 100, cBetrag = 290, cBezahlt = 370
   doc.setFont('helvetica', 'bold').setFontSize(9)
-  doc.text('Abschn.', M, y); doc.text('Zeitraum', cZeit, y); doc.text('Betrag', cBetrag, y); doc.text('Bezahlt', cBezahlt, y); doc.text('Saldo', R, y, { align: 'right' })
+  doc.text('Abschlag', M, y); doc.text('Zeitraum', cZeit, y); doc.text('Leistungen', cBetrag, y); doc.text('Bezahlt', cBezahlt, y); doc.text('Saldo', R, y, { align: 'right' })
   doc.setFont('helvetica', 'normal'); y += 4; line()
 
   let sumBetrag = 0, sumBezahlt = 0
   asc.forEach((r) => {
     need(16)
+    // Leistungen ohne Übertrag summieren, sonst zählt ein offener Rest doppelt
+    const leistung = Number(r.betrag) || 0
     const gesamt = Number(r.gesamtbetrag ?? r.betrag) || 0
     const bezahlt = Number(r.bezahlterBetrag) || 0
     const saldo = r.saldo != null ? Number(r.saldo) : gesamt - bezahlt
-    sumBetrag += gesamt; sumBezahlt += bezahlt
+    sumBetrag += leistung; sumBezahlt += bezahlt
     doc.text(String(r.nr ?? '–'), M, y)
     doc.text((r.von ? dmy(r.von) : '…') + ' – ' + (r.bis ? dmy(r.bis) : '…'), cZeit, y)
-    doc.text(eur(gesamt), cBetrag, y)
+    doc.text(eur(leistung), cBetrag, y)
     doc.text(eur(bezahlt), cBezahlt, y)
     doc.text((saldo > 0 ? 'offen ' : saldo < 0 ? 'Guthaben ' : '') + eur(Math.abs(saldo)), R, y, { align: 'right' })
     y += 15
@@ -206,7 +217,7 @@ export function buildAbrechnungsUebersicht(projekt, rechnungen, s) {
   y += 2; line()
   doc.setFont('helvetica', 'bold').setFontSize(10)
   const endSaldo = asc.length ? Number(asc[asc.length - 1].saldo) || 0 : 0
-  doc.text('Gesamt in Rechnung gestellt: ' + eur(sumBetrag), M, y); y += 14
+  doc.text('Leistungen gesamt: ' + eur(sumBetrag), M, y); y += 14
   doc.text('Gesamt bezahlt: ' + eur(sumBezahlt), M, y); y += 14
   doc.text('Aktueller Saldo: ' + eur(endSaldo) + (endSaldo > 0 ? ' (offen)' : endSaldo < 0 ? ' (Guthaben)' : ' (ausgeglichen)'), M, y)
 
