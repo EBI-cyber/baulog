@@ -48,6 +48,19 @@ Deno.serve(async (req) => {
         { role: 'system', content: 'Ordne eine gesprochene Tätigkeit einem Gewerk und einer Leistung aus dem Katalog zu. Antworte NUR als JSON: {"gewerk":"...","leistung":"...","beschreibung":"..."}. gewerk EXAKT aus der Gewerke-Liste; leistung EXAKT aus dem Katalog des Gewerks (sonst leer).' },
         { role: 'user', content: `Gewerke: ${(body.gewerke || []).join(', ')}\nKatalog:\n${cat}\n\nGesprochen: "${body.transcript || ''}"` },
       ]
+    } else if (task === 'leistungen') {
+      jsonMode = true
+      const cat = (body.katalog || []).map((l) => `${l.gewerk} > ${l.name} (${l.einheit})`).join('\n')
+      const tage = (body.tage || []).map((t) => 'Tag ' + t.datum + '\nBautagebuch: ' + (t.text || '(kein Text)') + '\nZeiteinträge: ' +
+        (t.zeiten || []).map((z) => 'id=' + z.id + ' ' + (z.von ? z.von + '–' + z.bis + ' Uhr ' : '') + z.stunden + ' h').join('; ')).join('\n\n')
+      messages = [
+        { role: 'system', content: 'Du bist Bauleiter im Sanierungsbau. Für jeden Arbeitstag bekommst du den Bautagebuch-Text und die Zeiteinträge. ' +
+          'Ermittle, welche Leistungen ausgeführt wurden, und verteile die Stunden JEDES Zeiteintrags auf diese Leistungen (realistische Schätzung nach Umfang im Text; Summe je Eintrag = seine Stunden). ' +
+          'Bei mehreren Zeiteinträgen eines Tages: Leistungen möglichst sinnvoll auf die Zeitabschnitte verteilen. ' +
+          'gewerk EXAKT aus der Gewerke-Liste. leistung möglichst EXAKT aus dem Katalog dieses Gewerks; passt nichts, eine kurze fachliche Bezeichnung (2–5 Wörter) wählen. Nichts erfinden, was nicht im Text steht; ohne Text das bisherige Gewerk beibehalten und leistung leer lassen. ' +
+          'Antworte NUR als JSON: {"eintraege":[{"id":"...","leistungen":[{"gewerk":"...","leistung":"...","stunden":number}]}]}' },
+        { role: 'user', content: `Gewerke: ${(body.gewerke || []).join(', ')}\nKatalog:\n${cat}\n\n${tage}` },
+      ]
     } else if (task === 'abschluss') {
       jsonMode = true
       const ctx = body.ctx || {}
@@ -63,7 +76,7 @@ Deno.serve(async (req) => {
       return out({ error: 'unbekannter task' }, 400)
     }
 
-    const model = task === 'korrektur' ? 'gpt-4o' : 'gpt-4o-mini'
+    const model = task === 'korrektur' || task === 'leistungen' ? 'gpt-4o' : 'gpt-4o-mini'
     const payload = { model, temperature: task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : 0.2, messages }
     if (jsonMode) payload.response_format = { type: 'json_object' }
 

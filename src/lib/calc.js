@@ -10,6 +10,16 @@ export function filterByRange(eintraege, von, bis) {
 }
 
 // Selbstkosten eines Projekts aus seinen Einträgen
+// Anteile eines Zeiteintrags je Gewerk/Leistung: die gespeicherte Aufteilung (auf die echte Dauer
+// skaliert) oder – ohne Aufteilung – der ganze Eintrag mit seinem eigenen Gewerk/Leistung.
+export function zeitAnteile(e) {
+  const gesamt = Number(e.minutes) || 0
+  const teile = Array.isArray(e.aufteilung) ? e.aufteilung.filter((t) => Number(t.minuten) > 0) : []
+  const summe = teile.reduce((s, t) => s + Number(t.minuten), 0)
+  if (!teile.length || !summe) return [{ gewerk: e.gewerk, leistung: e.leistung, minutes: gesamt }]
+  return teile.map((t) => ({ gewerk: t.gewerk || e.gewerk, leistung: t.leistung || '', minutes: gesamt * Number(t.minuten) / summe }))
+}
+
 export function projektTotals(eintraege, rate) {
   let minutes = 0, materialCost = 0, maschineCost = 0, photos = 0, diary = 0
   for (const e of eintraege) {
@@ -33,9 +43,13 @@ export function gewerkAnalytics(allEintraege, projekte) {
     if (!map[g]) map[g] = { gewerk: g, minutes: 0, laborCost: 0, materialCost: 0, projects: new Set() }
     map[g].projects.add(e.projektId)
     if (e.type === 'zeit') {
-      const m = Number(e.minutes) || 0
-      map[g].minutes += m
-      map[g].laborCost += (m / 60) * (rateByProj[e.projektId] || 0)
+      for (const t of zeitAnteile(e)) {
+        const gg = t.gewerk || 'Sonstiges'
+        if (!map[gg]) map[gg] = { gewerk: gg, minutes: 0, laborCost: 0, materialCost: 0, projects: new Set() }
+        map[gg].projects.add(e.projektId)
+        map[gg].minutes += t.minutes
+        map[gg].laborCost += (t.minutes / 60) * (rateByProj[e.projektId] || 0)
+      }
     } else if (e.type === 'material') {
       map[g].materialCost += (Number(e.qty) || 0) * (Number(e.unitCost) || 0)
     }
@@ -60,7 +74,9 @@ export function leistungAnalytics(allEintraege, projekte) {
   const rateByProj = {}
   projekte.forEach((p) => { rateByProj[p.id] = Number(p.hourlyRate) || 0 })
   const map = {}
-  for (const e of allEintraege) {
+  // Zeiteinträge mit Aufteilung zählen anteilig bei jeder ihrer Leistungen
+  const einzeln = allEintraege.flatMap((e) => e.type === 'zeit' ? zeitAnteile(e).map((t) => ({ ...e, gewerk: t.gewerk, leistung: t.leistung, minutes: t.minutes })) : [e])
+  for (const e of einzeln) {
     if (!e.leistung) continue
     const key = (e.gewerk || '') + '||' + e.leistung
     if (!map[key]) map[key] = { gewerk: e.gewerk, leistung: e.leistung, einheit: '', menge: 0, laborCost: 0, materialCost: 0 }
