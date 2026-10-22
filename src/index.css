@@ -17,10 +17,10 @@ body {
 
 @layer components {
   .glass {
-    background: rgba(255,255,255,0.045);
+    background: rgba(255,255,255,0.06);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.09);
+    border: 1px solid rgba(255,255,255,0.16);
   }
   .grad-text {
     background-image: linear-gradient(90deg, #f59e0b, #ef4444);
@@ -47,6 +47,9 @@ body {
     color: #fbbf24;
   }
 }
+
+/* Platzhalter in Eingabefeldern gut lesbar */
+input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.5); }
 
 /* dezente, moderne Scrollbar (Desktop) */
 * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.16) transparent; }

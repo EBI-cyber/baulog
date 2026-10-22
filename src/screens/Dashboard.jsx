@@ -11,7 +11,7 @@ function Stat({ icon, label, value, grad }) {
     <div className="glass rounded-3xl p-4 flex items-center gap-3">
       <IconChip icon={icon} />
       <div className="min-w-0">
-        <div className="text-white/40 text-xs">{label}</div>
+        <div className="text-white/70 text-xs">{label}</div>
         <div className={'text-xl font-bold truncate ' + (grad ? 'grad-text' : '')}>{value}</div>
       </div>
     </div>
@@ -63,17 +63,17 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 mb-3">
             <Layers className="w-5 h-5 text-amber" strokeWidth={1.9} />
             <h3 className="font-semibold">Kennzahlen pro Gewerk</h3>
-            <span className="text-white/30 text-xs">— für deine Preiskalkulation</span>
+            <span className="text-white/60 text-xs">— für deine Preiskalkulation</span>
           </div>
           <div className="space-y-2">
-            {gw.length === 0 && <div className="glass rounded-2xl p-5 text-white/40 text-sm">Noch keine Daten — erfasse Zeiten &amp; Material, dann erscheinen hier die Durchschnittswerte.</div>}
+            {gw.length === 0 && <div className="glass rounded-2xl p-5 text-white/70 text-sm">Noch keine Daten — erfasse Zeiten &amp; Material, dann erscheinen hier die Durchschnittswerte.</div>}
             {gw.map((g) => (
               <div key={g.gewerk} className="glass card-hover rounded-2xl p-4">
                 <div className="flex justify-between items-baseline">
                   <div className="font-semibold">{g.gewerk}</div>
                   <div className="grad-text font-bold">{euro(g.total)}</div>
                 </div>
-                <div className="text-white/45 text-xs mt-1">
+                <div className="text-white/70 text-xs mt-1">
                   {hrs(g.minutes)} · {g.projCount} Projekt(e) · Ø {g.avgHoursPerProj.toLocaleString('de-DE', { maximumFractionDigits: 1 })} h &amp; {euro(g.avgCostPerProj)} / Projekt
                 </div>
               </div>
@@ -85,17 +85,17 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 mb-3">
             <Ruler className="w-5 h-5 text-amber" strokeWidth={1.9} />
             <h3 className="font-semibold">EP-Basis pro Leistung</h3>
-            <span className="text-white/30 text-xs">— Selbstkosten je Einheit</span>
+            <span className="text-white/60 text-xs">— Selbstkosten je Einheit</span>
           </div>
           <div className="space-y-2">
-            {la.length === 0 && <div className="glass rounded-2xl p-5 text-white/40 text-sm">Erfasse Leistungen mit Menge sowie Zeit/Material, dann erscheint hier dein €/Einheit als Kalkulationsgrundlage.</div>}
+            {la.length === 0 && <div className="glass rounded-2xl p-5 text-white/70 text-sm">Erfasse Leistungen mit Menge sowie Zeit/Material, dann erscheint hier dein €/Einheit als Kalkulationsgrundlage.</div>}
             {la.map((l, i) => (
               <div key={i} className="glass card-hover rounded-2xl p-4">
                 <div className="flex justify-between items-baseline gap-2">
                   <div className="font-semibold truncate">{l.leistung}</div>
                   <div className="grad-text font-bold whitespace-nowrap">{l.ep != null ? euro(l.ep) + ' / ' + l.einheit : '—'}</div>
                 </div>
-                <div className="text-white/45 text-xs mt-1">
+                <div className="text-white/70 text-xs mt-1">
                   {l.gewerk} · {l.menge ? l.menge + ' ' + l.einheit + ' · ' : ''}{euro(l.total)} Selbstkosten{l.ep == null ? ' · Menge erfassen für €/Einheit' : ''}
                 </div>
               </div>
@@ -104,7 +104,7 @@ export default function Dashboard() {
         </section>
       </div>
 
-      <div className="flex items-start gap-2 text-white/35 text-xs mt-7 max-w-2xl">
+      <div className="flex items-start gap-2 text-white/60 text-xs mt-7 max-w-2xl">
         <Lightbulb className="w-4 h-4 shrink-0 mt-0.5" />
         <span>Tipp: Die €/Einheit-Werte sind deine echten Selbstkosten — schlag deinen Aufschlag drauf und du hast den EP fürs Angebot.</span>
       </div>

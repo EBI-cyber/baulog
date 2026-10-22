@@ -43,7 +43,7 @@ export default function DailyReminder() {
         <AlarmClock className="w-5 h-5 text-amber shrink-0 mt-0.5" strokeWidth={1.9} />
         <div className="flex-1 min-w-0 text-sm">
           <div className="font-semibold">Heute schon dokumentiert?</div>
-          <div className="text-white/50 text-xs mt-0.5">Für keins deiner aktiven Projekte wurde heute Zeit erfasst.</div>
+          <div className="text-white/75 text-xs mt-0.5">Für keins deiner aktiven Projekte wurde heute Zeit erfasst.</div>
           {canAsk && (
             <button
               onClick={async () => { try { const p = await Notification.requestPermission(); setCanAsk(p === 'default') } catch {} }}
@@ -53,7 +53,7 @@ export default function DailyReminder() {
             </button>
           )}
         </div>
-        <button onClick={() => { localStorage.setItem(dismissKey(), '1'); setShow(false) }} className="text-white/30 hover:text-white/60 transition p-1 shrink-0">
+        <button onClick={() => { localStorage.setItem(dismissKey(), '1'); setShow(false) }} className="text-white/60 hover:text-white/80 transition p-1 shrink-0">
           <X className="w-4 h-4" />
         </button>
       </div>

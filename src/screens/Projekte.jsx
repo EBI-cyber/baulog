@@ -32,14 +32,14 @@ export default function Projekte() {
     nav('/projekt/' + id)
   }
   const totalsFor = (pid, rate) => projektTotals(eintraege.filter((e) => e.projektId === pid), rate)
-  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 outline-none focus:border-amber'
+  const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
 
   return (
     <div>
       <header className="px-6 md:px-8 pt-10 md:pt-12 pb-5 flex items-center justify-between">
         <div>
           <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Projekte</h1>
-          <p className="text-white/45 text-sm mt-0.5">{isWorker ? 'Meine Projekte · Zeiterfassung' : 'Bautagebuch · Stunden · Kalkulation'}</p>
+          <p className="text-white/70 text-sm mt-0.5">{isWorker ? 'Meine Projekte · Zeiterfassung' : 'Bautagebuch · Stunden · Kalkulation'}</p>
         </div>
         {!isWorker && (
           <button onClick={() => setCreating(true)} className="rounded-2xl px-4 md:px-5 py-2.5 font-bold btn-grad active:scale-95 transition inline-flex items-center gap-2">
@@ -50,7 +50,7 @@ export default function Projekte() {
 
       <main className="px-6 md:px-8">
         {projekte.length === 0 && (
-          <div className="glass rounded-3xl p-8 text-center text-white/45 text-sm">
+          <div className="glass rounded-3xl p-8 text-center text-white/70 text-sm">
             {isWorker ? 'Noch keine Projekte freigegeben. Dein Chef muss dich einem Projekt zuweisen.' : 'Noch keine Projekte. Leg dein erstes Sanierungsprojekt an.'}
           </div>
         )}
@@ -64,13 +64,13 @@ export default function Projekte() {
                   <IconChip icon={Building2} />
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-lg truncate">{p.name}</div>
-                    <div className="text-white/45 text-sm truncate">{[p.customer, p.address].filter(Boolean).join(' · ') || '—'}</div>
+                    <div className="text-white/70 text-sm truncate">{[p.customer, p.address].filter(Boolean).join(' · ') || '—'}</div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-white/25 mt-1" />
+                  <ChevronRight className="w-5 h-5 text-white/60 mt-1" />
                 </div>
                 <div className="flex gap-5 mt-4 text-sm">
-                  <div className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-white/40" /><b>{hrs(t.minutes)}</b></div>
-                  {!isWorker && <div className="flex items-center gap-1.5"><Wallet className="w-4 h-4 text-white/40" /><b className="grad-text">{euro(t.total)}</b></div>}
+                  <div className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-white/70" /><b>{hrs(t.minutes)}</b></div>
+                  {!isWorker && <div className="flex items-center gap-1.5"><Wallet className="w-4 h-4 text-white/70" /><b className="grad-text">{euro(t.total)}</b></div>}
                 </div>
               </motion.button>
             )
@@ -86,8 +86,8 @@ export default function Projekte() {
             <input value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} placeholder="Kunde" className={inp} />
             <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Adresse" className={inp} />
             <label className="flex items-center justify-between text-sm">
-              <span className="text-white/60">Stundensatz Selbstkosten (€/h)</span>
-              <input value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: e.target.value })} inputMode="decimal" className="w-20 text-right bg-white/5 border border-white/10 rounded-xl px-2 py-1 outline-none focus:border-amber" />
+              <span className="text-white/80">Stundensatz Selbstkosten (€/h)</span>
+              <input value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: e.target.value })} inputMode="decimal" className="w-20 text-right bg-white/10 border border-white/20 rounded-xl px-2 py-1 outline-none focus:border-amber" />
             </label>
             <button onClick={create} className="w-full rounded-2xl py-3 font-bold btn-grad">Anlegen</button>
           </div>

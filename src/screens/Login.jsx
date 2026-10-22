@@ -24,7 +24,7 @@ export default function Login() {
       setBusy(false)
     }
   }
-  const inp = 'w-full bg-white/5 border border-white/10 rounded-xl px-3 py-3 outline-none focus:border-amber'
+  const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-3 outline-none focus:border-amber'
 
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 max-w-md mx-auto">
@@ -35,7 +35,7 @@ export default function Login() {
           </div>
         </div>
         <h1 className="text-5xl font-extrabold grad-text text-center">BauLog</h1>
-        <p className="text-white/45 text-center mt-1 mb-8">{mode === 'in' ? 'Willkommen zurück' : 'Konto erstellen'}</p>
+        <p className="text-white/70 text-center mt-1 mb-8">{mode === 'in' ? 'Willkommen zurück' : 'Konto erstellen'}</p>
         <form onSubmit={submit} className="glass rounded-3xl p-5 space-y-3">
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="E-Mail" className={inp} autoComplete="email" />
           <input value={pw} onChange={(e) => setPw(e.target.value)} type="password" placeholder="Passwort" className={inp} autoComplete={mode === 'in' ? 'current-password' : 'new-password'} />
@@ -44,7 +44,7 @@ export default function Login() {
             {busy ? '…' : mode === 'in' ? 'Anmelden' : 'Registrieren'}
           </button>
         </form>
-        <button onClick={() => { setMode((m) => (m === 'in' ? 'up' : 'in')); setMsg('') }} className="w-full text-white/50 text-sm mt-4">
+        <button onClick={() => { setMode((m) => (m === 'in' ? 'up' : 'in')); setMsg('') }} className="w-full text-white/75 text-sm mt-4">
           {mode === 'in' ? 'Noch kein Konto? Registrieren' : 'Schon ein Konto? Anmelden'}
         </button>
       </motion.div>
