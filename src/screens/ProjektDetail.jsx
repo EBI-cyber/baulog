@@ -623,8 +623,7 @@ function UhrzeitenBox({ liste, standardBeginn, onEintragen }) {
 }
 
 // KI liest das Bautagebuch und verteilt die Stunden jedes Zeiteintrags auf die ausgeführten Leistungen
-function LeistungenKiBox({ liste, alleEintraege, s, onUebernehmen }) {
-  const [vorschlag, setVorschlag] = useState(null)
+function LeistungenKiBox({ liste, alleEintraege, s, vorschlag, setVorschlag, onUebernehmen }) {
   const [busy, setBusy] = useState(false)
   const tagKey = (d) => { try { return new Date(d).toLocaleDateString('sv-SE') } catch { return String(d || '').slice(0, 10) } }
   const zeiten = liste.filter((e) => e.type === 'zeit' && Number(e.minutes) > 0)
@@ -683,6 +682,7 @@ function LeistungenKiBox({ liste, alleEintraege, s, onUebernehmen }) {
               ))}
             </div>
           ))}
+          <div className="text-white/70 text-xs pt-1">Die „Vorschau“ unten zeigt das PDF schon mit diesem Vorschlag. Gespeichert wird er mit „Übernehmen“ oder beim Erzeugen.</div>
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button onClick={() => setVorschlag(null)} className="rounded-xl py-2 text-sm bg-white/10">Verwerfen</button>
             <button disabled={busy} onClick={async () => { setBusy(true); try { await onUebernehmen(vorschlag); setVorschlag(null) } finally { setBusy(false) } }} className="rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-50">Übernehmen</button>
@@ -831,6 +831,7 @@ export default function ProjektDetail() {
   const [alsRechnung, setAlsRechnung] = useState(false)
 
   const [zuordnungHinweis, setZuordnungHinweis] = useState('')
+  const [kiVorschlag, setKiVorschlag] = useState(null)
   const load = async () => {
     const p = await getProjekt(id)
     setProjekt(p); setEintraege(await listEintraege(id))
@@ -854,7 +855,7 @@ export default function ProjektDetail() {
   useEffect(() => { if (!timer || isPaused(timer)) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [timer])
   // Nachweis-Dialog öffnen: Zeitraum an letzten Abschnitt anschließen, damit sich Abrechnungen nicht überschneiden
   useEffect(() => {
-    if (!nachweis) return
+    if (!nachweis) { setKiVorschlag(null); return }
     const last = rechnungen.reduce((max, r) => (!max || (Number(r.nr) || 0) > (Number(max.nr) || 0) ? r : max), null)
     if (last && last.bis) {
       const d = new Date(last.bis); d.setDate(d.getDate() + 1)
@@ -876,6 +877,34 @@ export default function ProjektDetail() {
     })()
     return () => { active = false }
   }, [isWorker, projekt, user])
+
+  // KI-Vorschlag (Leistungen je Zeiteintrag) in Einträge umrechnen – für die Vorschau nur im Speicher,
+  // beim Übernehmen/Erzeugen gespeichert
+  function vorschlagPatches(vorschlag) {
+    const out = {}
+    for (const [eid, ls] of Object.entries(vorschlag || {})) {
+      const teile = (ls || []).filter((l) => l && l.gewerk && Number(l.stunden) > 0)
+      if (!teile.length) continue
+      const haupt = teile.reduce((a, b) => (Number(b.stunden) > Number(a.stunden) ? b : a))
+      out[eid] = {
+        aufteilung: teile.map((l) => ({ gewerk: l.gewerk, leistung: l.leistung || '', minuten: Math.round(Number(l.stunden) * 60) })),
+        gewerk: haupt.gewerk, leistung: haupt.leistung || '',
+      }
+    }
+    return out
+  }
+  const mitVorschlag = (liste) => {
+    const patches = vorschlagPatches(kiVorschlag)
+    return liste.map((e) => (patches[String(e.id)] ? { ...e, ...patches[String(e.id)] } : e))
+  }
+  async function vorschlagSpeichern() {
+    const patches = vorschlagPatches(kiVorschlag)
+    if (!Object.keys(patches).length) { setKiVorschlag(null); return }
+    await sicherungAnlegen('Vor KI-Zuordnung der Leistungen')
+    for (const [eid, patch] of Object.entries(patches)) await updateEintrag(Number(eid), patch)
+    setKiVorschlag(null)
+    setEintraege(await listEintraege(id))
+  }
 
   // Nach Zahlung oder Löschen: Übertrag aller folgenden Abschläge neu rechnen
   async function ketteAktualisieren() {
@@ -1170,19 +1199,8 @@ export default function ProjektDetail() {
               }} />
             )}
             {!isWorker && (
-              <LeistungenKiBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)} alleEintraege={eintraege} s={s} onUebernehmen={async (vorschlag) => {
-                await sicherungAnlegen('Vor KI-Zuordnung der Leistungen')
-                for (const [eid, ls] of Object.entries(vorschlag)) {
-                  const teile = (ls || []).filter((l) => l && l.gewerk && Number(l.stunden) > 0)
-                  if (!teile.length) continue
-                  const haupt = teile.reduce((a, b) => (Number(b.stunden) > Number(a.stunden) ? b : a))
-                  await updateEintrag(Number(eid), {
-                    aufteilung: teile.map((l) => ({ gewerk: l.gewerk, leistung: l.leistung || '', minuten: Math.round(Number(l.stunden) * 60) })),
-                    gewerk: haupt.gewerk, leistung: haupt.leistung || '',
-                  })
-                }
-                setEintraege(await listEintraege(id))
-              }} />
+              <LeistungenKiBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)} alleEintraege={eintraege} s={s}
+                vorschlag={kiVorschlag} setVorschlag={setKiVorschlag} onUebernehmen={vorschlagSpeichern} />
             )}
             {verdacht.length > 0 && (
               <AufraeumenBox key={verdacht.map((x) => x.e.id).join(',')} verdacht={verdacht} onDelete={async (ids) => {
@@ -1205,15 +1223,16 @@ export default function ProjektDetail() {
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => {
                 try {
-                  if (alsRechnung) previewPdf(buildLeistungsnachweis(projekt, offene, s, { mitKosten, ...abschlagOpts }))
-                  else previewPdf(buildLeistungsnachweis(projekt, eintraege, s, { mitKosten, von: nvon, bis: nbis }))
+                  if (alsRechnung) previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(offene), s, { mitKosten, ...abschlagOpts }))
+                  else previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, von: nvon, bis: nbis }))
                 } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
               }} className="w-full rounded-2xl py-3 font-semibold bg-white/10">Vorschau</button>
               <button onClick={async () => {
                 try {
                   if (gesperrt) return
+                  if (kiVorschlag) await vorschlagSpeichern()
                   if (alsRechnung) {
-                    const liste = offene
+                    const liste = mitVorschlag(offene)
                     const betrag = projektTotals(liste, projekt.hourlyRate).total
                     await sharePdf(buildLeistungsnachweis(projekt, liste, s, { mitKosten, ...abschlagOpts }), nachweisFilename(projekt))
                     const gesamtbetrag = betrag + vorherigerSaldo
@@ -1225,7 +1244,7 @@ export default function ProjektDetail() {
                     await eintraegeZuordnen(liste.map((e) => e.id), neu.token)
                     setRechnungen(await listRechnungen(id)); setEintraege(await listEintraege(id))
                   } else {
-                    await sharePdf(buildLeistungsnachweis(projekt, eintraege, s, { mitKosten, von: nvon, bis: nbis }), nachweisFilename(projekt))
+                    await sharePdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, von: nvon, bis: nbis }), nachweisFilename(projekt))
                   }
                   setNachweis(false)
                 } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
