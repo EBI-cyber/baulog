@@ -34,8 +34,8 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   if (projekt.customer) { doc.text('Kunde: ' + projekt.customer, M, y); y += 14 }
   if (projekt.address) { doc.text('Adresse: ' + projekt.address, M, y); y += 14 }
   const dates = eintraege.map((e) => e.createdAt).filter(Boolean).sort()
-  if (opts.von || opts.bis) { doc.text('Abrechnungszeitraum: ' + (opts.von ? dmy(opts.von) : 'Beginn') + ' – ' + (opts.bis ? dmy(opts.bis) : 'heute'), M, y); y += 14 }
-  else if (dates.length) { doc.text('Zeitraum: ' + dmy(dates[0]) + ' – ' + dmy(dates[dates.length - 1]), M, y); y += 14 }
+  // Leistungszeitraum = erster bis letzter Arbeitstag der enthaltenen Einträge
+  if (dates.length) { doc.text('Leistungszeitraum: ' + dmy(dates[0]) + ' – ' + dmy(dates[dates.length - 1]), M, y); y += 14 }
   doc.text('Erstellt: ' + dmy(new Date().toISOString()), M, y); y += 8
   line()
 

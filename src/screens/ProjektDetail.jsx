@@ -742,6 +742,13 @@ export default function ProjektDetail() {
     return () => { active = false }
   }, [isWorker, projekt, user])
 
+  // Abschlag speichert den tatsächlichen Leistungszeitraum (erster bis letzter Arbeitstag im gewählten Bereich).
+  // Später nachgetragene Arbeiten nach dem letzten Arbeitstag landen so automatisch im nächsten Abschlag.
+  function leistungszeitraum(liste, von, bis) {
+    const tage = liste.map((e) => String(e.createdAt || '').slice(0, 10)).filter(Boolean).sort()
+    return { von: tage[0] || von || null, bis: tage[tage.length - 1] || bis || null }
+  }
+
   // Nach Zahlung oder Löschen: Übertrag aller folgenden Abschläge neu rechnen
   async function ketteAktualisieren() {
     for (const { id: rid, patch } of ketteNeu(await listRechnungen(id))) await updateRechnung(rid, patch)
@@ -1042,7 +1049,7 @@ export default function ProjektDetail() {
                   if (alsRechnung) {
                     const gesamtbetrag = betrag + vorherigerSaldo
                     await createRechnung({
-                      projektId: Number(id), nr: naechsteAbschnittNr, von: nvon || null, bis: nbis || null,
+                      projektId: Number(id), nr: naechsteAbschnittNr, ...leistungszeitraum(gefiltert, nvon, nbis),
                       betrag, vorherigerSaldo, gesamtbetrag, bezahlterBetrag: 0, saldo: gesamtbetrag, bezahlt: false,
                     })
                     setRechnungen(await listRechnungen(id))
