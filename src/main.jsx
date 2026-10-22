@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
+import { taeglicheSicherung } from './lib/backup'
+
+// Datensicherung im Gerät: einmal täglich, gleich beim Start (vor dem ersten Cloud-Abgleich)
+taeglicheSicherung().catch((e) => console.warn('Tägliche Sicherung fehlgeschlagen', e))
 
 // Neue App-Version automatisch laden: beim Start und jedes Mal, wenn die App wieder
 // in den Vordergrund kommt, nach einem Update suchen. Ein gefundenes Update lädt die

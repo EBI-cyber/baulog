@@ -28,11 +28,16 @@ db.version(3).stores({
 db.version(4).stores({
   geloescht: '++id, &[tabelle+token]',
 })
+// Automatische Datensicherungen im Gerät (siehe lib/backup.js)
+db.version(5).stores({
+  sicherungen: '++id, createdAt',
+})
 
 // Jede lokale Änderung meldet sich hier, damit der Cloud-Sync sofort anlaufen kann
 const listeners = new Set()
 export function onLocalChange(fn) { listeners.add(fn); return () => listeners.delete(fn) }
 function changed() { listeners.forEach((fn) => { try { fn() } catch {} }) }
+export const notifyLocalChange = changed
 async function tombstone(tabelle, token) {
   if (token) await db.geloescht.put({ tabelle, token })
 }
@@ -46,8 +51,14 @@ export async function createProjekt(p) {
 export async function listProjekte() { return db.projekte.orderBy('createdAt').reverse().toArray() }
 export async function getProjekt(id) { return db.projekte.get(Number(id)) }
 export async function updateProjekt(id, patch) { const r = await db.projekte.update(Number(id), { ...patch, synced: 0 }); changed(); return r }
+// Vor jedem Löschen von Projekt oder Abschnitt den Stand sichern (lib/backup.js)
+async function sichernVorLoeschen(was) {
+  try { await (await import('./backup')).sicherungAnlegen('Vor dem Löschen: ' + was) } catch (e) { console.warn('Sicherung fehlgeschlagen', e) }
+}
+
 export async function deleteProjekt(id) {
   const p = await db.projekte.get(Number(id))
+  await sichernVorLoeschen('Projekt ' + (p ? p.name : id))
   const es = await db.eintraege.where('projektId').equals(Number(id)).toArray()
   for (const e of es) await tombstone('eintraege', e.token)
   if (p) await tombstone('projekte', p.token)
@@ -86,6 +97,7 @@ export async function listRechnungen(projektId) {
 export async function updateRechnung(id, patch) { const r = await db.rechnungen.update(Number(id), { ...patch, synced: 0 }); changed(); return r }
 export async function deleteRechnung(id) {
   const r = await db.rechnungen.get(Number(id))
+  await sichernVorLoeschen('Abschnitt ' + (r && r.nr != null ? r.nr : id))
   if (r) await tombstone('rechnungen', r.token)
   await db.rechnungen.delete(Number(id)); changed()
 }
