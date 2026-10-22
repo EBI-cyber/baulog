@@ -36,7 +36,7 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase link --project-ref "$PROJECT_REF"
+      - run: supabase link --project-ref "$PROJECT_REF" --debug
       - name: Datenbank-Migrationen einspielen
         run: supabase db push --include-all
       - name: Edge Function baulog-ai ausliefern
