@@ -38,7 +38,9 @@ export async function parseNachtrag(transcript) {
 export async function leistungenAusTagebuch(tage, gewerke, katalog) {
   const d = await callAI({ task: 'leistungen', tage, gewerke, katalog })
   const out = {}
-  for (const x of Array.isArray(d.eintraege) ? d.eintraege : []) if (x && x.id != null && Array.isArray(x.leistungen)) out[String(x.id)] = x.leistungen
+  // Einheiten in Klammern, die manchmal aus dem Katalog mitkommen, entfernen
+  const sauber = (l) => ({ ...l, leistung: String(l.leistung || '').replace(/\s*\([^)]*\)\s*$/, '').trim() })
+  for (const x of Array.isArray(d.eintraege) ? d.eintraege : []) if (x && x.id != null && Array.isArray(x.leistungen)) out[String(x.id)] = x.leistungen.map(sauber)
   return out
 }
 
