@@ -16,6 +16,7 @@ import { useRole } from '../lib/role'
 import { useAuth } from '../lib/auth'
 import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
 import IconChip from '../ui/IconChip'
+import { useCloudRefresh } from '../lib/useCloudRefresh'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
   Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check, Pencil, History,
@@ -689,6 +690,7 @@ export default function ProjektDetail() {
     if (!isWorker) setRechnungen(await listRechnungen(id))
   }
   useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); if (t) setTimer(JSON.parse(t)) }, [id])
+  useCloudRefresh(load)
   useEffect(() => { if (!timer || isPaused(timer)) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [timer])
   // Nachweis-Dialog öffnen: Zeitraum an letzten Abschnitt anschließen, damit sich Abrechnungen nicht überschneiden
   useEffect(() => {

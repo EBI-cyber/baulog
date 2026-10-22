@@ -8,6 +8,7 @@ import { projektTotals } from '../lib/calc'
 import { euro, hrs } from '../lib/format'
 import { useRole } from '../lib/role'
 import IconChip from '../ui/IconChip'
+import { useCloudRefresh } from '../lib/useCloudRefresh'
 
 export default function Projekte() {
   const nav = useNavigate()
@@ -21,6 +22,7 @@ export default function Projekte() {
 
   const load = async () => { setProjekte(await listProjekte()); setEintraege(await allEintraege()) }
   useEffect(() => { load() }, [])
+  useCloudRefresh(load)
 
   async function create() {
     if (!form.name.trim()) return

@@ -1,0 +1,5 @@
+# Minimal-Konfiguration für die Supabase CLI (Migrationen + Edge Functions per GitHub Actions)
+project_id = "baulog"
+
+[functions.baulog-ai]
+verify_jwt = true

@@ -1,11 +1,12 @@
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
-import { syncAll } from './lib/cloud'
+import { syncAll, startAutoSync } from './lib/cloud'
 import { listProjekte } from './lib/db'
 import { RoleContext } from './lib/role'
 import Nav from './components/Nav'
 import DailyReminder from './components/DailyReminder'
+import SyncBadge from './components/SyncBadge'
 import Projekte from './screens/Projekte'
 import ProjektDetail from './screens/ProjektDetail'
 import Dashboard from './screens/Dashboard'
@@ -55,6 +56,8 @@ function Shell() {
     })()
     return () => { active = false }
   }, [user])
+  // Automatischer Cloud-Sync, solange jemand angemeldet ist
+  useEffect(() => { if (user) return startAutoSync() }, [user])
 
   if (loading) return <Splash />
   // Eingeladener Mitarbeiter: erst Passwort festlegen
@@ -73,6 +76,7 @@ function Shell() {
         </Routes>
       </Layout>
       <DailyReminder />
+      <SyncBadge />
     </RoleContext.Provider>
   )
 }

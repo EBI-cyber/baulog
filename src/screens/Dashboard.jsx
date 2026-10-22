@@ -4,6 +4,7 @@ import { listProjekte, allEintraege, allRechnungen } from '../lib/db'
 import { gewerkAnalytics, projektTotals, leistungAnalytics } from '../lib/calc'
 import { euro, hrs } from '../lib/format'
 import IconChip from '../ui/IconChip'
+import { useCloudRefresh } from '../lib/useCloudRefresh'
 
 function Stat({ icon, label, value, grad }) {
   return (
@@ -21,7 +22,9 @@ export default function Dashboard() {
   const [projekte, setProjekte] = useState([])
   const [eintraege, setEintraege] = useState([])
   const [rechnungen, setRechnungen] = useState([])
-  useEffect(() => { (async () => { setProjekte(await listProjekte()); setEintraege(await allEintraege()); setRechnungen(await allRechnungen()) })() }, [])
+  const load = async () => { setProjekte(await listProjekte()); setEintraege(await allEintraege()); setRechnungen(await allRechnungen()) }
+  useEffect(() => { load() }, [])
+  useCloudRefresh(load)
 
   const totalMin = eintraege.filter((e) => e.type === 'zeit').reduce((a, e) => a + (Number(e.minutes) || 0), 0)
   let totalCost = 0
