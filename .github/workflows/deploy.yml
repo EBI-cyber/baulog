@@ -36,11 +36,21 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase link --project-ref "$PROJECT_REF" --debug
+      # Ohne "supabase link": der braucht mehr Token-Rechte als nötig.
+      # Verbindung über den Supabase-Pooler (GitHub-Runner haben kein IPv6).
+      - name: Datenbank-Verbindung ermitteln
+        run: |
+          POOLER=$(curl -sf -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             "https://api.supabase.com/v1/projects/$PROJECT_REF/config/database/pooler")
+          HOST=$(echo "$POOLER" | jq -r '[.[] | select(.database_type=="PRIMARY")][0].db_host')
+          DBUSER=$(echo "$POOLER" | jq -r '[.[] | select(.database_type=="PRIMARY")][0].db_user')
+          PW=$(jq -rn --arg p "$SUPABASE_DB_PASSWORD" '$p|@uri')
+          echo "::add-mask::$PW"
+          echo "DB_URL=postgresql://$DBUSER:$PW@$HOST:5432/postgres" >> "$GITHUB_ENV"
+          echo "Pooler: $HOST ($DBUSER)"
       - name: Datenbank-Migrationen einspielen
-        run: supabase db push --include-all
+        run: supabase db push --db-url "$DB_URL" --include-all
       - name: Edge Function baulog-ai ausliefern
-        run: supabase functions deploy baulog-ai --project-ref "$PROJECT_REF"
+        run: supabase functions deploy baulog-ai --project-ref "$PROJECT_REF" --use-api
 
   build:
     needs: datenbank
