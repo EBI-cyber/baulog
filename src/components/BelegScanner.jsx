@@ -44,6 +44,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const [gross, setGross] = useState(false)
   const [busy, setBusy] = useState('')
   const [video, setVideo] = useState(false) // Video-Scan für lange Belege offen
+  const [fotoKamera, setFotoKamera] = useState(false) // eigene Kamera (mit Taschenlampe) für das Übersichtsfoto
   const [langModus, setLangModus] = useState(false) // langer Beleg: Schritt 1 = Übersichtsfoto zuschneiden
   const [uebersicht, setUebersicht] = useState(null) // zugeschnittenes Übersichtsfoto (Canvas) für den Video-Scan
   const [lang, setLang] = useState(false) // Quelle stammt aus dem Video-Scan
@@ -82,8 +83,13 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const f = ev.target.files && ev.target.files[0]; ev.target.value = ''
     if (!f) return
     setBusy('Lade Foto …')
-    try {
-      const c = verkleinern(await ladeBild(await dateiAlsDataUrl(f)), 1600)
+    try { await uebernehmen(await ladeBild(await dateiAlsDataUrl(f))) } catch (err) { alert(err && err.message ? err.message : String(err)) }
+    setBusy('')
+  }
+  // Foto (Bild oder Canvas) übernehmen: verkleinern, Ecken suchen
+  const uebernehmen = async (quellbild) => {
+    {
+      const c = verkleinern(quellbild, 1600)
       const W = c.width, H = c.height
       const gefunden = eckenFinden(c)
       setLang(false)
@@ -98,9 +104,9 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
             setEcken(einruecken(k.ecken.map((p) => ({ x: p.x * W, y: p.y * H })), 0.01))
           }
         } catch { /* dann eben von Hand */ }
+        setBusy('')
       }
-    } catch (err) { alert(err && err.message ? err.message : String(err)) }
-    setBusy('')
+    }
   }
 
   // Langer Beleg, Schritt 1 fertig: Übersichtsfoto zuschneiden, dann Video-Scan (richtet sich an der Übersicht aus)
@@ -214,7 +220,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       <div className="space-y-2">
         <div className="text-white/75 text-xs">Beleg flach auf einen dunkleren Untergrund legen und von oben fotografieren. Die App schneidet zu, die KI liest Lieferant, Datum, Positionen und Preise.</div>
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => { setLangModus(true); kamera.current.click() }} disabled={!!busy} className="col-span-2 rounded-2xl py-2.5 font-semibold bg-white/10 border border-amber/40 inline-flex items-center justify-center gap-2"><ScrollText className="w-5 h-5 text-amber" /> Langer Beleg (Video-Scan)</button>
+          <button onClick={() => { setLangModus(true); setFotoKamera(true) }} disabled={!!busy} className="col-span-2 rounded-2xl py-2.5 font-semibold bg-white/10 border border-amber/40 inline-flex items-center justify-center gap-2"><ScrollText className="w-5 h-5 text-amber" /> Langer Beleg (Video-Scan)</button>
           <button onClick={() => { setLangModus(false); kamera.current.click() }} disabled={!!busy} className="rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> Foto aufnehmen</button>
           <button onClick={() => { setLangModus(false); galerie.current.click() }} disabled={!!busy} className="rounded-2xl py-3 font-semibold bg-white/10 inline-flex items-center justify-center gap-2"><ImagePlus className="w-5 h-5" /> Bild wählen</button>
         </div>
@@ -223,6 +229,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
         {busy && <div className="text-amber text-sm">{busy}</div>}
         {onOhneBeleg && <button onClick={onOhneBeleg} className="w-full text-white/60 text-xs py-1">Ohne Beleg von Hand eintragen</button>}
         {onAbbrechen && <button onClick={onAbbrechen} className="w-full text-white/70 text-sm py-1">Abbrechen</button>}
+        {fotoKamera && <VideoScan onFoto={(c) => { setFotoKamera(false); setBusy('Lade Foto …'); uebernehmen(c).catch((err) => alert(err && err.message ? err.message : String(err))).finally(() => setBusy('')) }} onAbbrechen={() => { setFotoKamera(false); setLangModus(false) }} />}
       </div>
     )
   }

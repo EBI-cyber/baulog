@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Play, Check, Flashlight, Volume2, VolumeX } from 'lucide-react'
-import { verfolger, begleiter } from '../lib/videoscan'
+import { X, Play, Check, Flashlight, Volume2, VolumeX, Camera } from 'lucide-react'
+import { verfolger, begleiter, grau, schaerfe } from '../lib/videoscan'
 
 const FARBE = { gut: 'bg-emerald-500', achtung: 'bg-amber', stopp: 'bg-ember' }
 
@@ -21,12 +21,14 @@ function sprecher() {
 // Jedes Kamerabild wird im Übersichtsfoto wiedergefunden; die Leiste rechts zeigt, was schon erfasst ist.
 // Reihenfolge und Tempo sind egal, Lücken kann man durch Zurückfahren füllen. Ergebnis = ein langes Bild über onFertig.
 // Ein Begleiter achtet laufend auf waagerechte Haltung, Abstand, Tempo, Licht und Schärfe.
-export default function VideoScan({ uebersicht, onFertig, onAbbrechen }) {
+// Ohne uebersicht: Schritt 1, das Übersichtsfoto selbst (eigene Kamera, damit die Taschenlampe an ist) → onFoto(Canvas).
+export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen }) {
+  const foto = !uebersicht
   const video = useRef(null), stream = useRef(null)
-  const zustand = useRef({ laeuft: false, stop: false, lage: null, sprich: sprecher() })
+  const zustand = useRef({ laeuft: false, stop: false, lage: null, bestScharf: 0, sprich: sprecher() })
   const spur = useRef(null)
-  if (!spur.current) spur.current = verfolger(uebersicht)
-  const [karte] = useState(() => uebersicht.toDataURL('image/jpeg', 0.6))
+  if (!spur.current && !foto) spur.current = verfolger(uebersicht)
+  const [karte] = useState(() => (foto ? '' : uebersicht.toDataURL('image/jpeg', 0.6)))
   const [laeuft, setLaeuft] = useState(false)
   const [anzeige, setAnzeige] = useState({ abschnitte: 0, abdeckung: 0, bereiche: [], lage: null, pos: null, hinweis: { text: 'Kamera startet …', stufe: 'gut', werte: {} } })
   const [fehler, setFehler] = useState('')
@@ -103,6 +105,19 @@ export default function VideoScan({ uebersicht, onFertig, onAbbrechen }) {
     requestAnimationFrame(schritt)
     if (!v || !v.videoWidth || t - (z.zuletzt || 0) < 45) return
     z.zuletzt = t
+    if (foto) {
+      // Übersichtsfoto: nur Haltung, Licht und Schärfe prüfen
+      const g = grau(v, 320), sch = schaerfe(g)
+      z.bestScharf = Math.max(z.bestScharf * 0.995, sch)
+      let h = begleiter({ lage: z.lage, papier: null, tempo: null, hell: g.hell, scharf: z.bestScharf ? sch / z.bestScharf : null, laeuft: false })
+      if (h.stufe === 'gut') h = { ...h, text: 'Gut so – ganzen Beleg ins Bild, dann auslösen' }
+      if (h.text !== (z.kandidat && z.kandidat.text)) { z.kandidat = h; z.seit = t }
+      const gez = t - z.seit > 500 ? h : (z.gezeigt || h)
+      z.gezeigt = gez
+      z.sprich(gez.text, tonRef.current)
+      setAnzeige((a) => ({ ...a, lage: z.lage, hinweis: gez }))
+      return
+    }
     // einmal je Durchgang ein festes Bild ziehen: Lagebestimmung und Aufnahme müssen genau dasselbe Bild sehen
     const bildJetzt = vollbild()
     const st = spur.current.schritt(bildJetzt, t, z.laeuft, () => bildJetzt)
@@ -118,6 +133,19 @@ export default function VideoScan({ uebersicht, onFertig, onAbbrechen }) {
     setAnzeige({ abschnitte: st.abschnitte, abdeckung: st.abdeckung, bereiche: spur.current.bereiche(), lage: z.lage, pos: st.y != null && !st.verloren ? [st.y / st.HO, (st.y + st.hO) / st.HO] : null, hinweis: gezeigt })
     // ganzer Beleg erfasst: automatisch fertig
     if (z.laeuft && st.abdeckung >= 0.985) fertig()
+  }
+
+  // Übersichtsfoto in voller Kameraauflösung aufnehmen
+  const ausloesen = () => {
+    const v = video.current, z = zustand.current
+    if (!v || !v.videoWidth) return
+    const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight
+    c.getContext('2d').drawImage(v, 0, 0)
+    z.stop = true
+    if (window.speechSynthesis) window.speechSynthesis.cancel()
+    if (navigator.vibrate) navigator.vibrate(30)
+    if (stream.current) stream.current.getTracks().forEach((t) => t.stop())
+    onFoto(c)
   }
 
   const start = () => {
@@ -156,7 +184,7 @@ export default function VideoScan({ uebersicht, onFertig, onAbbrechen }) {
   return createPortal(
     <div className="fixed inset-0 z-[100] bg-black flex flex-col">
       <div className="flex items-center justify-between p-3 text-white">
-        <div className="font-semibold">Langer Beleg – Video-Scan</div>
+        <div className="font-semibold">{foto ? 'Langer Beleg – Übersichtsfoto' : 'Langer Beleg – Video-Scan'}</div>
         <div className="flex items-center gap-2">
           <button onClick={() => setTon(!ton)} className="p-2 rounded-full bg-white/10" title={ton ? 'Sprachhinweise aus' : 'Sprachhinweise an'}>{ton ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}</button>
           {licht !== null && <button onClick={lampe} className={'p-2 rounded-full ' + (licht ? 'bg-amber text-black' : 'bg-white/10')} title="Licht"><Flashlight className="w-5 h-5" /></button>}
@@ -176,13 +204,13 @@ export default function VideoScan({ uebersicht, onFertig, onAbbrechen }) {
             </div>
             <div className="flex gap-4 text-xs text-white/80">
               {ampel('Waagerecht', lage ? hinweis.werte.lage : null)}
-              {ampel('Abstand', hinweis.werte.abstand)}
+              {!foto && ampel('Abstand', hinweis.werte.abstand)}
               {laeuft && ampel('Tempo', hinweis.werte.tempo)}
             </div>
             {laeuft && <div className="text-xs text-white/80">{Math.round(anzeige.abdeckung * 100)} % des Belegs erfasst</div>}
           </div>
         )}
-        {!fehler && !busy && (
+        {!fehler && !busy && !foto && (
           // Mini-Karte: Übersichtsfoto, grün = schon erfasst, Rahmen = gerade im Bild
           <div className="absolute right-3 top-32 bottom-3 w-12 rounded-lg overflow-hidden border border-white/40 bg-black/50">
             <img src={karte} alt="" className="absolute inset-0 w-full h-full object-fill opacity-70" />
@@ -200,7 +228,12 @@ export default function VideoScan({ uebersicht, onFertig, onAbbrechen }) {
         {busy && <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-amber font-semibold">{busy}</div>}
       </div>
       <div className="p-3 space-y-2">
-        {!laeuft ? (
+        {foto ? (
+          <>
+            <div className="text-white/75 text-xs">Schritt 1 von 2: Beleg flach auf einen dunkleren Untergrund legen und so weit vom Beleg weggehen, dass er ganz ins Bild passt. Handy waagerecht halten und auslösen.</div>
+            <button onClick={ausloesen} disabled={!!fehler} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Camera className="w-5 h-5" /> Übersichtsfoto aufnehmen</button>
+          </>
+        ) : !laeuft ? (
           <>
             <div className="text-white/75 text-xs">Schritt 2 von 2: Handy waagerecht über den Beleg halten, sodass er gut zwei Drittel der Bildbreite füllt. Der orange Rahmen in der Leiste rechts zeigt, welche Stelle die App gerade erkennt. Auf Start tippen und das Handy ruhig über den Beleg führen, bis die Leiste ganz grün ist. Lücken füllst du einfach durch Zurückfahren.</div>
             <button onClick={start} disabled={!!fehler} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Play className="w-5 h-5" /> Start</button>
