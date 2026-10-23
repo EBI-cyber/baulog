@@ -117,3 +117,53 @@ export function verbessern(canvas) {
   ctx.putImageData(img, 0, 0)
   return canvas
 }
+
+// Ecken automatisch finden: hellstes zusammenhängendes Objekt (Papier vor dunklerem Untergrund).
+// Schwelle nach Otsu, größte helle Fläche, Ecken über die Extrempunkte von x+y und x−y.
+// Rückgabe: 4 Punkte in Pixeln von canvas (oben-links, oben-rechts, unten-rechts, unten-links) oder null.
+export function eckenFinden(canvas) {
+  const f = Math.min(1, 400 / Math.max(canvas.width, canvas.height))
+  const w = Math.max(1, Math.round(canvas.width * f)), h = Math.max(1, Math.round(canvas.height * f))
+  const k = document.createElement('canvas'); k.width = w; k.height = h
+  const kx = k.getContext('2d'); kx.drawImage(canvas, 0, 0, w, h)
+  const d = kx.getImageData(0, 0, w, h).data
+  const lum = new Uint8Array(w * h)
+  const hist = new Array(256).fill(0)
+  for (let i = 0; i < w * h; i++) { const v = Math.round(0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]); lum[i] = v; hist[v]++ }
+  // Otsu
+  let sum = 0; for (let v = 0; v < 256; v++) sum += v * hist[v]
+  let sumB = 0, wB = 0, best = 0, schwelle = 128
+  for (let v = 0; v < 256; v++) {
+    wB += hist[v]; if (!wB) continue
+    const wF = w * h - wB; if (!wF) break
+    sumB += v * hist[v]
+    const mB = sumB / wB, mF = (sum - sumB) / wF
+    const zw = wB * wF * (mB - mF) * (mB - mF)
+    if (zw > best) { best = zw; schwelle = v }
+  }
+  // größte helle zusammenhängende Fläche
+  const markiert = new Int32Array(w * h).fill(-1)
+  let groesste = null
+  const stapel = new Int32Array(w * h)
+  for (let start = 0; start < w * h; start++) {
+    if (lum[start] <= schwelle || markiert[start] >= 0) continue
+    let n = 0, top = 0
+    stapel[top++] = start; markiert[start] = start
+    const pts = { tl: [0, 0, Infinity], tr: [0, 0, -Infinity], br: [0, 0, -Infinity], bl: [0, 0, Infinity] }
+    while (top) {
+      const i = stapel[--top]; n++
+      const x = i % w, y = (i / w) | 0
+      if (x + y < pts.tl[2]) pts.tl = [x, y, x + y]
+      if (x + y > pts.br[2]) pts.br = [x, y, x + y]
+      if (x - y > pts.tr[2]) pts.tr = [x, y, x - y]
+      if (x - y < pts.bl[2]) pts.bl = [x, y, x - y]
+      const nb = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]
+      for (const j of nb) if (j >= 0 && lum[j] > schwelle && markiert[j] < 0) { markiert[j] = start; stapel[top++] = j }
+    }
+    if (!groesste || n > groesste.n) groesste = { n, pts }
+  }
+  // nur verwenden, wenn die Fläche plausibel groß ist und nicht das ganze Bild ausfüllt
+  if (!groesste || groesste.n < w * h * 0.12 || groesste.n > w * h * 0.97) return null
+  const p = groesste.pts
+  return [p.tl, p.tr, p.br, p.bl].map(([x, y]) => ({ x: x / f, y: y / f }))
+}
