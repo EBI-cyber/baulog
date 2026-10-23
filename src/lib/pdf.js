@@ -77,15 +77,19 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   const gruppenEintraege = eintraege.flatMap((e) => e.type === 'zeit' ? zeitAnteile(e).map((t) => ({ ...e, gewerk: t.gewerk, leistung: t.leistung, minutes: t.minutes })) : [e])
   for (const e of gruppenEintraege) {
     if (['zeit', 'menge', 'material', 'maschine'].indexOf(e.type) === -1) continue
-    const key = (e.gewerk || '') + ' › ' + (e.leistung || '(allgemein)')
-    if (!groups[key]) groups[key] = { gewerk: e.gewerk, leistung: e.leistung || '(allgemein)', minutes: 0, menge: 0, einheit: '', material: 0, maschine: 0 }
+    // Maschinen und Material ohne eigene Leistung als solche ausweisen statt „(allgemein)“
+    const leistung = e.leistung || (e.type === 'maschine' ? 'Maschineneinsatz' + (e.maschine ? ': ' + e.maschine : '')
+      : e.type === 'material' ? 'Material' + (e.label ? ': ' + e.label : '') : '(allgemein)')
+    const key = (e.gewerk || '') + ' › ' + leistung
+    if (!groups[key]) groups[key] = { gewerk: e.gewerk, leistung, minutes: 0, menge: 0, einheit: '', material: 0, maschine: 0 }
     const g = groups[key]
     if (e.type === 'zeit') g.minutes += Number(e.minutes) || 0
     else if (e.type === 'menge') { g.menge += Number(e.menge) || 0; if (e.einheit) g.einheit = e.einheit }
     else if (e.type === 'material') g.material += (Number(e.qty) || 0) * (Number(e.unitCost) || 0)
     else if (e.type === 'maschine') g.maschine += ((Number(e.minutes) || 0) / 60) * (Number(e.satz) || 0)
   }
-  const rows = Object.values(groups)
+  // nach Gewerk sortiert, innerhalb des Gewerks die größten Posten zuerst
+  const rows = Object.values(groups).sort((a, b) => String(a.gewerk || '').localeCompare(String(b.gewerk || ''), 'de') || b.minutes - a.minutes)
 
   // Spalten: Leistung | Menge | Stunden | EP (€/Einh) | Selbstkosten
   const cMenge = 248, cStd = 312, cEP = 372

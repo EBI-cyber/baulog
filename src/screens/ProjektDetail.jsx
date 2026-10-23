@@ -622,6 +622,60 @@ function UhrzeitenBox({ liste, standardBeginn, onEintragen }) {
   )
 }
 
+// Bautagebuch-Texte per KI überarbeiten (Rechtschreibung, Grammatik, Fachsprache) – vorher/nachher prüfen
+function TagebuchKiBox({ liste, onSpeichern }) {
+  const [vorschlag, setVorschlag] = useState(null)
+  const [busy, setBusy] = useState('')
+  const texte = liste.filter((e) => e.type === 'tagebuch' && e.text && e.text.trim())
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+  if (!texte.length) return null
+  const pruefen = async () => {
+    const out = []
+    try {
+      for (let i = 0; i < texte.length; i++) {
+        setBusy('Überarbeite ' + (i + 1) + ' von ' + texte.length + ' …')
+        const neu = await korrekturText(texte[i].text)
+        out.push({ e: texte[i], neu: neu || texte[i].text, an: Boolean(neu) && neu.trim() !== texte[i].text.trim() })
+      }
+      setVorschlag(out)
+    } catch (err) { alert(err && err.message ? err.message : String(err)) }
+    setBusy('')
+  }
+  const set = (i, patch) => setVorschlag((v) => v.map((x, j) => (j === i ? { ...x, ...patch } : x)))
+  return (
+    <div className="rounded-xl p-3 border border-white/20 bg-white/5 space-y-2">
+      <div className="font-semibold text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber" /> Bautagebuch überarbeiten</div>
+      {!vorschlag ? (
+        <>
+          <div className="text-white/75 text-xs">Die KI korrigiert Rechtschreibung, Grammatik und Fachbegriffe und formuliert die {texte.length} Einträge so, wie ein Bauleiter sie schreiben würde. Am besten vor dem Ermitteln der Leistungen.</div>
+          <button onClick={pruefen} disabled={!!busy} className="w-full rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-50">{busy || 'Bautagebuch überarbeiten'}</button>
+        </>
+      ) : (
+        <>
+          {vorschlag.map((x, i) => (
+            <div key={x.e.id} className="text-sm border-t border-white/10 pt-2 space-y-1">
+              <label className="flex items-center gap-2 font-semibold">
+                <input type="checkbox" checked={x.an} onChange={() => set(i, { an: !x.an })} className="w-4 h-4 accent-[#f59e0b]" />
+                {dmy(x.e.createdAt)} übernehmen
+              </label>
+              <div className="text-white/60 text-xs">Bisher: {x.e.text}</div>
+              <textarea value={x.neu} onChange={(ev) => set(i, { neu: ev.target.value, an: true })} rows={4}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm outline-none focus:border-amber" />
+            </div>
+          ))}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button onClick={() => setVorschlag(null)} className="rounded-xl py-2 text-sm bg-white/10">Verwerfen</button>
+            <button disabled={!!busy} onClick={async () => {
+              setBusy('Speichere …')
+              try { await onSpeichern(vorschlag.filter((x) => x.an).map((x) => ({ id: x.e.id, text: x.neu.trim() }))); setVorschlag(null) } finally { setBusy('') }
+            }} className="rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-50">Übernehmen ({vorschlag.filter((x) => x.an).length})</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // KI liest das Bautagebuch und verteilt die Stunden jedes Zeiteintrags auf die ausgeführten Leistungen
 function LeistungenKiBox({ liste, alleEintraege, s, vorschlag, setVorschlag, onUebernehmen }) {
   const [busy, setBusy] = useState(false)
@@ -1195,6 +1249,14 @@ export default function ProjektDetail() {
               <UhrzeitenBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)} standardBeginn={s.arbeitsbeginn} onEintragen={async (vs) => {
                 await sicherungAnlegen('Vor dem Ergänzen von Uhrzeiten')
                 for (const v of vs) await updateEintrag(v.e.id, { startAt: v.startAt, endAt: v.endAt })
+                setEintraege(await listEintraege(id))
+              }} />
+            )}
+            {!isWorker && (
+              <TagebuchKiBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)} onSpeichern={async (aenderungen) => {
+                if (!aenderungen.length) return
+                await sicherungAnlegen('Vor dem Überarbeiten des Bautagebuchs')
+                for (const a of aenderungen) await updateEintrag(a.id, { text: a.text })
                 setEintraege(await listEintraege(id))
               }} />
             )}
