@@ -24,7 +24,7 @@ import Vollbild from '../components/Vollbild'
 import BelegeSheet, { belegeAus } from '../components/BelegeSheet'
 import { useCloudRefresh } from '../lib/useCloudRefresh'
 import {
-  ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
+  ChevronLeft, ChevronRight, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
   Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check, Pencil, History,
 } from 'lucide-react'
 
@@ -92,6 +92,73 @@ function ActionTile({ icon, label, span, onClick }) {
     <button onClick={onClick} className={'glass card-hover rounded-2xl p-3 flex flex-col items-center gap-2 text-xs font-medium active:scale-[0.98] ' + (span || '')}>
       <IconChip icon={icon} />{label}
     </button>
+  )
+}
+
+// Einträge als Baum: je Rubrik ein aufklappbarer Ast, Material zusätzlich nach Beleg gegliedert
+const RUBRIKEN = [
+  { typ: 'zeit', titel: 'Zeiten' }, { typ: 'tagebuch', titel: 'Bautagebuch' }, { typ: 'material', titel: 'Material' },
+  { typ: 'maschine', titel: 'Maschinen' }, { typ: 'menge', titel: 'Mengen' }, { typ: 'foto', titel: 'Fotos' },
+]
+function Ast({ kopf, kind, offen, onToggle, children, tief }) {
+  return (
+    <div className={tief ? 'pl-3 border-l border-white/15 ml-2' : ''}>
+      <button onClick={onToggle} className={'w-full flex items-center gap-3 text-left rounded-2xl p-3 ' + (tief ? 'bg-white/5' : 'glass card-hover')}>
+        <ChevronRight className={'w-4 h-4 shrink-0 transition-transform ' + (offen ? 'rotate-90' : '')} />
+        {kopf}
+        {kind}
+      </button>
+      {offen && <div className="space-y-2 mt-2">{children}</div>}
+    </div>
+  )
+}
+function EintragsBaum({ eintraege, rate, hideCost, zeile }) {
+  const [offen, setOffen] = useState({})
+  const umschalten = (k) => setOffen((o) => ({ ...o, [k]: !o[k] }))
+  return (
+    <div className="space-y-2">
+      {RUBRIKEN.map(({ typ, titel }) => {
+        const liste = eintraege.filter((e) => e.type === typ)
+        if (!liste.length) return null
+        const I = ENTRY_ICON[typ] || Clock
+        let info = liste.length + (liste.length === 1 ? ' Eintrag' : ' Einträge')
+        if (typ === 'zeit') info = hrs(liste.reduce((a, e) => a + (Number(e.minutes) || 0), 0)) + ' · ' + info
+        if (typ === 'material' && !hideCost) info = euro(liste.reduce((a, e) => a + (Number(e.qty) || 0) * (Number(e.unitCost) || 0), 0)) + ' · ' + info
+        // Material: Positionen eines Belegs unter einem gemeinsamen Ast
+        let inhalt = liste.map(zeile)
+        if (typ === 'material') {
+          const belege = new Map(), lose = []
+          for (const e of liste) {
+            if (e.note && /^Beleg/.test(e.note)) {
+              const k = e.note + '|' + String(e.createdAt || '').slice(0, 10)
+              if (!belege.has(k)) belege.set(k, [])
+              belege.get(k).push(e)
+            } else lose.push(e)
+          }
+          inhalt = [
+            ...[...belege.entries()].map(([k, pos]) => {
+              const bild = (pos.find((e) => e.dataUrl) || {}).dataUrl
+              const summe = pos.reduce((a, e) => a + (Number(e.qty) || 0) * (Number(e.unitCost) || 0), 0)
+              return (
+                <Ast key={k} tief offen={offen[k]} onToggle={() => umschalten(k)}
+                  kopf={bild ? <img src={bild} alt="" className="w-9 h-9 rounded-lg object-cover bg-white shrink-0" /> : <IconChip icon={Package} size="w-9 h-9" iconClass="w-4 h-4" />}
+                  kind={<div className="flex-1 min-w-0"><div className="text-sm font-medium truncate">{pos[0].note.replace(/\s*·.*$/, '')}</div><div className="text-white/70 text-xs">{pos.length} Positionen{hideCost ? '' : ' · ' + euro(summe)}</div></div>}>
+                  {pos.map(zeile)}
+                </Ast>
+              )
+            }),
+            ...lose.map(zeile),
+          ]
+        }
+        return (
+          <Ast key={typ} offen={offen[typ]} onToggle={() => umschalten(typ)}
+            kopf={<IconChip icon={I} size="w-10 h-10" />}
+            kind={<div className="flex-1 min-w-0"><div className="font-semibold">{titel}</div><div className="text-white/70 text-xs">{info}</div></div>}>
+            {inhalt}
+          </Ast>
+        )
+      })}
+    </div>
   )
 }
 
@@ -1272,10 +1339,10 @@ export default function ProjektDetail() {
           <div className="text-white/75 text-sm mb-2 font-medium">Einträge ({eintraege.length})</div>
           <div className="space-y-2">
             {eintraege.length === 0 && <div className="glass rounded-2xl p-5 text-white/60 text-sm">Noch keine Einträge — starte den Timer oder erfasse eine Leistung.</div>}
-            {eintraege.map((e) => (
+            <EintragsBaum eintraege={eintraege} rate={projekt.hourlyRate} hideCost={isWorker} zeile={(e) => (
               <EntryRow key={e.id} e={e} rate={projekt.hourlyRate} hideCost={isWorker} onDelete={() => remove(e.id)}
                 onEdit={(!isWorker || ['zeit', 'menge', 'foto', 'tagebuch'].includes(e.type)) ? () => { setEditingEntry(e); setSheet(e.type) } : null} />
-            ))}
+            )} />
           </div>
         </div>
       </div>
