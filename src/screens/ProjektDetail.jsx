@@ -1072,7 +1072,8 @@ export default function ProjektDetail() {
   const workedMs = timer ? Math.max(0, now - timer.startTs - pausedMsOf(timer, now)) : 0
 
   function startTimer() {
-    const tm = { gewerk, leistung, startTs: Date.now(), pauses: [] }
+    // Chef: kein Gewerk vorab, die KI ordnet später aus dem Bautagebuch zu; Mitarbeiter wählen ihr freigegebenes Gewerk
+    const tm = { gewerk: isWorker ? gewerk : '', leistung: isWorker ? leistung : '', startTs: Date.now(), pauses: [] }
     localStorage.setItem(TIMERKEY(id), JSON.stringify(tm)); setTimer(tm); setNow(Date.now())
   }
   function pauseResume() {
@@ -1183,6 +1184,7 @@ export default function ProjektDetail() {
               </>
             ) : (
               <>
+                {isWorker && <>
                 <div className="mb-2 p-2 rounded-xl bg-white/10 border border-white/20">
                   <div className="flex gap-2 items-center">
                     <VoiceInput onText={setSetupText} />
@@ -1200,6 +1202,8 @@ export default function ProjektDetail() {
                     {leistungenG.map((l) => <option key={l.name} value={l.name}>{l.name}</option>)}
                   </select>
                 </div>
+                </>}
+                {!isWorker && <div className="text-white/60 text-xs mb-2">Was du gemacht hast, schreibst du ins Bautagebuch. Gewerk und Leistung ermittelt die KI daraus beim Leistungsnachweis.</div>}
                 <button onClick={startTimer} className="w-full rounded-2xl py-5 font-bold text-xl btn-grad shadow-glow active:scale-[0.98] transition inline-flex items-center justify-center gap-2"><Play className="w-6 h-6" strokeWidth={2.3} /> Start</button>
               </>
             )}
