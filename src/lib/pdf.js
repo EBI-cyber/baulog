@@ -56,7 +56,8 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
       const zeitText = zeiten.map((e) => {
         let z = e.startAt && e.endAt ? hm(e.startAt) + '–' + hm(e.endAt) + ' Uhr (' + hh(e.minutes) + ')' : (zeiten.length > 1 ? hh(e.minutes) + ' ' : '') + 'Uhrzeit nicht erfasst'
         if (e.startAt && e.pausen && e.pausen.length) z += ', Pause ' + e.pausen.map((pa) => hm(pa.start) + '–' + hm(pa.end)).join(', ')
-        if (e.leistung) z += ' · ' + e.leistung
+        // Leistung nur nennen, wenn der Abschnitt nicht auf mehrere Leistungen aufgeteilt ist
+        if (e.leistung && !(Array.isArray(e.aufteilung) && e.aufteilung.length > 1)) z += ' · ' + e.leistung
         return z
       }).join('   ·   ')
       const zeitLines = zeitText ? doc.setFontSize(9).splitTextToSize(zeitText, R - M) : []
@@ -101,19 +102,21 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
 
   let sumMin = 0, sumCost = 0
   rows.forEach((g) => {
-    need(16)
+    // lange Bezeichnungen umbrechen statt in die nächste Zeile zu schreiben
+    const nameLines = doc.splitTextToSize(g.gewerk + ' › ' + g.leistung, cMenge - M - 10)
+    need(nameLines.length * 11 + 6)
     const labor = (g.minutes / 60) * rate
     const total = labor + g.material + g.maschine
     const ep = g.menge > 0 ? total / g.menge : null
     sumMin += g.minutes; sumCost += total
-    doc.text(g.gewerk + ' › ' + g.leistung, M, y, { maxWidth: 192 })
+    doc.text(nameLines, M, y)
     doc.text(g.menge ? num(g.menge) + ' ' + (g.einheit || '') : '–', cMenge, y)
     doc.text(g.minutes ? hh(g.minutes) : '–', cStd, y)
     if (mitKosten) {
       doc.text(ep != null ? eur(ep).replace(' EUR', '') + (g.einheit ? '/' + g.einheit : '') : '–', cEP, y)
       doc.text(eur(total), R, y, { align: 'right' })
     }
-    y += 16
+    y += Math.max(16, nameLines.length * 11 + 6)
   })
   y += 2; line()
   doc.setFont('helvetica', 'bold').setFontSize(10)
