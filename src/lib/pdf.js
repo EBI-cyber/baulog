@@ -273,12 +273,15 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
       if (p) abzuege.push({ name, grund: 'privat', voll: zahl(p[1]), berechnet: 0 })
       else if (v) abzuege.push({ name, grund: 'Verschleiß (' + v[1] + ' %)', voll: zahl(v[2]), berechnet: (Number(e.qty) || 0) * (Number(e.unitCost) || 0) })
     }
-    // ältere Belege: Privatanteil nur in der Belegnotiz vermerkt
+    // Privatanteil laut Belegnotiz: was davon nicht schon als einzelne Position vermerkt ist, als eigene Zeile zeigen
     const notizen = [...new Set(eintraege.filter((x) => x.type === 'material' && x.note).map((x) => x.note))]
     for (const n of notizen) {
       const m = n.match(/\(davon privat ([\d.]+,\d{2}) €, nicht verrechnet\)/)
-      const schon = abzuege.some((a) => a.grund === 'privat' && n.includes(a.name.split(':')[0]))
-      if (m && !schon) abzuege.push({ name: n.replace(/\s*·.*$/, ''), grund: 'privat', voll: zahl(m[1]), berechnet: 0 })
+      if (!m) continue
+      const einzeln = eintraege.filter((x) => x.type === 'material' && x.note === n)
+        .reduce((sum, x) => { const p = (x.label || '').match(/\(privat, nicht berechnet: ([\d.]+,\d{2}) €\)/); return sum + (p ? zahl(p[1]) : 0) }, 0)
+      const rest = Math.round((zahl(m[1]) - einzeln) * 100) / 100
+      if (rest > 0.01) abzuege.push({ name: n.replace(/\s*·.*$/, '') + ': private Positionen', grund: 'privat', voll: rest, berechnet: 0 })
     }
     if (abzuege.length) {
       abschnitt('Abzüge aus Materialbelegen')
