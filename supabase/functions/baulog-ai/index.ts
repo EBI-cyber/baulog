@@ -75,10 +75,10 @@ Deno.serve(async (req) => {
         { role: 'user', content: [{ type: 'text', text: 'Beleg auswerten.' }, { type: 'image_url', image_url: { url: String(body.bild || ''), detail: 'high' } }] },
       ]
     } else if (task === 'finden') {
-      // Position auf einem Belegbild finden → Rechteck zum Hervorheben
+      // Position auf einem Belegbild finden: Die Textzeilen sind links rot nummeriert, die KI nennt die Nummern
       jsonMode = true
       messages = [
-        { role: 'system', content: 'Du bekommst das Bild eines Einkaufsbelegs und den Text einer Artikelposition. Finde die Zeile dieser Position auf dem Beleg (Bezeichnung bis Betrag) und gib ihr umschließendes Rechteck als Anteile der Bildbreite/-höhe (0 bis 1) an: x, y = linke obere Ecke, w, h = Breite und Höhe. Die ganze Zeile von links bis zum Betrag rechts einschließen. Nicht gefunden: box null. Antworte NUR als JSON: {"box":{"x":0,"y":0,"w":0,"h":0}}' },
+        { role: 'system', content: 'Du bekommst das Bild eines Einkaufsbelegs, dessen Textzeilen am linken Rand rot nummeriert sind, und den Text einer Artikelposition. Nenne die Nummer(n) der Zeile(n), die zu dieser Position gehören (Artikelbezeichnung, ggf. Folgezeile, Menge und Betrag). Antworte NUR als JSON: {"zeilen":[3]} – nicht gefunden: {"zeilen":[]}' },
         { role: 'user', content: [{ type: 'text', text: 'Position: ' + String(body.text || '') }, { type: 'image_url', image_url: { url: String(body.bild || ''), detail: 'high' } }] },
       ]
     } else if (task === 'privat') {

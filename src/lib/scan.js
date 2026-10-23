@@ -264,3 +264,49 @@ export function dokumentFilter(canvas, S = 8, perz = 0.95) {
   ctx.putImageData(img, 0, 0)
   return canvas
 }
+
+// Textzeilen eines (zugeschnittenen) Belegs finden: Zeilen mit dunklen Pixeln zu Bändern zusammenfassen.
+// Rückgabe: [{ y0, y1 }] in Pixeln
+export function textzeilen(canvas) {
+  const W = canvas.width, H = canvas.height
+  const d = canvas.getContext('2d').getImageData(0, 0, W, H).data
+  const dunkel = new Float32Array(H)
+  for (let y = 0; y < H; y++) {
+    let n = 0
+    for (let x = 0; x < W; x += 2) { const i = (y * W + x) * 4; if (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2] < 140) n++ }
+    dunkel[y] = n / (W / 2)
+  }
+  const baender = []
+  let start = -1
+  for (let y = 0; y <= H; y++) {
+    const an = y < H && dunkel[y] > 0.004
+    if (an && start < 0) start = y
+    if (!an && start >= 0) { if (y - start >= 4) baender.push({ y0: start, y1: y }); start = -1 }
+  }
+  // sehr nahe Bänder (Unterlängen, Umlaute) zusammenführen
+  const zus = []
+  for (const b of baender) {
+    const l = zus[zus.length - 1]
+    if (l && b.y0 - l.y1 < Math.max(3, (l.y1 - l.y0) * 0.25)) l.y1 = b.y1
+    else zus.push({ ...b })
+  }
+  return zus
+}
+
+// Bild mit roten Zeilennummern am linken Rand (für die KI), Rückgabe: { url, zeilen }
+export async function nummeriertesBild(src) {
+  const img = await ladeBild(src)
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight
+  c.getContext('2d').drawImage(img, 0, 0)
+  const zeilen = textzeilen(c)
+  const rand = Math.round(c.width * 0.08)
+  const o = document.createElement('canvas'); o.width = c.width + rand; o.height = c.height
+  const x = o.getContext('2d')
+  x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height); x.drawImage(c, rand, 0)
+  x.fillStyle = '#e00'; x.textBaseline = 'middle'
+  zeilen.forEach((z, i) => {
+    x.font = 'bold ' + Math.max(12, Math.min(28, Math.round((z.y1 - z.y0) * 0.9))) + 'px sans-serif'
+    x.fillText(String(i + 1), 4, (z.y0 + z.y1) / 2)
+  })
+  return { url: o.toDataURL('image/jpeg', 0.8), zeilen, breite: c.width, hoehe: c.height }
+}
