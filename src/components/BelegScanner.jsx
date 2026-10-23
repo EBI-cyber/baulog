@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Camera, ImagePlus, ScanLine, RotateCcw, X, Plus } from 'lucide-react'
-import { ladeBild, dateiAlsDataUrl, verkleinern, entzerren, verbessern, eckenFinden } from '../lib/scan'
+import { ladeBild, dateiAlsDataUrl, verkleinern, entzerren, verbessern, eckenFinden, dokumentFilter } from '../lib/scan'
 import { belegLesen } from '../lib/ai'
 import { parseBetrag } from '../lib/abrechnung'
 
@@ -20,6 +20,8 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
   const [ecken, setEcken] = useState(null)
   const [ki, setKi] = useState(null) // { lieferant, datum, betrag, positionen }
   const [ergebnis, setErgebnis] = useState('')
+  const [fassungen, setFassungen] = useState(null) // { dokument, farbe } – zwischen beiden umschaltbar
+  const [modus, setModus] = useState('dokument')
   const [busy, setBusy] = useState('')
   const kamera = useRef(null), galerie = useRef(null), bild = useRef(null), svg = useRef(null)
   // Ziehen ohne React-Neuzeichnen: Positionen in einer Ref, SVG direkt aktualisieren
@@ -108,7 +110,14 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
     setBusy('Schneide zu …')
     setTimeout(async () => {
       let url = ''
-      try { url = verbessern(entzerren(quelle, ecken, 1600)).toDataURL('image/jpeg', 0.8); setErgebnis(url) }
+      try {
+        // „Dokument“ (Schatten weg, schwarze Schrift auf Weiß) als Standard, „Farbe“ als Alternative
+        const roh = entzerren(quelle, ecken, 1600)
+        const farbe = document.createElement('canvas'); farbe.width = roh.width; farbe.height = roh.height
+        farbe.getContext('2d').drawImage(roh, 0, 0)
+        const f = { dokument: dokumentFilter(roh).toDataURL('image/jpeg', 0.8), farbe: verbessern(farbe).toDataURL('image/jpeg', 0.8) }
+        setFassungen(f); url = f.dokument; setModus('dokument'); setErgebnis(url)
+      }
       catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)); setBusy(''); return }
       if (ki) { setBusy(''); return }
       setBusy('KI liest den Beleg …')
@@ -180,8 +189,17 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
         </>
       ) : (
         <>
-          <img src={ergebnis} alt="Beleg" className="w-full max-h-[45dvh] object-contain rounded-xl bg-white" />
-          <button onClick={() => setErgebnis('')} className="text-amber text-xs">Zuschnitt ändern</button>
+          <img src={ergebnis} alt="Beleg" className="w-full max-h-[45dvh] object-contain rounded-xl bg-black/40 border border-white/20" />
+          <div className="flex items-center justify-between gap-2">
+            <button onClick={() => setErgebnis('')} className="text-amber text-xs">Zuschnitt ändern</button>
+            {fassungen && (
+              <div className="flex rounded-xl overflow-hidden border border-white/20 text-xs">
+                {[['dokument', 'Dokument'], ['farbe', 'Farbe']].map(([k, t]) => (
+                  <button key={k} onClick={() => { setModus(k); setErgebnis(fassungen[k]) }} className={'px-3 py-1.5 ' + (modus === k ? 'btn-grad font-semibold' : 'bg-white/5 text-white/75')}>{t}</button>
+                ))}
+              </div>
+            )}
+          </div>
           {!ki ? <div className="text-amber text-sm">KI liest den Beleg …</div> : (
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
