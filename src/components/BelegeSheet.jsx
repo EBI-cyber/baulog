@@ -3,6 +3,21 @@ import { ReceiptText, Trash2, AlertTriangle, Sparkles } from 'lucide-react'
 import IconChip from '../ui/IconChip'
 import Vollbild from './Vollbild'
 import { privatPruefen, positionFinden } from '../lib/ai'
+import { listeSicherungen, sicherungLesen } from '../lib/backup'
+
+// Belegnotiz ohne Datum vergleichen (das Datum kann nachträglich geändert worden sein)
+const ohneDatum = (n) => String(n || '').replace(/\s*vom \d{1,2}\.\d{1,2}\.\d{4}/, '').trim()
+
+// Belegbild aus den automatischen Sicherungen suchen (neueste zuerst)
+async function bildAusSicherung(beleg) {
+  const ziel = ohneDatum(beleg.note)
+  for (const s of await listeSicherungen()) {
+    const d = await sicherungLesen(s.id)
+    const treffer = (d && d.eintraege || []).find((e) => e.type === 'material' && e.dataUrl && ohneDatum(e.note) === ziel)
+    if (treffer) return { dataUrl: treffer.dataUrl, belegRoh: treffer.belegRoh || null }
+  }
+  return null
+}
 
 const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const tag = (d) => { try { return new Date(d).toLocaleDateString('de-DE') } catch { return '' } }
@@ -113,8 +128,19 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
         <div className="space-y-2">
           {belege.map((b, i) => (
             <div key={b.key} className={'rounded-2xl p-2.5 flex items-center gap-3 border ' + (b.doppelt ? 'border-ember/50 bg-ember/10' : 'border-white/15 bg-white/5')}>
-              <button onClick={() => b.bild && setGross(b.bild)} className="shrink-0">
-                {b.bild ? <img src={b.bild} alt="" className="w-14 h-16 rounded-lg object-cover bg-white" /> : <div className="w-14 h-16 rounded-lg bg-white/10" />}
+              <button onClick={async () => {
+                if (b.bild) { setGross(b.bild); return }
+                // Bild fehlt (z. B. weil die Position mit dem Bild gelöscht wurde): aus den Sicherungen zurückholen
+                setSuche('bild:' + b.key)
+                try {
+                  const r = await bildAusSicherung(b)
+                  if (r) { await onUpdate(b.eintraege[0], r); setGross(r.dataUrl) }
+                  else alert('Für diesen Beleg ist in den Sicherungen dieses Geräts kein Bild zu finden. Bitte den Beleg neu scannen.')
+                } catch (err) { alert(err && err.message ? err.message : String(err)) }
+                setSuche('')
+              }} className="shrink-0">
+                {b.bild ? <img src={b.bild} alt="" className="w-14 h-16 rounded-lg object-cover bg-white" />
+                  : <div className="w-14 h-16 rounded-lg bg-white/10 text-[10px] leading-tight text-amber flex items-center justify-center text-center p-1">{suche === 'bild:' + b.key ? 'suche …' : 'Bild holen'}</div>}
               </button>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm truncate">{i + 1}. {b.lieferant || 'Beleg'}</div>

@@ -80,6 +80,12 @@ export async function listEintraege(projektId) {
 export async function updateEintrag(id, patch) { const r = await db.eintraege.update(Number(id), { ...patch, synced: 0 }); changed(); return r }
 export async function deleteEintrag(id) {
   const e = await db.eintraege.get(Number(id))
+  // Trägt die Position das Belegbild, geht es auf eine verbleibende Position desselben Belegs über
+  if (e && e.type === 'material' && e.dataUrl && e.note && /^Beleg/.test(e.note)) {
+    const rest = (await db.eintraege.where('projektId').equals(Number(e.projektId)).toArray())
+      .filter((x) => x.id !== e.id && x.type === 'material' && x.note === e.note && !x.dataUrl)
+    if (rest.length) await db.eintraege.update(rest[0].id, { dataUrl: e.dataUrl, belegRoh: e.belegRoh || null, synced: 0 })
+  }
   if (e) await tombstone('eintraege', e.token)
   await db.eintraege.delete(Number(id)); changed()
 }
