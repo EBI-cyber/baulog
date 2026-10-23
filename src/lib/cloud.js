@@ -27,13 +27,14 @@ const eintToRow = (e) => ({
   start_at: e.startAt || null, end_at: e.endAt || null, pausen: e.pausen && e.pausen.length ? e.pausen : null,
   abschlag_token: e.abschlagToken || null,
   aufteilung: e.aufteilung && e.aufteilung.length ? e.aufteilung : null,
+  beleg_roh: e.belegRoh || null,
   created_at: e.createdAt,
 })
 const eintFromRow = (r) => ({
   token: r.token, projektToken: r.projekt_token, type: r.type, gewerk: r.gewerk, leistung: r.leistung,
   einheit: r.einheit, menge: r.menge, minutes: r.minutes, label: r.label, qty: r.qty, unitCost: r.unit_cost,
   maschine: r.maschine, satz: r.satz, dataUrl: r.data_url, note: r.note, text: r.text,
-  startAt: r.start_at, endAt: r.end_at, pausen: r.pausen || null, abschlagToken: r.abschlag_token || null, aufteilung: r.aufteilung || null, createdAt: r.created_at, owner: r.owner,
+  startAt: r.start_at, endAt: r.end_at, pausen: r.pausen || null, abschlagToken: r.abschlag_token || null, aufteilung: r.aufteilung || null, belegRoh: r.beleg_roh || null, createdAt: r.created_at, owner: r.owner,
 })
 const rechToRow = (r) => ({
   token: r.token, projekt_token: r.projektToken, nr: Number(r.nr) || null, von: r.von || null, bis: r.bis || null,

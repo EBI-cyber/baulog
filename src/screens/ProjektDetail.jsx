@@ -20,6 +20,7 @@ import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } fro
 import IconChip from '../ui/IconChip'
 import ProjektSheet from '../components/ProjektSheet'
 import BelegScanner from '../components/BelegScanner'
+import Vollbild from '../components/Vollbild'
 import { useCloudRefresh } from '../lib/useCloudRefresh'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
@@ -165,6 +166,9 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
   const [text, setText] = useState((editEntry && editEntry.text) || '')
   const [scan, setScan] = useState(false)
   const [scanNr, setScanNr] = useState(0)
+  const [belegRoh, setBelegRoh] = useState((editEntry && editEntry.belegRoh) || null)
+  const [korrigiere, setKorrigiere] = useState(false)
+  const [belegGross, setBelegGross] = useState(false)
   const [belegDatum, setBelegDatum] = useState(editEntry && editEntry.dataUrl && editEntry.type === 'material' ? String(editEntry.createdAt || '').slice(0, 10) : '')
   const [dinBusy, setDinBusy] = useState(false)
   const [korrBusy, setKorrBusy] = useState(false)
@@ -205,6 +209,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
       const data = { type: 'material', gewerk, leistung, label: label.trim(), qty: parseBetrag(qty) || 1, unitCost: parseBetrag(unitCost) || 0 }
       // gescannter Beleg: Bild und Belegdatum mitspeichern
       data.dataUrl = dataUrl || ''
+      data.belegRoh = dataUrl ? belegRoh : null
       if (dataUrl) { data.note = note; if (belegDatum) data.createdAt = new Date(belegDatum + 'T12:00:00').toISOString() }
       onSave(withId(data))
     }
@@ -228,12 +233,12 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-20" onClick={onClose}>
       <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
         <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={TitleIcon} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> {title}</div>
-        {!(type === 'material' && scan) && (
+        {type !== 'material' && (
         <select value={gewerk} onChange={(e) => changeGewerk(e.target.value)} className={inp}>
           {gewerkeOpts.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
         )}
-        {type !== 'tagebuch' && !(type === 'material' && scan) && (
+        {type !== 'tagebuch' && type !== 'material' && (
           <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className={inp}>
             <option value="">— allgemein —</option>
             {leistungen.map((l) => <option key={l.name} value={l.name}>{l.name} ({l.einheit})</option>)}
@@ -272,21 +277,34 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
               type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt, note: notiz,
               label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung,
               qty: p.menge > 0 ? p.menge : 1, unitCost: Math.round((p.gesamt / (p.menge > 0 ? p.menge : 1)) * 10000) / 10000,
-              dataUrl: i === 0 ? b.dataUrl : '',
+              dataUrl: i === 0 ? b.dataUrl : '', belegRoh: i === 0 ? b.roh : null,
             })), { weiter: opt && opt.weiter })
             // Serienscan: Scanner für den nächsten Beleg frisch starten
             if (opt && opt.weiter) setScanNr((n) => n + 1)
           }} />
         )}
-        {type === 'material' && !scan && (
+        {type === 'material' && korrigiere && belegRoh && (
+          <BelegScanner gewerke={gewerkeOpts} korrektur={belegRoh} onKorrigiert={(url, ecken) => {
+            setDataUrl(url); setBelegRoh({ ...belegRoh, ecken }); setKorrigiere(false)
+          }} />
+        )}
+        {type === 'material' && !scan && !korrigiere && (
           <>
             {!dataUrl ? (
               <button onClick={() => setScan(true)} className="w-full rounded-2xl py-2.5 font-semibold bg-white/10 border border-amber/40 text-amber inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> Beleg scannen</button>
             ) : (
-              <div className="flex items-center gap-3">
-                <img src={dataUrl} alt="Beleg" className="w-14 h-14 rounded-lg object-cover bg-white" />
-                <div className="text-white/75 text-xs flex-1">{note || 'Beleg gescannt'}</div>
-                <button onClick={() => { setDataUrl(''); setNote('') }} className="text-white/60 hover:text-ember p-1"><X className="w-4 h-4" /></button>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setBelegGross(true)} className="shrink-0"><img src={dataUrl} alt="Beleg" className="w-14 h-14 rounded-lg object-cover bg-white" /></button>
+                  <div className="text-white/75 text-xs flex-1">{note || 'Beleg gescannt'}</div>
+                  <button onClick={() => { setDataUrl(''); setNote(''); setBelegRoh(null) }} className="text-white/60 hover:text-ember p-1"><X className="w-4 h-4" /></button>
+                </div>
+                {belegRoh ? (
+                  <button onClick={() => setKorrigiere(true)} className="w-full rounded-xl py-2 text-sm font-semibold bg-white/10 border border-amber/40 text-amber">Zuschnitt korrigieren</button>
+                ) : (
+                  <div className="text-white/60 text-xs">Für diesen Beleg ist kein Originalfoto gespeichert. Zum Korrigieren neu scannen.</div>
+                )}
+                {belegGross && <Vollbild src={dataUrl} onClose={() => setBelegGross(false)} />}
               </div>
             )}
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Material / Bezeichnung" className={inp} />

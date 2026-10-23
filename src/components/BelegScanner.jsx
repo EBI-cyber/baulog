@@ -15,7 +15,8 @@ function einruecken(ecken, anteil) {
 
 // Beleg fotografieren → Ecken finden → nachziehen (Ecken oder ganze Kanten) → entzerren →
 // KI liest Lieferant, Datum, Betrag und die einzelnen Positionen mit Gewerk → speichern
-export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
+// korrektur = { bild, ecken }: gespeichertes Originalfoto erneut zuschneiden (ohne KI), Ergebnis über onKorrigiert
+export default function BelegScanner({ gewerke, onFertig, onAbbrechen, korrektur, onKorrigiert }) {
   const [quelle, setQuelle] = useState(null) // Canvas des verkleinerten Fotos
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
@@ -44,6 +45,15 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
   }
   const lupeAus = () => { if (lupe.current) lupe.current.style.display = 'none' }
   const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
+  // Korrekturmodus: Originalfoto laden und mit den gespeicherten Ecken starten
+  const korrekturGeladen = useRef(false)
+  if (korrektur && !korrekturGeladen.current) {
+    korrekturGeladen.current = true
+    ladeBild(korrektur.bild).then((img) => {
+      const c = verkleinern(img, 1600)
+      setQuelle(c); setVorschau(korrektur.bild); setEcken(korrektur.ecken)
+    }).catch(() => alert('Originalfoto konnte nicht geladen werden.'))
+  }
 
   const laden = async (ev) => {
     const f = ev.target.files && ev.target.files[0]; ev.target.value = ''
@@ -124,7 +134,7 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
         setFassungen(f); url = f.dokument; setModus('dokument'); setErgebnis(url)
       }
       catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)); setBusy(''); return }
-      if (ki) { setBusy(''); return }
+      if (ki || korrektur) { setBusy(''); return }
       setBusy('KI liest den Beleg …')
       try {
         const k = await belegLesen(url, gewerke)
@@ -146,7 +156,9 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
     const betrag = parseBetrag(ki.betrag)
     if (Number.isNaN(betrag) || betrag <= 0) { alert('Bitte den Gesamtbetrag des Belegs eintragen, z. B. 127,53.'); return }
     const positionen = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt > 0)
-    onFertig({ dataUrl: ergebnis, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen }, { weiter })
+    // Originalfoto (komprimiert) und Ecken mitgeben, damit der Zuschnitt später korrigierbar bleibt
+    const roh = { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
+    onFertig({ dataUrl: ergebnis, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, roh }, { weiter })
   }
 
   if (!quelle) {
@@ -209,7 +221,9 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
               </div>
             )}
           </div>
-          {!ki ? <div className="text-amber text-sm">KI liest den Beleg …</div> : (
+          {korrektur ? (
+            <button onClick={() => onKorrigiert(ergebnis, ecken)} className="w-full rounded-2xl py-3 font-bold btn-grad">Zuschnitt übernehmen</button>
+          ) : !ki ? <div className="text-amber text-sm">KI liest den Beleg …</div> : (
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <input value={ki.lieferant} onChange={(e) => setKi({ ...ki, lieferant: e.target.value })} placeholder="Lieferant" className={inp} />
