@@ -97,9 +97,12 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
     const e = gr.basis.map((q) => ({ ...q }))
     if (gr.i < 4) e[gr.i] = p
     else {
-      // Kante einrücken: beide Endpunkte um dieselbe Strecke verschieben
-      const dx = p.x - gr.start.x, dy = p.y - gr.start.y, a = gr.i - 4, b = (a + 1) % 4
-      e[a] = { x: e[a].x + dx, y: e[a].y + dy }; e[b] = { x: e[b].x + dx, y: e[b].y + dy }
+      // Kante einrücken: nur senkrecht zur Kante verschieben (die Linie rutscht nicht zur Seite)
+      const a = gr.i - 4, b = (a + 1) % 4
+      const lx = e[b].x - e[a].x, ly = e[b].y - e[a].y, len = Math.hypot(lx, ly) || 1
+      const nx = -ly / len, ny = lx / len
+      const weg = (p.x - gr.start.x) * nx + (p.y - gr.start.y) * ny
+      e[a] = { x: e[a].x + nx * weg, y: e[a].y + ny * weg }; e[b] = { x: e[b].x + nx * weg, y: e[b].y + ny * weg }
     }
     live.current = e
     zeichne(e)
