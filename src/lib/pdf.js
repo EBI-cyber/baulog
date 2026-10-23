@@ -105,8 +105,9 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   const cMenge = 248, cStd = 312, cEP = 372
   doc.setFont('helvetica', 'bold').setFontSize(11).text('Ausgeführte Leistungen', M, y); y += 16
   doc.setFontSize(9)
-  doc.text('Leistung', M, y); doc.text('Menge', cMenge, y); doc.text('Stunden', cStd, y)
-  if (mitKosten) { doc.text('EP €/Einh.', cEP, y); doc.text('Selbstkosten', R, y, { align: 'right' }) }
+  const nurGewerke = opts.detail === 'gewerk'
+  doc.text(nurGewerke ? 'Gewerk' : 'Leistung', M, y); if (!nurGewerke) doc.text('Menge', cMenge, y); doc.text('Stunden', cStd, y)
+  if (mitKosten) { if (!nurGewerke) doc.text('EP €/Einh.', cEP, y); doc.text(nurGewerke ? 'Betrag' : 'Selbstkosten', R, y, { align: 'right' }) }
   doc.setFont('helvetica', 'normal'); y += 4; line()
 
   let sumMin = 0, sumCost = 0
@@ -122,6 +123,12 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
     if (blockMin) doc.text(hh(blockMin), cStd, y)
     if (mitKosten) doc.text(eur(blockCost), R, y, { align: 'right' })
     doc.setFont('helvetica', 'normal').setFontSize(9); y += 14
+    // „Nur Gewerke“: Einzelleistungen nicht aufführen, die Gewerkzeile enthält Stunden und Betrag
+    if (nurGewerke) {
+      block.forEach((g) => { sumMin += g.minAnzeige; sumCost += kosten(g) })
+      y -= 2
+      return
+    }
     block.forEach((g) => {
       // lange Bezeichnungen umbrechen statt in die nächste Zeile zu schreiben
       const nameLines = doc.splitTextToSize(g.leistung, cMenge - M - 22)

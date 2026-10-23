@@ -878,6 +878,7 @@ export default function ProjektDetail() {
   const [abschluss, setAbschluss] = useState(null)
   const [nachweis, setNachweis] = useState(false)
   const [mitKosten, setMitKosten] = useState(true)
+  const [detail, setDetail] = useState('gewerk') // Leistungen im PDF: 'gewerk' (für Kunden) oder 'leistung' (intern)
   const [rechnungen, setRechnungen] = useState([])
   const [rechnungenOpen, setRechnungenOpen] = useState(false)
   const [nvon, setNvon] = useState('')
@@ -1249,6 +1250,15 @@ export default function ProjektDetail() {
               <input type="checkbox" checked={mitKosten} onChange={(e) => setMitKosten(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
             </label>
             <div className="text-white/70 text-xs">Aus = ohne Kosten (für den Kunden). Enthält Zeiterfassung mit Uhrzeiten, Leistungen, Bautagebuch & Fotos.</div>
+            <div className="flex items-center justify-between gap-3 py-1">
+              <span className="text-white/70">Leistungen im PDF</span>
+              <div className="flex rounded-xl overflow-hidden border border-white/20 text-sm shrink-0">
+                {[['gewerk', 'Nur Gewerke'], ['leistung', 'Im Detail']].map(([k, t]) => (
+                  <button key={k} onClick={() => setDetail(k)} className={'px-3 py-1.5 ' + (detail === k ? 'btn-grad font-semibold' : 'bg-white/5 text-white/75')}>{t}</button>
+                ))}
+              </div>
+            </div>
+            <div className="text-white/70 text-xs">„Nur Gewerke“ zeigt dem Kunden je Gewerk Stunden und Betrag. „Im Detail“ listet jede Leistung einzeln, eher für dich intern.</div>
             <label className="flex items-center justify-between py-2 border-t border-white/20">
               <span className="text-white/70">Als Abschlag Nr. {naechsteAbschnittNr} festhalten</span>
               <input type="checkbox" checked={alsRechnung} onChange={(e) => setAlsRechnung(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
@@ -1297,8 +1307,8 @@ export default function ProjektDetail() {
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => {
                 try {
-                  if (alsRechnung) previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(offene), s, { mitKosten, ...abschlagOpts }))
-                  else previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, von: nvon, bis: nbis }))
+                  if (alsRechnung) previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(offene), s, { mitKosten, detail, ...abschlagOpts }))
+                  else previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, detail, von: nvon, bis: nbis }))
                 } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
               }} className="w-full rounded-2xl py-3 font-semibold bg-white/10">Vorschau</button>
               <button onClick={async () => {
@@ -1309,7 +1319,7 @@ export default function ProjektDetail() {
                   if (alsRechnung) {
                     const liste = mitVorschlag(offene)
                     const betrag = projektTotals(liste, projekt.hourlyRate).total
-                    await sharePdf(buildLeistungsnachweis(projekt, liste, s, { mitKosten, ...abschlagOpts }), nachweisFilename(projekt))
+                    await sharePdf(buildLeistungsnachweis(projekt, liste, s, { mitKosten, detail, ...abschlagOpts }), nachweisFilename(projekt))
                     const gesamtbetrag = betrag + vorherigerSaldo
                     const rid = await createRechnung({
                       projektId: Number(id), nr: naechsteAbschnittNr, ...leistungszeitraum(liste),
@@ -1319,7 +1329,7 @@ export default function ProjektDetail() {
                     await eintraegeZuordnen(liste.map((e) => e.id), neu.token)
                     setRechnungen(await listRechnungen(id)); setEintraege(await listEintraege(id))
                   } else {
-                    await sharePdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, von: nvon, bis: nbis }), nachweisFilename(projekt))
+                    await sharePdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, detail, von: nvon, bis: nbis }), nachweisFilename(projekt))
                   }
                   setNachweis(false)
                 } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
