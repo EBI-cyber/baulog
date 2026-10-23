@@ -43,6 +43,8 @@ export default function Vollbild({ src, onClose, markierung, titel }) {
   return createPortal(
     <div className="fixed inset-0 z-50 bg-black flex items-center justify-center overflow-hidden touch-none select-none"
       onPointerDown={runter} onPointerMove={bewegen} onPointerUp={hoch} onPointerCancel={hoch}
+      // Klicks nicht an darunterliegende Fenster weiterreichen (React leitet Ereignisse auch durch Portale weiter)
+      onClick={(e) => e.stopPropagation()}
       onWheel={(ev) => setT((a) => ({ ...a, s: begrenzt(a.s * (ev.deltaY < 0 ? 1.15 : 0.87)) }))}>
       <div className="relative pointer-events-none" style={{ transform: `translate(${t.x}px, ${t.y}px) scale(${t.s})`, transformOrigin: 'center center' }}>
         <img src={src} alt="" draggable={false} className="block max-w-[100vw] max-h-[100dvh]"
