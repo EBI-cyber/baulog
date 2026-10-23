@@ -623,8 +623,7 @@ function UhrzeitenBox({ liste, standardBeginn, onEintragen }) {
 }
 
 // Bautagebuch-Texte per KI überarbeiten (Rechtschreibung, Grammatik, Fachsprache) – vorher/nachher prüfen
-function TagebuchKiBox({ liste, onSpeichern }) {
-  const [vorschlag, setVorschlag] = useState(null)
+function TagebuchKiBox({ liste, vorschlag, setVorschlag, onSpeichern }) {
   const [busy, setBusy] = useState('')
   const texte = liste.filter((e) => e.type === 'tagebuch' && e.text && e.text.trim())
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
@@ -663,11 +662,12 @@ function TagebuchKiBox({ liste, onSpeichern }) {
                 className="w-full bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm outline-none focus:border-amber" />
             </div>
           ))}
+          <div className="text-white/70 text-xs pt-1">Die „Vorschau“ unten zeigt das PDF schon mit den angehakten neuen Texten. Gespeichert wird mit „Übernehmen“ oder beim Erzeugen.</div>
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button onClick={() => setVorschlag(null)} className="rounded-xl py-2 text-sm bg-white/10">Verwerfen</button>
             <button disabled={!!busy} onClick={async () => {
               setBusy('Speichere …')
-              try { await onSpeichern(vorschlag.filter((x) => x.an).map((x) => ({ id: x.e.id, text: x.neu.trim() }))); setVorschlag(null) } finally { setBusy('') }
+              try { await onSpeichern() } finally { setBusy('') }
             }} className="rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-50">Übernehmen ({vorschlag.filter((x) => x.an).length})</button>
           </div>
         </>
@@ -886,6 +886,7 @@ export default function ProjektDetail() {
 
   const [zuordnungHinweis, setZuordnungHinweis] = useState('')
   const [kiVorschlag, setKiVorschlag] = useState(null)
+  const [textVorschlag, setTextVorschlag] = useState(null)
   const load = async () => {
     const p = await getProjekt(id)
     setProjekt(p); setEintraege(await listEintraege(id))
@@ -909,7 +910,7 @@ export default function ProjektDetail() {
   useEffect(() => { if (!timer || isPaused(timer)) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [timer])
   // Nachweis-Dialog öffnen: Zeitraum an letzten Abschnitt anschließen, damit sich Abrechnungen nicht überschneiden
   useEffect(() => {
-    if (!nachweis) { setKiVorschlag(null); return }
+    if (!nachweis) { setKiVorschlag(null); setTextVorschlag(null); return }
     const last = rechnungen.reduce((max, r) => (!max || (Number(r.nr) || 0) > (Number(max.nr) || 0) ? r : max), null)
     if (last && last.bis) {
       const d = new Date(last.bis); d.setDate(d.getDate() + 1)
@@ -947,9 +948,24 @@ export default function ProjektDetail() {
     }
     return out
   }
+  // angehakte, noch nicht gespeicherte Bautagebuch-Korrekturen: { [id]: text }
+  const textPatches = () => Object.fromEntries((textVorschlag || []).filter((x) => x.an && x.neu.trim()).map((x) => [String(x.e.id), x.neu.trim()]))
   const mitVorschlag = (liste) => {
     const patches = vorschlagPatches(kiVorschlag)
-    return liste.map((e) => (patches[String(e.id)] ? { ...e, ...patches[String(e.id)] } : e))
+    const texte = textPatches()
+    return liste.map((e) => {
+      let x = patches[String(e.id)] ? { ...e, ...patches[String(e.id)] } : e
+      if (texte[String(e.id)] != null) x = { ...x, text: texte[String(e.id)] }
+      return x
+    })
+  }
+  async function texteSpeichern() {
+    const texte = Object.entries(textPatches())
+    setTextVorschlag(null)
+    if (!texte.length) return
+    await sicherungAnlegen('Vor dem Überarbeiten des Bautagebuchs')
+    for (const [eid, text] of texte) await updateEintrag(Number(eid), { text })
+    setEintraege(await listEintraege(id))
   }
   async function vorschlagSpeichern() {
     const patches = vorschlagPatches(kiVorschlag)
@@ -1253,15 +1269,11 @@ export default function ProjektDetail() {
               }} />
             )}
             {!isWorker && (
-              <TagebuchKiBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)} onSpeichern={async (aenderungen) => {
-                if (!aenderungen.length) return
-                await sicherungAnlegen('Vor dem Überarbeiten des Bautagebuchs')
-                for (const a of aenderungen) await updateEintrag(a.id, { text: a.text })
-                setEintraege(await listEintraege(id))
-              }} />
+              <TagebuchKiBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)}
+                vorschlag={textVorschlag} setVorschlag={setTextVorschlag} onSpeichern={texteSpeichern} />
             )}
             {!isWorker && (
-              <LeistungenKiBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)} alleEintraege={eintraege} s={s}
+              <LeistungenKiBox liste={alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)} alleEintraege={mitVorschlag(eintraege)} s={s}
                 vorschlag={kiVorschlag} setVorschlag={setKiVorschlag} onUebernehmen={vorschlagSpeichern} />
             )}
             {verdacht.length > 0 && (
@@ -1292,6 +1304,7 @@ export default function ProjektDetail() {
               <button onClick={async () => {
                 try {
                   if (gesperrt) return
+                  if (textVorschlag) await texteSpeichern()
                   if (kiVorschlag) await vorschlagSpeichern()
                   if (alsRechnung) {
                     const liste = mitVorschlag(offene)
