@@ -105,6 +105,7 @@ export const defaultGewerke = [
 export const defaultSettings = {
   defaultRate: 45,
   rundungMinuten: 0,
+  verschleissProzent: 25, // Anteil, der bei Verschleißteilen (Meißel, Bohrer, Trennscheiben …) dem Kunden berechnet wird
   arbeitsbeginn: '09:30', // angenommener Beginn, wenn eine Zeit nur als Dauer erfasst wurde
   gewerke: defaultGewerke,
   leistungskatalog: defaultKatalog,

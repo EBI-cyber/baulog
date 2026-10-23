@@ -28,7 +28,7 @@ export function belegeAus(eintraege) {
   return liste
 }
 
-export default function BelegeSheet({ eintraege, projektName, onClose, onDelete }) {
+export default function BelegeSheet({ eintraege, projektName, verschleissProzent = 25, onUpdate, onClose, onDelete }) {
   const [gross, setGross] = useState('')
   const [verdacht, setVerdacht] = useState(null) // [{ e, grund }]
   const [busy, setBusy] = useState(false)
@@ -58,26 +58,36 @@ export default function BelegeSheet({ eintraege, projektName, onClose, onDelete 
                 try {
                   const pos = belege.flatMap((b) => b.eintraege).map((e) => ({ id: String(e.id), text: e.label || '', betrag: Math.round((Number(e.qty) || 0) * (Number(e.unitCost) || 0) * 100) / 100 }))
                   const v = await privatPruefen(pos, projektName)
-                  setVerdacht(v.map((x) => ({ e: eintraege.find((e) => String(e.id) === String(x.id)), grund: x.grund })).filter((x) => x.e))
+                  // bereits als Verschleiß abgerechnete Positionen nicht erneut melden
+                  setVerdacht(v.map((x) => ({ e: eintraege.find((e) => String(e.id) === String(x.id)), grund: x.grund, art: x.art === 'verschleiss' ? 'verschleiss' : 'privat' }))
+                    .filter((x) => x.e && !(x.art === 'verschleiss' && /Verschleißanteil/.test(x.e.label || ''))))
                 } catch (err) { alert(err && err.message ? err.message : String(err)) }
                 setBusy(false)
               }} className="w-full rounded-xl py-2 text-sm font-semibold bg-white/10 inline-flex items-center justify-center gap-2 disabled:opacity-50">
-                <Sparkles className="w-4 h-4 text-amber" />{busy ? 'KI prüft …' : 'Auf private Sachen prüfen'}
+                <Sparkles className="w-4 h-4 text-amber" />{busy ? 'KI prüft …' : 'Auf Privates und Verschleißteile prüfen'}
               </button>
             ) : verdacht.length === 0 ? (
-              <div className="text-emerald-400 text-sm">Keine privaten Positionen gefunden.</div>
+              <div className="text-emerald-400 text-sm">Nichts Privates und keine Verschleißteile gefunden.</div>
             ) : (
               <>
-                <div className="text-ember text-sm font-semibold">Möglicherweise privat ({verdacht.length})</div>
+                <div className="text-ember text-sm font-semibold">Bitte prüfen ({verdacht.length})</div>
                 {verdacht.map((x) => (
                   <div key={x.e.id} className="flex items-center gap-2 text-sm">
                     <div className="flex-1 min-w-0">
                       <div className="truncate">{x.e.label}</div>
-                      <div className="text-white/60 text-xs">{x.grund} · {eur((Number(x.e.qty) || 0) * (Number(x.e.unitCost) || 0))}</div>
+                      <div className={'text-xs ' + (x.art === 'verschleiss' ? 'text-amber' : 'text-ember')}>{x.art === 'verschleiss' ? 'Verschleißteil' : 'Privat?'} · {x.grund} · {eur((Number(x.e.qty) || 0) * (Number(x.e.unitCost) || 0))}</div>
                     </div>
                     <button onClick={() => setVerdacht((v) => v.filter((y) => y !== x))} className="text-xs px-2 py-1 rounded-lg border border-white/20 text-white/70 shrink-0">gehört dazu</button>
-                    <button onClick={async () => { if (confirm('„' + x.e.label + '“ als privat entfernen? Es wird dem Kunden dann nicht berechnet.')) { await onDelete([x.e]); setVerdacht((v) => v.filter((y) => y !== x)) } }}
-                      className="text-xs px-2 py-1 rounded-lg btn-grad font-semibold shrink-0">privat, raus</button>
+                    {x.art === 'verschleiss' ? (
+                      <button onClick={async () => {
+                        const voll = (Number(x.e.qty) || 0) * (Number(x.e.unitCost) || 0)
+                        await onUpdate(x.e, { unitCost: (Number(x.e.unitCost) || 0) * verschleissProzent / 100, label: (x.e.label || '') + ' (Verschleißanteil ' + verschleissProzent + ' % von ' + eur(voll) + ')' })
+                        setVerdacht((v) => v.filter((y) => y !== x))
+                      }} className="text-xs px-2 py-1 rounded-lg btn-grad font-semibold shrink-0">nur {verschleissProzent} %</button>
+                    ) : (
+                      <button onClick={async () => { if (confirm('„' + x.e.label + '“ als privat entfernen? Es wird dem Kunden dann nicht berechnet.')) { await onDelete([x.e]); setVerdacht((v) => v.filter((y) => y !== x)) } }}
+                        className="text-xs px-2 py-1 rounded-lg btn-grad font-semibold shrink-0">privat, raus</button>
+                    )}
                   </div>
                 ))}
               </>

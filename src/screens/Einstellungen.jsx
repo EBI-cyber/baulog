@@ -110,6 +110,13 @@ export default function Einstellungen() {
           </select>
         </Section>
 
+        <Section icon={Wrench} title="Verschleißteile" hint="Meißel, Bohrer, Trennscheiben: so viel Prozent des Preises werden dem Kunden berechnet">
+          <div className="flex items-center gap-2">
+            <input value={s.verschleissProzent ?? 25} onChange={(e) => upd('verschleissProzent', Number(e.target.value.replace(',', '.')) || 0)} inputMode="decimal" className={inp} />
+            <span className="text-white/75">%</span>
+          </div>
+        </Section>
+
         <Section icon={Timer} title="Üblicher Arbeitsbeginn" hint="Vorschlag, wenn eine Zeit nur als Dauer erfasst wurde">
           <input type="time" value={s.arbeitsbeginn || '09:30'} onChange={(e) => upd('arbeitsbeginn', e.target.value)} className={inp} />
         </Section>
