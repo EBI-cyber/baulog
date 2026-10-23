@@ -347,7 +347,13 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
             // Privatanteil gehört nicht zur Baustelle: Differenz nur gegen den Baustellenanteil rechnen
             const baustelle = b.betrag - (b.privat || 0)
             if (b.positionen.length && Math.abs(summe - baustelle) > 0.01) pos.push({ bezeichnung: 'Differenz laut Beleg', menge: 1, gesamt: Math.round((baustelle - summe) * 100) / 100, gewerk: pos[0].gewerk || gewerk })
+            // private Positionen dokumentieren: als Eintrag ohne Kosten, damit der Abzug im Leistungsnachweis steht
+            for (const p of (b.privatPositionen || [])) pos.push({ ...p, privatDoku: true })
             onSave(pos.map((p, i) => {
+              if (p.privatDoku) return {
+                type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt, note: notiz, qty: 1, unitCost: 0, dataUrl: '', belegRoh: null,
+                label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung + ' (privat, nicht berechnet: ' + fmt(p.gesamt) + ')',
+              }
               // Verschleißteil: nur der Anteil wird berechnet, der volle Preis steht in der Bezeichnung
               const anteil = p.anteil != null && p.anteil < 100 ? p.anteil : 100
               const berechnet = p.gesamt * anteil / 100

@@ -261,6 +261,49 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
     y += h + 8
   }
 
+  // Abzüge aus Materialbelegen dokumentieren: private Positionen (nicht berechnet) und Verschleißteile (anteilig)
+  if (mitKosten) {
+    const zahl = (t) => Number(String(t).replace(/\./g, '').replace(',', '.')) || 0
+    const abzuege = []
+    for (const e of eintraege.filter((x) => x.type === 'material')) {
+      const label = e.label || ''
+      const p = label.match(/\(privat, nicht berechnet: ([\d.]+,\d{2}) €\)/)
+      const v = label.match(/\(Verschleißanteil (\d+(?:[.,]\d+)?) % von ([\d.]+,\d{2}) €\)/)
+      const name = label.replace(/\s*\((privat, nicht berechnet|Verschleißanteil)[^)]*\)\s*$/, '')
+      if (p) abzuege.push({ name, grund: 'privat', voll: zahl(p[1]), berechnet: 0 })
+      else if (v) abzuege.push({ name, grund: 'Verschleiß (' + v[1] + ' %)', voll: zahl(v[2]), berechnet: (Number(e.qty) || 0) * (Number(e.unitCost) || 0) })
+    }
+    // ältere Belege: Privatanteil nur in der Belegnotiz vermerkt
+    const notizen = [...new Set(eintraege.filter((x) => x.type === 'material' && x.note).map((x) => x.note))]
+    for (const n of notizen) {
+      const m = n.match(/\(davon privat ([\d.]+,\d{2}) €, nicht verrechnet\)/)
+      const schon = abzuege.some((a) => a.grund === 'privat' && n.includes(a.name.split(':')[0]))
+      if (m && !schon) abzuege.push({ name: n.replace(/\s*·.*$/, ''), grund: 'privat', voll: zahl(m[1]), berechnet: 0 })
+    }
+    if (abzuege.length) {
+      abschnitt('Abzüge aus Materialbelegen')
+      doc.setFont('helvetica', 'normal').setFontSize(8.5); farbe(C.grau)
+      doc.text('Diese Positionen stehen auf den Belegen, werden aber nicht oder nur anteilig berechnet.', M, y); y += 14
+      fuell(C.flaeche); doc.rect(M, y - 10, R - M, 16, 'F')
+      doc.setFont('helvetica', 'bold').setFontSize(7.5)
+      doc.text('POSITION', M + 6, y); doc.text('GRUND', 285, y); doc.text('LAUT BELEG', 420, y, { align: 'right' }); doc.text('BERECHNET', 480, y, { align: 'right' }); doc.text('ABZUG', R - 6, y, { align: 'right' })
+      y += 16; doc.setFont('helvetica', 'normal').setFontSize(8.5); farbe(C.text)
+      let sumAbzug = 0
+      abzuege.forEach((a) => {
+        const zeilen = doc.splitTextToSize(a.name, 285 - M - 16)
+        need(zeilen.length * 10 + 6)
+        doc.text(zeilen, M + 6, y); doc.text(a.grund, 285, y)
+        doc.text(eur(a.voll), 420, y, { align: 'right' }); doc.text(eur(a.berechnet), 480, y, { align: 'right' }); doc.text('- ' + eur(a.voll - a.berechnet), R - 6, y, { align: 'right' })
+        sumAbzug += a.voll - a.berechnet
+        y += Math.max(13, zeilen.length * 10 + 3)
+      })
+      strich(C.linie); doc.setLineWidth(0.5).line(M, y - 6, R, y - 6); y += 6
+      doc.setFont('helvetica', 'bold').setFontSize(9)
+      doc.text('Nicht berechnet gesamt', M + 6, y); doc.text('- ' + eur(sumAbzug), R - 6, y, { align: 'right' })
+      doc.setFont('helvetica', 'normal'); y += 18
+    }
+  }
+
   // Materialbelege: jeder Beleg auf eigener Seite, mit Lieferant, Datum und Betrag
   if (opts.belege) {
     const belege = eintraege.filter((e) => e.type === 'material' && e.dataUrl)

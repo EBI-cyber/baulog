@@ -162,7 +162,8 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const privat = alle.filter((p) => p.privat).reduce((a, p) => a + p.gesamt, 0)
     // Originalfoto (komprimiert) und Ecken mitgeben, damit der Zuschnitt später korrigierbar bleibt
     const roh = { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
-    onFertig({ dataUrl: ergebnis, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, privat, roh }, { weiter })
+    const privatPositionen = alle.filter((p) => p.privat)
+    onFertig({ dataUrl: ergebnis, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, privat, privatPositionen, roh }, { weiter })
   }
 
   if (!quelle) {

@@ -95,7 +95,7 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
                   const v = await privatPruefen(pos, projektName)
                   // bereits als Verschleiß abgerechnete Positionen nicht erneut melden
                   setVerdacht(v.map((x) => ({ e: eintraege.find((e) => String(e.id) === String(x.id)), grund: x.grund, art: x.art === 'verschleiss' ? 'verschleiss' : 'privat' }))
-                    .filter((x) => x.e && !(x.art === 'verschleiss' && /Verschleißanteil/.test(x.e.label || ''))))
+                    .filter((x) => x.e && !/Verschleißanteil|\(privat, nicht berechnet/.test(x.e.label || '')))
                 } catch (err) { alert(err && err.message ? err.message : String(err)) }
                 setBusy(false)
               }} className="w-full rounded-xl py-2 text-sm font-semibold bg-white/10 inline-flex items-center justify-center gap-2 disabled:opacity-50">
@@ -130,8 +130,12 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
                         setVerdacht((v) => v.filter((y) => y !== x))
                       }} className="text-xs px-2 py-1 rounded-lg btn-grad font-semibold shrink-0">nur {verschleissProzent} %</button>
                     ) : (
-                      <button onClick={async () => { if (confirm('„' + x.e.label + '“ als privat entfernen? Es wird dem Kunden dann nicht berechnet.')) { await onDelete([x.e]); setVerdacht((v) => v.filter((y) => y !== x)) } }}
-                        className="text-xs px-2 py-1 rounded-lg btn-grad font-semibold shrink-0">privat, raus</button>
+                      <button onClick={async () => {
+                        // nicht löschen, sondern auf 0 € setzen und vermerken: so bleibt der Abzug im Leistungsnachweis dokumentiert
+                        const voll = (Number(x.e.qty) || 0) * (Number(x.e.unitCost) || 0)
+                        await onUpdate(x.e, { unitCost: 0, label: (x.e.label || '') + ' (privat, nicht berechnet: ' + eur(voll) + ')' })
+                        setVerdacht((v) => v.filter((y) => y !== x))
+                      }} className="text-xs px-2 py-1 rounded-lg btn-grad font-semibold shrink-0">privat, nicht berechnen</button>
                     )}
                   </div>
                 ))}
