@@ -49,6 +49,13 @@ export async function belegLesen(dataUrl, gewerke, projekt) {
   return callAI({ task: 'beleg', bild: dataUrl, gewerke, projekt })
 }
 
+// Position auf dem Belegbild finden → { x, y, w, h } (0–1) oder null
+export async function positionFinden(bild, text) {
+  const d = await callAI({ task: 'finden', bild, text })
+  const b = d && d.box
+  return b && [b.x, b.y, b.w, b.h].every((v) => typeof v === 'number' && v >= 0 && v <= 1) && b.w > 0 && b.h > 0 ? b : null
+}
+
 // Materialpositionen auf mögliche Privatkäufe prüfen → [{ id, grund }]
 export async function privatPruefen(positionen, projekt) {
   const d = await callAI({ task: 'privat', positionen, projekt })

@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { X, ZoomIn, ZoomOut } from 'lucide-react'
 
 // Bild im Vollbild ansehen: mit zwei Fingern zoomen, mit einem verschieben, Doppeltipp = Zoom an/aus
-export default function Vollbild({ src, onClose }) {
+// markierung = { x, y, w, h } (Anteile 0–1): Stelle gelb hervorheben und dorthin zoomen
+export default function Vollbild({ src, onClose, markierung, titel }) {
   const [t, setT] = useState({ s: 1, x: 0, y: 0 })
   const zeiger = useRef(new Map()), start = useRef(null), letzterTipp = useRef(0)
 
@@ -43,8 +44,23 @@ export default function Vollbild({ src, onClose }) {
     <div className="fixed inset-0 z-50 bg-black flex items-center justify-center overflow-hidden touch-none select-none"
       onPointerDown={runter} onPointerMove={bewegen} onPointerUp={hoch} onPointerCancel={hoch}
       onWheel={(ev) => setT((a) => ({ ...a, s: begrenzt(a.s * (ev.deltaY < 0 ? 1.15 : 0.87)) }))}>
-      <img src={src} alt="" draggable={false} className="max-w-full max-h-full pointer-events-none"
-        style={{ transform: `translate(${t.x}px, ${t.y}px) scale(${t.s})`, transformOrigin: 'center center' }} />
+      <div className="relative pointer-events-none" style={{ transform: `translate(${t.x}px, ${t.y}px) scale(${t.s})`, transformOrigin: 'center center' }}>
+        <img src={src} alt="" draggable={false} className="block max-w-[100vw] max-h-[100dvh]"
+          onLoad={(ev) => {
+            if (!markierung) return
+            // auf die markierte Stelle zoomen
+            const w = ev.currentTarget.clientWidth, h = ev.currentTarget.clientHeight, s = 2.2
+            const cx = markierung.x + markierung.w / 2, cy = markierung.y + markierung.h / 2
+            setT({ s, x: (0.5 - cx) * w * s, y: (0.5 - cy) * h * s })
+          }} />
+        {markierung && (
+          <div className="absolute rounded-sm" style={{
+            left: (markierung.x * 100) + '%', top: (markierung.y * 100) + '%', width: (markierung.w * 100) + '%', height: (markierung.h * 100) + '%',
+            background: 'rgba(250, 204, 21, 0.38)', outline: '2px solid rgba(234, 179, 8, 0.95)', mixBlendMode: 'multiply',
+          }} />
+        )}
+      </div>
+      {titel && <div className="absolute top-4 left-4 right-44 text-white text-sm font-semibold pointer-events-none">{titel}</div>}
       <div className="absolute top-3 right-3 flex gap-2" onPointerDown={(e) => e.stopPropagation()}>
         <button onClick={() => setT((a) => ({ ...a, s: begrenzt(a.s * 1.5) }))} className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center"><ZoomIn className="w-5 h-5" /></button>
         <button onClick={() => setT((a) => (a.s / 1.5 <= 1 ? { s: 1, x: 0, y: 0 } : { ...a, s: a.s / 1.5 }))} className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center"><ZoomOut className="w-5 h-5" /></button>
