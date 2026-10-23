@@ -61,8 +61,15 @@ export default function VideoScan({ uebersicht, onFertig, onAbbrechen }) {
         stream.current = s
         const spur = s.getVideoTracks()[0]
         spur.applyConstraints?.({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {})
-        if (spur.getCapabilities && spur.getCapabilities().torch) setLicht(false)
-        if (video.current) { video.current.srcObject = s; video.current.play().catch(() => {}) }
+        const kannLicht = spur.getCapabilities && spur.getCapabilities().torch
+        if (kannLicht) setLicht(false)
+        if (video.current) { video.current.srcObject = s; await video.current.play().catch(() => {}) }
+        // Taschenlampe gleich einschalten (Browser kennen nur an/aus, an = volle Stärke);
+        // manche Handys nehmen das erst kurz nach dem Kamerastart an, daher ein zweiter Versuch
+        if (kannLicht) {
+          const an = () => spur.applyConstraints({ advanced: [{ torch: true }] }).then(() => { if (aktiv) setLicht(true) })
+          an().catch(() => setTimeout(() => { if (aktiv) an().catch(() => {}) }, 600))
+        }
         requestAnimationFrame(schritt)
       } catch {
         setFehler('Die Kamera ist nicht verfügbar. Bitte in den Browser-Einstellungen den Kamerazugriff erlauben.')
