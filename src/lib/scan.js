@@ -255,7 +255,7 @@ export function dokumentFilter(canvas, S = 8, perz = 0.95) {
       const i0 = y0 * gw + x0
       const bg = (g[i0] * (1 - tx) + g[i0 + 1] * tx) * (1 - ty) + (g[i0 + gw] * (1 - tx) + g[i0 + gw + 1] * tx) * ty
       let r = lum[y * W + x] / Math.max(40, bg) // 1 = Papier, kleiner = Schrift
-      r = Math.max(0, Math.min(1, (r - 0.45) / (0.9 - 0.45))) // Schwarz- und Weißpunkt
+      r = Math.max(0, Math.min(1, (r - 0.45) / (0.84 - 0.45))) // Schwarz- und Weißpunkt (leichte Schattenränder werden weiß)
       const v = Math.round(255 * Math.pow(r, 1.6)) // Schrift kräftiger
       const o = (y * W + x) * 4
       d[o] = d[o + 1] = d[o + 2] = v
