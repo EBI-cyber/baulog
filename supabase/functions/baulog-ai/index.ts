@@ -72,7 +72,13 @@ Deno.serve(async (req) => {
           'Privatverdacht: Der Betrieb rechnet Material für die Baustelle „' + String(body.projekt || '') + '“ beim Kunden ab. Markiere Positionen, die offensichtlich nicht dazu gehören, sondern privat sein könnten (z. B. Pool-, Garten-, Haushalts-, Lebensmittel-, Freizeit-, Deko-, Auto-, Tierbedarf oder Werkzeug zur dauerhaften eigenen Nutzung), mit privat: true und einem kurzen grund. Im Zweifel bei baustellentypischem Material nicht markieren. ' +
           'Verschleiß: Markiere Werkzeuge und Verschleißteile, die nicht im Bauwerk verbleiben, sondern über mehrere Baustellen genutzt werden (z. B. Meißel, Bohrer, Bits, Trennscheiben, Sägeblätter, Schleifscheiben, Spachtel, Kellen, Pinsel, Rollen, Kartuschenpistole), mit verschleiss: true und kurzem grund. Verbrauchsmaterial, das im Bauwerk bleibt (Rohre, Fittings, Kleber, Silikon, Dübel, Schrauben), ist kein Verschleiß. ' +
           'Unlesbares als null. Antworte NUR als JSON: {"ecken":[{"x":0,"y":0},{"x":1,"y":0},{"x":1,"y":1},{"x":0,"y":1}],"lieferant":"","datum":"","betrag":0,"mwst":null,"beschreibung":"","gewerk":"","positionen":[{"bezeichnung":"","menge":1,"gesamt":0,"gewerk":"","privat":false,"verschleiss":false,"grund":""}]}' },
-        { role: 'user', content: [{ type: 'text', text: 'Beleg auswerten.' }, { type: 'image_url', image_url: { url: String(body.bild || ''), detail: 'high' } }] },
+        // langer Beleg: mehrere überlappende Stücke von oben nach unten
+        Array.isArray(body.bilder) && body.bilder.length > 1
+          ? { role: 'user', content: [
+            { type: 'text', text: 'Beleg auswerten. Es ist EIN langer Beleg, aufgeteilt in ' + body.bilder.length + ' Bilder von oben nach unten. Aufeinanderfolgende Bilder überlappen sich: Zeilen, die am unteren Rand eines Bildes und am oberen Rand des nächsten stehen, sind dieselbe Zeile und dürfen nur EINMAL als Position vorkommen. Ecken: gib für das Gesamtbild einfach 0/0, 1/0, 1/1, 0/1 an.' },
+            ...body.bilder.slice(0, 10).map((u: unknown) => ({ type: 'image_url', image_url: { url: String(u || ''), detail: 'high' } })),
+          ] }
+          : { role: 'user', content: [{ type: 'text', text: 'Beleg auswerten.' }, { type: 'image_url', image_url: { url: String(body.bild || ''), detail: 'high' } }] },
       ]
     } else if (task === 'finden') {
       // Position auf einem Belegbild finden: Die Textzeilen sind links rot nummeriert, die KI nennt die Nummern
@@ -137,7 +143,7 @@ Deno.serve(async (req) => {
       content = await ask([
         ...messages,
         { role: 'assistant', content },
-        { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen das Bild: Gesamtbetrag (Zeile „Gesamtsumme“/„Summe“/„zu zahlen“), Menge und Zeilenbetrag jeder Position, Datum. Die Summe der Positionen muss den Gesamtbetrag ergeben; passt es nicht, hast du dich verlesen – lies die betroffenen Zahlen erneut. Antworte NUR mit dem vollständigen korrigierten JSON im selben Format.' },
+        { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen das Bild (bei mehreren Bildern: keine Zeile aus dem Überlappungsbereich doppelt): Gesamtbetrag (Zeile „Gesamtsumme“/„Summe“/„zu zahlen“), Menge und Zeilenbetrag jeder Position, Datum. Die Summe der Positionen muss den Gesamtbetrag ergeben; passt es nicht, hast du dich verlesen – lies die betroffenen Zahlen erneut. Antworte NUR mit dem vollständigen korrigierten JSON im selben Format.' },
       ], 0)
     }
     if (jsonMode) { try { return out(JSON.parse(content)) } catch { return out({}) } }

@@ -39,6 +39,7 @@
 - **DIN-Leistungskatalog** (~80 Positionen, 10 Gewerke) mit Einheiten; „DIN-Standardkatalog ergänzen".
 - **KI**: Sprachnotiz→DIN-Text, KI-Setup (Timer), KI-Abschluss (Material/Maschine erkennen) — serverseitig via `baulog-ai`.
 - **Live-Kamera** + Web Speech API (de-DE).
+- **Video-Scan für lange Belege** (`VideoScan.jsx`, `lib/videoscan.js`): Handy über den Beleg ziehen, App verfolgt die Verschiebung, nimmt scharfe Abschnitte auf und setzt sie zusammen. Begleiter (lokal, ohne Cloud-KI) gibt Hinweise zu Waagerecht/Abstand/Tempo/Licht/Schärfe, auch per Sprache. Lange Belege gehen in überlappenden Stücken an die KI (`bilder` im Task `beleg`).
 
 ## Team (pro Projekt)
 - `bau_members(owner, projekt_token, member_email, gewerke text[])` + SECURITY-DEFINER-Helfer `is_project_member`, `project_owner` (RLS ohne Rekursion).
