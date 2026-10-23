@@ -45,8 +45,14 @@ export async function leistungenAusTagebuch(tage, gewerke, katalog) {
 }
 
 // Belegfoto lesen: Ecken (0–1, oben-links, oben-rechts, unten-rechts, unten-links), Lieferant, Datum, Betrag
-export async function belegLesen(dataUrl, gewerke) {
-  return callAI({ task: 'beleg', bild: dataUrl, gewerke })
+export async function belegLesen(dataUrl, gewerke, projekt) {
+  return callAI({ task: 'beleg', bild: dataUrl, gewerke, projekt })
+}
+
+// Materialpositionen auf mögliche Privatkäufe prüfen → [{ id, grund }]
+export async function privatPruefen(positionen, projekt) {
+  const d = await callAI({ task: 'privat', positionen, projekt })
+  return Array.isArray(d.verdacht) ? d.verdacht : []
 }
 
 export async function parseSetup(transcript, gewerke, katalog) {

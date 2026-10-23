@@ -16,7 +16,7 @@ function einruecken(ecken, anteil) {
 // Beleg fotografieren → Ecken finden → nachziehen (Ecken oder ganze Kanten) → entzerren →
 // KI liest Lieferant, Datum, Betrag und die einzelnen Positionen mit Gewerk → speichern
 // korrektur = { bild, ecken }: gespeichertes Originalfoto erneut zuschneiden (ohne KI), Ergebnis über onKorrigiert
-export default function BelegScanner({ gewerke, onFertig, onAbbrechen, onOhneBeleg, korrektur, onKorrigiert }) {
+export default function BelegScanner({ gewerke, projekt, onFertig, onAbbrechen, onOhneBeleg, korrektur, onKorrigiert }) {
   const [quelle, setQuelle] = useState(null) // Canvas des verkleinerten Fotos
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
@@ -137,12 +137,12 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen, onOhneBel
       if (ki || korrektur) { setBusy(''); return }
       setBusy('KI liest den Beleg …')
       try {
-        const k = await belegLesen(url, gewerke)
+        const k = await belegLesen(url, gewerke, projekt)
         setKi({
           lieferant: k.lieferant || '', datum: /^\d{4}-\d{2}-\d{2}$/.test(k.datum || '') ? k.datum : '',
           betrag: k.betrag != null ? String(k.betrag).replace('.', ',') : '',
           positionen: (Array.isArray(k.positionen) ? k.positionen : []).filter((p) => p && p.bezeichnung)
-            .map((p) => ({ bezeichnung: String(p.bezeichnung), menge: Number(p.menge) || 1, gesamt: String(p.gesamt ?? '').replace('.', ','), gewerk: gewerke.includes(p.gewerk) ? p.gewerk : (gewerke.includes(k.gewerk) ? k.gewerk : gewerke[0]) })),
+            .map((p) => ({ bezeichnung: String(p.bezeichnung), menge: Number(p.menge) || 1, gesamt: String(p.gesamt ?? '').replace('.', ','), gewerk: gewerke.includes(p.gewerk) ? p.gewerk : (gewerke.includes(k.gewerk) ? k.gewerk : gewerke[0]), privat: Boolean(p.privat), grund: p.grund || '' })),
         })
       } catch (err) {
         setKi({ lieferant: '', datum: '', betrag: '', positionen: [] })
@@ -155,10 +155,12 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen, onOhneBel
   const fertig = (weiter) => {
     const betrag = parseBetrag(ki.betrag)
     if (Number.isNaN(betrag) || betrag <= 0) { alert('Bitte den Gesamtbetrag des Belegs eintragen, z. B. 127,53.'); return }
-    const positionen = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt > 0)
+    const alle = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt > 0)
+    const positionen = alle.filter((p) => !p.privat)
+    const privat = alle.filter((p) => p.privat).reduce((a, p) => a + p.gesamt, 0)
     // Originalfoto (komprimiert) und Ecken mitgeben, damit der Zuschnitt später korrigierbar bleibt
     const roh = { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
-    onFertig({ dataUrl: ergebnis, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, roh }, { weiter })
+    onFertig({ dataUrl: ergebnis, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, privat, roh }, { weiter })
   }
 
   if (!quelle) {
@@ -232,19 +234,25 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen, onOhneBel
               </div>
               <div className="text-white/80 text-sm font-semibold pt-1">Positionen</div>
               {ki.positionen.map((p, i) => (
-                <div key={i} className="flex flex-wrap items-center gap-1.5">
+                <div key={i} className={'flex flex-wrap items-center gap-1.5 ' + (p.privat ? 'rounded-xl p-1.5 bg-ember/10 border border-ember/40' : '')}>
+                  {p.privat && <div className="w-full text-ember text-xs font-semibold">Privat? {p.grund || 'gehört vermutlich nicht zur Baustelle'} – wird nicht verrechnet</div>}
                   <input value={p.bezeichnung} onChange={(e) => setPos(i, { bezeichnung: e.target.value })} className={inp + ' flex-1 min-w-[10rem] py-1.5 text-sm'} />
                   <select value={p.gewerk} onChange={(e) => setPos(i, { gewerk: e.target.value })} className="bg-white/10 border border-white/20 rounded-lg px-1.5 py-1.5 text-xs max-w-[7.5rem]">
                     {gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
                   <input value={p.gesamt} onChange={(e) => setPos(i, { gesamt: e.target.value })} inputMode="decimal" className="w-20 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-right" />
+                  <button onClick={() => setPos(i, { privat: !p.privat })} className={'text-xs px-2 py-1 rounded-lg border ' + (p.privat ? 'border-ember/60 text-ember' : 'border-white/20 text-white/60')}>privat</button>
                   <button onClick={() => setKi({ ...ki, positionen: ki.positionen.filter((_, j) => j !== i) })} className="text-white/60 hover:text-ember p-1"><X className="w-4 h-4" /></button>
                 </div>
               ))}
               <button onClick={() => setKi({ ...ki, positionen: [...ki.positionen, { bezeichnung: '', menge: 1, gesamt: '', gewerk: gewerke[0] }] })} className="text-amber text-xs inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Position hinzufügen</button>
               {(() => {
                 const summe = ki.positionen.reduce((a, p) => a + (parseBetrag(p.gesamt) || 0), 0), betrag = parseBetrag(ki.betrag) || 0
-                return Math.abs(summe - betrag) > 0.01 && ki.positionen.length ? <div className="text-amber text-xs">Positionen ergeben {eur(summe)}, Beleg {eur(betrag)}. Die Differenz wird als eigene Zeile übernommen.</div> : null
+                const privat = ki.positionen.filter((p) => p.privat).reduce((a, p) => a + (parseBetrag(p.gesamt) || 0), 0)
+                return <>
+                  {privat > 0 && <div className="text-ember text-xs font-semibold">Privatanteil {eur(privat)} wird nicht verrechnet. Dem Kunden werden {eur(betrag - privat)} berechnet.</div>}
+                  {Math.abs(summe - betrag) > 0.01 && ki.positionen.length ? <div className="text-amber text-xs">Positionen ergeben {eur(summe)}, Beleg {eur(betrag)}. Die Differenz wird als eigene Zeile übernommen.</div> : null}
+                </>
               })()}
               <div className="flex items-center gap-2">
                 <span className="text-white/80 text-sm shrink-0">Gesamt brutto €</span>

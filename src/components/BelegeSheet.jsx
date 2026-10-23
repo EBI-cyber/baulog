@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ReceiptText, Trash2, AlertTriangle } from 'lucide-react'
+import { ReceiptText, Trash2, AlertTriangle, Sparkles } from 'lucide-react'
 import IconChip from '../ui/IconChip'
 import Vollbild from './Vollbild'
+import { privatPruefen } from '../lib/ai'
 
 const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const tag = (d) => { try { return new Date(d).toLocaleDateString('de-DE') } catch { return '' } }
@@ -27,8 +28,10 @@ export function belegeAus(eintraege) {
   return liste
 }
 
-export default function BelegeSheet({ eintraege, onClose, onDelete }) {
+export default function BelegeSheet({ eintraege, projektName, onClose, onDelete }) {
   const [gross, setGross] = useState('')
+  const [verdacht, setVerdacht] = useState(null) // [{ e, grund }]
+  const [busy, setBusy] = useState(false)
   const belege = belegeAus(eintraege)
   const summe = belege.reduce((a, b) => a + b.betrag, 0)
   const doppelte = belege.filter((b) => b.doppelt).length
@@ -45,6 +48,40 @@ export default function BelegeSheet({ eintraege, onClose, onDelete }) {
         {doppelte > 0 && (
           <div className="rounded-xl px-3 py-2 text-xs border bg-ember/10 text-ember border-ember/25 flex gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" /> {doppelte} Belege haben am selben Tag den gleichen Betrag. Bitte prüfen, ob einer doppelt gescannt wurde.
+          </div>
+        )}
+        {belege.length > 0 && (
+          <div className="rounded-xl p-3 border border-white/20 bg-white/5 space-y-2">
+            {!verdacht ? (
+              <button disabled={busy} onClick={async () => {
+                setBusy(true)
+                try {
+                  const pos = belege.flatMap((b) => b.eintraege).map((e) => ({ id: String(e.id), text: e.label || '', betrag: Math.round((Number(e.qty) || 0) * (Number(e.unitCost) || 0) * 100) / 100 }))
+                  const v = await privatPruefen(pos, projektName)
+                  setVerdacht(v.map((x) => ({ e: eintraege.find((e) => String(e.id) === String(x.id)), grund: x.grund })).filter((x) => x.e))
+                } catch (err) { alert(err && err.message ? err.message : String(err)) }
+                setBusy(false)
+              }} className="w-full rounded-xl py-2 text-sm font-semibold bg-white/10 inline-flex items-center justify-center gap-2 disabled:opacity-50">
+                <Sparkles className="w-4 h-4 text-amber" />{busy ? 'KI prüft …' : 'Auf private Sachen prüfen'}
+              </button>
+            ) : verdacht.length === 0 ? (
+              <div className="text-emerald-400 text-sm">Keine privaten Positionen gefunden.</div>
+            ) : (
+              <>
+                <div className="text-ember text-sm font-semibold">Möglicherweise privat ({verdacht.length})</div>
+                {verdacht.map((x) => (
+                  <div key={x.e.id} className="flex items-center gap-2 text-sm">
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{x.e.label}</div>
+                      <div className="text-white/60 text-xs">{x.grund} · {eur((Number(x.e.qty) || 0) * (Number(x.e.unitCost) || 0))}</div>
+                    </div>
+                    <button onClick={() => setVerdacht((v) => v.filter((y) => y !== x))} className="text-xs px-2 py-1 rounded-lg border border-white/20 text-white/70 shrink-0">gehört dazu</button>
+                    <button onClick={async () => { if (confirm('„' + x.e.label + '“ als privat entfernen? Es wird dem Kunden dann nicht berechnet.')) { await onDelete([x.e]); setVerdacht((v) => v.filter((y) => y !== x)) } }}
+                      className="text-xs px-2 py-1 rounded-lg btn-grad font-semibold shrink-0">privat, raus</button>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
         {belege.length === 0 && <div className="text-white/70 text-sm">Noch keine Belege gescannt. Über die Kachel „Material“ geht es los.</div>}

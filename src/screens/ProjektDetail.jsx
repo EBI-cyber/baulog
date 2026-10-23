@@ -152,7 +152,7 @@ function MaschineCombo({ s, value, onChange, inp, wrapClass = '' }) {
   )
 }
 
-function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEntry }) {
+function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEntry, projektName }) {
   const gewerkeOpts = gewerkeList && gewerkeList.length ? gewerkeList : s.gewerke
   const [gewerk, setGewerk] = useState((editEntry && editEntry.gewerk) || defaultGewerk)
   const leistungen = leistungenFor(s, gewerk)
@@ -268,14 +268,18 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
           </div>
         )}
         {type === 'material' && scan && (
-          <BelegScanner key={scanNr} gewerke={gewerkeOpts} onAbbrechen={() => (editEntry ? setScan(false) : onClose())} onOhneBeleg={editEntry ? null : () => { setScan(false); setManuell(true) }} onFertig={(b, opt) => {
+          <BelegScanner key={scanNr} gewerke={gewerkeOpts} projekt={projektName} onAbbrechen={() => (editEntry ? setScan(false) : onClose())} onOhneBeleg={editEntry ? null : () => { setScan(false); setManuell(true) }} onFertig={(b, opt) => {
             // jede Belegposition wird ein eigener Material-Eintrag; der erste trägt das Belegbild
             const createdAt = b.datum ? new Date(b.datum + 'T12:00:00').toISOString() : new Date().toISOString()
+            const fmt = (n) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
             const notiz = 'Beleg' + (b.lieferant ? ' ' + b.lieferant : '') + (b.datum ? ' vom ' + new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : '') +
-              ' · ' + b.betrag.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
-            const pos = b.positionen.length ? b.positionen : [{ bezeichnung: b.lieferant || 'Materialbeleg', menge: 1, gesamt: b.betrag, gewerk }]
+              ' · ' + fmt(b.betrag) + (b.privat > 0 ? ' (davon privat ' + fmt(b.privat) + ', nicht verrechnet)' : '')
+            const pos = b.positionen.length ? b.positionen : [{ bezeichnung: b.lieferant || 'Materialbeleg', menge: 1, gesamt: b.betrag - (b.privat || 0), gewerk }]
+            if (pos.reduce((a, p) => a + p.gesamt, 0) <= 0) { alert('Alle Positionen sind als privat markiert, es gibt nichts zu verrechnen.'); return }
             const summe = pos.reduce((a, p) => a + p.gesamt, 0)
-            if (Math.abs(summe - b.betrag) > 0.01) pos.push({ bezeichnung: 'Differenz laut Beleg', menge: 1, gesamt: Math.round((b.betrag - summe) * 100) / 100, gewerk: pos[0].gewerk || gewerk })
+            // Privatanteil gehört nicht zur Baustelle: Differenz nur gegen den Baustellenanteil rechnen
+            const baustelle = b.betrag - (b.privat || 0)
+            if (b.positionen.length && Math.abs(summe - baustelle) > 0.01) pos.push({ bezeichnung: 'Differenz laut Beleg', menge: 1, gesamt: Math.round((baustelle - summe) * 100) / 100, gewerk: pos[0].gewerk || gewerk })
             onSave(pos.map((p, i) => ({
               type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt, note: notiz,
               label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung,
@@ -1277,7 +1281,7 @@ export default function ProjektDetail() {
       </div>
 
       {sheet && (
-        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} editEntry={editingEntry}
+        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} editEntry={editingEntry} projektName={projekt.name}
           onClose={() => { setSheet(null); setEditingEntry(null) }}
           onSave={async (data, opt) => {
             const arr = Array.isArray(data) ? data : [data]
@@ -1302,7 +1306,7 @@ export default function ProjektDetail() {
       )}
 
       {belegeOffen && (
-        <BelegeSheet eintraege={eintraege} onClose={() => setBelegeOffen(false)} onDelete={async (liste) => {
+        <BelegeSheet eintraege={eintraege} projektName={projekt.name} onClose={() => setBelegeOffen(false)} onDelete={async (liste) => {
           await sicherungAnlegen('Vor dem Löschen eines Belegs')
           for (const e of liste) await deleteEintrag(e.id)
           setEintraege(await listEintraege(id))
