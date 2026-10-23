@@ -44,6 +44,11 @@ export async function leistungenAusTagebuch(tage, gewerke, katalog) {
   return out
 }
 
+// Belegfoto lesen: Ecken (0–1, oben-links, oben-rechts, unten-rechts, unten-links), Lieferant, Datum, Betrag
+export async function belegLesen(dataUrl) {
+  return callAI({ task: 'beleg', bild: dataUrl })
+}
+
 export async function parseSetup(transcript, gewerke, katalog) {
   return callAI({ task: 'setup', transcript, gewerke, katalog })
 }
