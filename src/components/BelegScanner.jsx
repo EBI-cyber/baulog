@@ -1,11 +1,27 @@
 import { useRef, useState } from 'react'
-import { Camera, ImagePlus, ScanLine, RotateCcw, X, Plus } from 'lucide-react'
+import { Camera, ImagePlus, ScanLine, RotateCcw, X, Plus, ScrollText } from 'lucide-react'
 import { ladeBild, dateiAlsDataUrl, verkleinern, entzerren, verbessern, eckenFinden, dokumentFilter } from '../lib/scan'
 import { belegLesen } from '../lib/ai'
 import { parseBetrag } from '../lib/abrechnung'
 import Vollbild from './Vollbild'
+import VideoScan from './VideoScan'
 
 const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+
+// Lange Belege für die KI in überlappende Stücke teilen, damit jedes Stück in voller Schärfe ankommt
+// (ein einzelnes, sehr langes Bild würde die KI stark verkleinern). Kurze Belege bleiben ein Bild.
+function kiStuecke(canvas) {
+  const W = canvas.width, H = canvas.height
+  if (H <= W * 2.2) return [canvas.toDataURL('image/jpeg', 0.8)]
+  const hoehe = Math.round(W * 1.5), ueber = Math.round(hoehe * 0.15)
+  const n = Math.min(10, Math.ceil((H - ueber) / (hoehe - ueber)))
+  const schritt = (H - hoehe) / Math.max(1, n - 1)
+  return Array.from({ length: n }, (_, i) => {
+    const c = document.createElement('canvas'); c.width = W; c.height = hoehe
+    c.getContext('2d').drawImage(canvas, 0, Math.round(i * schritt), W, hoehe, 0, 0, W, hoehe)
+    return c.toDataURL('image/jpeg', 0.85)
+  })
+}
 
 // Viereck leicht zur Mitte einrücken, damit kein Untergrund am Rand stehen bleibt
 function einruecken(ecken, anteil) {
@@ -27,6 +43,9 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const [modus, setModus] = useState('dokument')
   const [gross, setGross] = useState(false)
   const [busy, setBusy] = useState('')
+  const [video, setVideo] = useState(false) // Video-Scan für lange Belege offen
+  const [lang, setLang] = useState(false) // Quelle stammt aus dem Video-Scan
+  const kiBilder = useRef(null) // Stücke des zugeschnittenen Belegs für die KI
   const kamera = useRef(null), galerie = useRef(null), bild = useRef(null), svg = useRef(null)
   // Ziehen ohne React-Neuzeichnen: Positionen in einer Ref, SVG direkt aktualisieren
   const live = useRef(null), griff = useRef(null), lupe = useRef(null)
@@ -64,6 +83,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       const c = verkleinern(await ladeBild(await dateiAlsDataUrl(f)), 1600)
       const W = c.width, H = c.height
       const gefunden = eckenFinden(c)
+      setLang(false)
       setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85)); setErgebnis(''); setKi(null)
       setEcken(gefunden ? einruecken(gefunden, 0.012) : [{ x: W * 0.05, y: H * 0.05 }, { x: W * 0.95, y: H * 0.05 }, { x: W * 0.95, y: H * 0.95 }, { x: W * 0.05, y: H * 0.95 }])
       // Ecken nicht gefunden: KI um eine Schätzung bitten (die Angaben liest sie später vom zugeschnittenen Beleg)
@@ -78,6 +98,16 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       }
     } catch (err) { alert(err && err.message ? err.message : String(err)) }
     setBusy('')
+  }
+
+  // Ergebnis des Video-Scans: langes Bild übernehmen, seitlichen Untergrund wie gewohnt wegschneiden
+  const videoFertig = (c) => {
+    setVideo(false)
+    const W = c.width, H = c.height
+    const gefunden = eckenFinden(c)
+    setLang(true)
+    setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85)); setErgebnis(''); setKi(null)
+    setEcken(gefunden ? einruecken(gefunden, 0.004) : [{ x: W * 0.05, y: 0 }, { x: W * 0.95, y: 0 }, { x: W * 0.95, y: H }, { x: W * 0.05, y: H }])
   }
 
   // Zeigerposition → Bildpixel
@@ -131,14 +161,16 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
         const roh = entzerren(quelle, ecken, 1600)
         const farbe = document.createElement('canvas'); farbe.width = roh.width; farbe.height = roh.height
         farbe.getContext('2d').drawImage(roh, 0, 0)
-        const f = { dokument: dokumentFilter(roh).toDataURL('image/jpeg', 0.8), farbe: verbessern(farbe).toDataURL('image/jpeg', 0.8) }
+        const dok = dokumentFilter(roh)
+        kiBilder.current = kiStuecke(dok)
+        const f = { dokument: dok.toDataURL('image/jpeg', 0.8), farbe: verbessern(farbe).toDataURL('image/jpeg', 0.8) }
         setFassungen(f); url = f.dokument; setModus('dokument'); setErgebnis(url)
       }
       catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)); setBusy(''); return }
       if (ki || korrektur || nurBild) { setBusy(''); return }
       setBusy('KI liest den Beleg …')
       try {
-        const k = await belegLesen(url, gewerke, projekt)
+        const k = await belegLesen(kiBilder.current && kiBilder.current.length > 1 ? kiBilder.current : url, gewerke, projekt)
         setKi({
           lieferant: k.lieferant || '', datum: /^\d{4}-\d{2}-\d{2}$/.test(k.datum || '') ? k.datum : '',
           betrag: k.betrag != null ? String(k.betrag).replace('.', ',') : '',
@@ -171,6 +203,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       <div className="space-y-2">
         <div className="text-white/75 text-xs">Beleg flach auf einen dunkleren Untergrund legen und von oben fotografieren. Die App schneidet zu, die KI liest Lieferant, Datum, Positionen und Preise.</div>
         <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => setVideo(true)} disabled={!!busy} className="col-span-2 rounded-2xl py-2.5 font-semibold bg-white/10 border border-amber/40 inline-flex items-center justify-center gap-2"><ScrollText className="w-5 h-5 text-amber" /> Langer Beleg (Video-Scan)</button>
           <button onClick={() => kamera.current.click()} disabled={!!busy} className="rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> Foto aufnehmen</button>
           <button onClick={() => galerie.current.click()} disabled={!!busy} className="rounded-2xl py-3 font-semibold bg-white/10 inline-flex items-center justify-center gap-2"><ImagePlus className="w-5 h-5" /> Bild wählen</button>
         </div>
@@ -179,6 +212,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
         {busy && <div className="text-amber text-sm">{busy}</div>}
         {onOhneBeleg && <button onClick={onOhneBeleg} className="w-full text-white/60 text-xs py-1">Ohne Beleg von Hand eintragen</button>}
         {onAbbrechen && <button onClick={onAbbrechen} className="w-full text-white/70 text-sm py-1">Abbrechen</button>}
+        {video && <VideoScan onFertig={videoFertig} onAbbrechen={() => setVideo(false)} />}
       </div>
     )
   }
@@ -189,8 +223,8 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       {!ergebnis ? (
         <>
           <div className="text-white/75 text-xs">Ecken oder Kantenmitten ziehen. Mit den Kanten rückst du eine ganze Seite ein, damit kein Untergrund stehen bleibt.</div>
-          <div className="relative select-none touch-none" onPointerDown={runter} onPointerMove={bewegen} onPointerUp={hoch} onPointerCancel={hoch}>
-            <img ref={bild} src={vorschau} alt="" className="w-full rounded-xl pointer-events-none" draggable={false} />
+          <div className={'relative select-none touch-none ' + (quelle.height > quelle.width * 1.8 ? 'w-fit mx-auto' : '')} onPointerDown={runter} onPointerMove={bewegen} onPointerUp={hoch} onPointerCancel={hoch}>
+            <img ref={bild} src={vorschau} alt="" className={'rounded-xl pointer-events-none ' + (quelle.height > quelle.width * 1.8 ? 'max-h-[65dvh] w-auto max-w-full' : 'w-full')} draggable={false} />
             {ecken && (
               <svg ref={svg} viewBox={'0 0 ' + quelle.width + ' ' + quelle.height} className="absolute inset-0 w-full h-full pointer-events-none">
                 <polygon points={ecken.map((p) => p.x + ',' + p.y).join(' ')} fill="rgba(245,158,11,0.15)" stroke="#f59e0b" strokeWidth={quelle.width / 200} />
@@ -206,7 +240,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { setQuelle(null); setEcken(null); setKi(null) }} className="rounded-2xl py-2.5 bg-white/10 inline-flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> Neues Foto</button>
+            <button onClick={() => { setQuelle(null); setEcken(null); setKi(null); if (lang) setVideo(true) }} className="rounded-2xl py-2.5 bg-white/10 inline-flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> {lang ? 'Neu scannen' : 'Neues Foto'}</button>
             <button onClick={zuschneiden} disabled={!!busy} className="rounded-2xl py-2.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><ScanLine className="w-4 h-4" /> Zuschneiden</button>
           </div>
         </>

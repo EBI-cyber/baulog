@@ -18,9 +18,11 @@ export function dateiAlsDataUrl(file) {
   })
 }
 
-// Bild auf maximale Kantenlänge verkleinern → Canvas
+// Bild auf maximale Kantenlänge verkleinern → Canvas.
+// Lange Belege (Video-Scan) werden nach der Breite begrenzt, sonst wäre die Schrift zu klein.
 export function verkleinern(img, max = 1600) {
-  const f = Math.min(1, max / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height))
+  const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height
+  const f = h0 > w0 * 1.8 ? Math.min(1, 1200 / w0, 16000 / h0) : Math.min(1, max / Math.max(w0, h0))
   const c = document.createElement('canvas')
   c.width = Math.round((img.naturalWidth || img.width) * f)
   c.height = Math.round((img.naturalHeight || img.height) * f)
@@ -64,7 +66,8 @@ export function entzerren(quelle, ecken, maxSeite = 1400) {
   const [tl, tr, br, bl] = ecken
   let W = Math.max(abstand(tl, tr), abstand(bl, br))
   let H = Math.max(abstand(tl, bl), abstand(tr, br))
-  const f = Math.min(1, maxSeite / Math.max(W, H))
+  // lange Belege nach der Breite begrenzen, damit die Schrift lesbar bleibt
+  const f = H > W * 1.8 ? Math.min(1, 1200 / W, 16000 / H) : Math.min(1, maxSeite / Math.max(W, H))
   W = Math.max(1, Math.round(W * f)); H = Math.max(1, Math.round(H * f))
   // Ziel → Quelle, damit jedes Zielpixel genau einmal gefüllt wird
   const h = homographie([{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }], [tl, tr, br, bl])
