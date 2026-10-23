@@ -69,8 +69,17 @@ Deno.serve(async (req) => {
           'Bestimme (1) die vier Ecken des Papiers im Foto so genau wie möglich (auf 0,01) als Anteile der Bildbreite/-höhe (0 bis 1), Reihenfolge oben-links, oben-rechts, unten-rechts, unten-links in Bildkoordinaten (oben = kleines y). Die Ecken liegen exakt am Papierrand, nicht am Text; ist ein Rand abgeschnitten, nimm den Bildrand; ' +
           '(2) lieferant (Firmenname), datum (Belegdatum YYYY-MM-DD), betrag (Gesamtbetrag brutto in Euro als Zahl), mwst (enthaltene MwSt. in Euro oder null), beschreibung (2–6 Wörter, was gekauft wurde); ' +
           '(3) positionen: jede Artikelzeile mit bezeichnung (kurz und verständlich, Fachbegriff, z. B. „Trinkwasserverteiler 5-fach DN 20“, ohne Artikelnummern), menge (Zahl), gesamt (Zeilenbetrag BRUTTO in Euro; sind die Preise netto angegeben, die MwSt. anteilig aufschlagen), gewerk (EXAKT aus der Liste: ' + (body.gewerke || []).join(', ') + '). Versand, Pfand o. Ä. ebenfalls als Position. Die Summe der Positionen soll dem Gesamtbetrag entsprechen. ' +
-          'Unlesbares als null. Antworte NUR als JSON: {"ecken":[{"x":0,"y":0},{"x":1,"y":0},{"x":1,"y":1},{"x":0,"y":1}],"lieferant":"","datum":"","betrag":0,"mwst":null,"beschreibung":"","gewerk":"","positionen":[{"bezeichnung":"","menge":1,"gesamt":0,"gewerk":""}]}' },
+          'Privatverdacht: Der Betrieb rechnet Material für die Baustelle „' + String(body.projekt || '') + '“ beim Kunden ab. Markiere Positionen, die offensichtlich nicht dazu gehören, sondern privat sein könnten (z. B. Pool-, Garten-, Haushalts-, Lebensmittel-, Freizeit-, Deko-, Auto-, Tierbedarf oder Werkzeug zur dauerhaften eigenen Nutzung), mit privat: true und einem kurzen grund. Im Zweifel bei baustellentypischem Material nicht markieren. ' +
+          'Unlesbares als null. Antworte NUR als JSON: {"ecken":[{"x":0,"y":0},{"x":1,"y":0},{"x":1,"y":1},{"x":0,"y":1}],"lieferant":"","datum":"","betrag":0,"mwst":null,"beschreibung":"","gewerk":"","positionen":[{"bezeichnung":"","menge":1,"gesamt":0,"gewerk":"","privat":false,"grund":""}]}' },
         { role: 'user', content: [{ type: 'text', text: 'Beleg auswerten.' }, { type: 'image_url', image_url: { url: String(body.bild || ''), detail: 'high' } }] },
+      ]
+    } else if (task === 'privat') {
+      // bereits erfasste Materialpositionen auf mögliche Privatkäufe prüfen
+      jsonMode = true
+      const liste = (body.positionen || []).map((p) => 'id=' + p.id + ': ' + p.text + ' (' + p.betrag + ' €)').join('\n')
+      messages = [
+        { role: 'system', content: 'Ein Handwerksbetrieb rechnet Material für die Baustelle „' + String(body.projekt || '') + '“ beim Kunden ab. Prüfe die Positionen und nenne nur die, die offensichtlich nicht zu dieser Baustelle gehören, sondern privat sein könnten (z. B. Pool-, Garten-, Haushalts-, Lebensmittel-, Freizeit-, Deko-, Auto-, Tierbedarf oder Werkzeug zur dauerhaften eigenen Nutzung). Baustellentypisches Material nicht nennen. Antworte NUR als JSON: {"verdacht":[{"id":"...","grund":"kurz"}]}' },
+        { role: 'user', content: liste },
       ]
     } else if (task === 'abschluss') {
       jsonMode = true
@@ -87,7 +96,7 @@ Deno.serve(async (req) => {
       return out({ error: 'unbekannter task' }, 400)
     }
 
-    const model = task === 'korrektur' || task === 'leistungen' || task === 'beleg' ? 'gpt-4o' : 'gpt-4o-mini'
+    const model = task === 'korrektur' || task === 'leistungen' || task === 'beleg' || task === 'privat' ? 'gpt-4o' : 'gpt-4o-mini'
     const temperature = task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2
     const ask = async (msgs, temp) => {
       const payload = { model, temperature: temp, messages: msgs }
