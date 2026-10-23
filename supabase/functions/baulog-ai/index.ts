@@ -78,13 +78,34 @@ Deno.serve(async (req) => {
     }
 
     const model = task === 'korrektur' || task === 'leistungen' ? 'gpt-4o' : 'gpt-4o-mini'
-    const payload = { model, temperature: task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2, messages }
-    if (jsonMode) payload.response_format = { type: 'json_object' }
+    const temperature = task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2
+    const ask = async (msgs, temp) => {
+      const payload = { model, temperature: temp, messages: msgs }
+      if (jsonMode) payload.response_format = { type: 'json_object' }
+      const res = await fetch(OPENAI, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(payload) })
+      if (!res.ok) throw new Error('OpenAI ' + res.status + ': ' + (await res.text()).slice(0, 200))
+      const j = await res.json()
+      return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || ''
+    }
+    let content = await ask(messages, temperature)
 
-    const res = await fetch(OPENAI, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(payload) })
-    if (!res.ok) return out({ error: 'OpenAI ' + res.status + ': ' + (await res.text()).slice(0, 200) }, 500)
-    const j = await res.json()
-    const content = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || ''
+    // Selbstprüfung: ein zweiter Durchgang findet und korrigiert Fehler des ersten
+    if (task === 'korrektur' && content.trim()) {
+      content = await ask([
+        { role: 'system', content: 'Du bist Prüfer für Bautagebuch-Texte im Sanierungsbau. Vergleiche Original und Überarbeitung und gib die korrigierte, endgültige Fassung aus. Prüfe: (1) Keine Bedeutung verändert, nichts hinzugefügt oder weggelassen; Mengen, Maße, Material, Produkt- und Markennamen exakt wie im Original. ' +
+          '(2) Diktier- und Tippfehler mit dem ähnlichst geschriebenen Baufachwort aufgelöst, nicht mit einem anderen Verb geraten (z. B. „ausgeemmt“ → „ausgestemmt“, „Stembohrer“ → „Stemmbohrer“, „Regen Duschleitung“ → „Leitung der Regendusche“). (3) Rechtschreibung, Grammatik, Zeichensetzung. (4) Sachlicher, professioneller Stil, keine Wiederholungen wie „Anschließend … Abschließend“. Gib NUR den finalen Text aus.' },
+        { role: 'user', content: 'Original:\n' + String(body.transcript || '') + '\n\nÜberarbeitung:\n' + content },
+      ], 0)
+    }
+    if (task === 'leistungen' && content.trim()) {
+      content = await ask([
+        ...messages,
+        { role: 'assistant', content },
+        { role: 'user', content: 'Prüfe deine Antwort Zeile für Zeile und korrigiere alle Fehler: (1) Steht die Tätigkeit wirklich im Text des Tages? Sonst entfernen. Fehlt eine genannte Tätigkeit? Ergänzen. ' +
+          '(2) Gewerk fachlich richtig: Rückbau, Ausbau, Abschlagen, Demontage, Entsorgung → Abbruch/Entsorgung (auch Fliesen abschlagen, Badewanne ausbauen); Schlitze oder Stemmstellen verputzen, verschließen, egalisieren → Sanitär „Schlitze verschließen“ (nicht Maler/Putz/Trockenbau); Leitungen, Armaturen, Wasserverteiler, Installationsboxen, Stemm- und Schlitzarbeiten für Leitungen → Sanitär; Estrich → Estrich/Boden. ' +
+          '(3) Gleiche Tätigkeit überall gleich benannt, Bezeichnung als Angebotsposition. (4) Summe der Stunden je Zeiteintrag = seine Stunden. Antworte NUR mit dem vollständigen korrigierten JSON im selben Format.' },
+      ], 0)
+    }
     if (jsonMode) { try { return out(JSON.parse(content)) } catch { return out({}) } }
     return out({ text: String(content).trim() })
   } catch (e) {
