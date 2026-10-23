@@ -164,6 +164,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
   const [note, setNote] = useState((editEntry && editEntry.note) || ''); const [dataUrl, setDataUrl] = useState((editEntry && editEntry.dataUrl) || '')
   const [text, setText] = useState((editEntry && editEntry.text) || '')
   const [scan, setScan] = useState(false)
+  const [scanNr, setScanNr] = useState(0)
   const [belegDatum, setBelegDatum] = useState(editEntry && editEntry.dataUrl && editEntry.type === 'material' ? String(editEntry.createdAt || '').slice(0, 10) : '')
   const [dinBusy, setDinBusy] = useState(false)
   const [korrBusy, setKorrBusy] = useState(false)
@@ -259,7 +260,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
           </div>
         )}
         {type === 'material' && scan && (
-          <BelegScanner gewerke={gewerkeOpts} onAbbrechen={() => setScan(false)} onFertig={(b) => {
+          <BelegScanner key={scanNr} gewerke={gewerkeOpts} onAbbrechen={() => setScan(false)} onFertig={(b, opt) => {
             // jede Belegposition wird ein eigener Material-Eintrag; der erste trägt das Belegbild
             const createdAt = b.datum ? new Date(b.datum + 'T12:00:00').toISOString() : new Date().toISOString()
             const notiz = 'Beleg' + (b.lieferant ? ' ' + b.lieferant : '') + (b.datum ? ' vom ' + new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : '') +
@@ -272,7 +273,9 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
               label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung,
               qty: p.menge > 0 ? p.menge : 1, unitCost: Math.round((p.gesamt / (p.menge > 0 ? p.menge : 1)) * 10000) / 10000,
               dataUrl: i === 0 ? b.dataUrl : '',
-            })))
+            })), { weiter: opt && opt.weiter })
+            // Serienscan: Scanner für den nächsten Beleg frisch starten
+            if (opt && opt.weiter) setScanNr((n) => n + 1)
           }} />
         )}
         {type === 'material' && !scan && (
@@ -1233,13 +1236,15 @@ export default function ProjektDetail() {
       {sheet && (
         <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} editEntry={editingEntry}
           onClose={() => { setSheet(null); setEditingEntry(null) }}
-          onSave={async (data) => {
+          onSave={async (data, opt) => {
             const arr = Array.isArray(data) ? data : [data]
             for (const d of arr) {
               if (d.id) { const { id: eid, ...patch } = d; await updateEintrag(eid, patch) }
               else await addEintrag({ projektId: Number(id), ...d })
             }
-            setSheet(null); setEditingEntry(null); await load()
+            // „Speichern & nächster“ beim Belegscan: Fenster bleibt offen
+            if (!(opt && opt.weiter)) { setSheet(null); setEditingEntry(null) }
+            await load()
           }} />
       )}
 

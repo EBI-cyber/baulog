@@ -137,11 +137,11 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
     }, 30)
   }
   const setPos = (i, patch) => setKi((k) => ({ ...k, positionen: k.positionen.map((p, j) => (j === i ? { ...p, ...patch } : p)) }))
-  const fertig = () => {
+  const fertig = (weiter) => {
     const betrag = parseBetrag(ki.betrag)
     if (Number.isNaN(betrag) || betrag <= 0) { alert('Bitte den Gesamtbetrag des Belegs eintragen, z. B. 127,53.'); return }
     const positionen = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt > 0)
-    onFertig({ dataUrl: ergebnis, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen })
+    onFertig({ dataUrl: ergebnis, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen }, { weiter })
   }
 
   if (!quelle) {
@@ -226,7 +226,10 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
                 <span className="text-white/80 text-sm shrink-0">Gesamt brutto €</span>
                 <input value={ki.betrag} onChange={(e) => setKi({ ...ki, betrag: e.target.value })} inputMode="decimal" className={inp} />
               </div>
-              <button onClick={fertig} className="w-full rounded-2xl py-3 font-bold btn-grad">Beleg speichern</button>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => fertig(false)} className="rounded-2xl py-3 font-semibold bg-white/10">Speichern</button>
+                <button onClick={() => fertig(true)} className="rounded-2xl py-3 font-bold btn-grad">Speichern &amp; nächster</button>
+              </div>
             </div>
           )}
         </>
