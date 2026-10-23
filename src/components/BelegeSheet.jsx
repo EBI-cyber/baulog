@@ -39,7 +39,20 @@ export function belegeAus(eintraege) {
   // mögliche Doppelte: gleicher Betrag am selben Tag (Lieferantenname kann unterschiedlich gelesen sein)
   liste.forEach((g) => {
     g.lieferant = g.note.replace(/^Beleg\s*/, '').replace(/\s*vom .*$/, '').replace(/\s*·.*$/, '').trim()
-    g.doppelt = liste.some((h) => h !== g && String(h.datum).slice(0, 10) === String(g.datum).slice(0, 10) && Math.abs(h.betrag - g.betrag) < 0.01)
+    // doppelt: gleicher Betrag am selben Tag, gleicher Gesamtbetrag laut Belegnotiz,
+    // oder die meisten Positionsbeträge stimmen überein (falls Datum/Betrag beim Scannen unterschiedlich gelesen wurden)
+    const betraege = (x) => x.eintraege.map((e) => Math.round((Number(e.qty) || 0) * (Number(e.unitCost) || 0) * 100))
+    const gesamtLaut = (x) => (String(x.note).match(/·\s*([\d.]+,\d{2})\s*€/) || [])[1]
+    const aehnlich = (h) => {
+      const a = betraege(g), b = betraege(h)
+      if (a.length < 2 || b.length < 2) return false
+      const rest = [...b]; let gleich = 0
+      for (const v of a) { const i = rest.indexOf(v); if (i >= 0) { gleich++; rest.splice(i, 1) } }
+      return gleich / Math.max(a.length, b.length) >= 0.6
+    }
+    g.doppelt = liste.some((h) => h !== g && (
+      (String(h.datum).slice(0, 10) === String(g.datum).slice(0, 10) && Math.abs(h.betrag - g.betrag) < 0.01) ||
+      (gesamtLaut(g) && gesamtLaut(g) === gesamtLaut(h)) || aehnlich(h)))
     // Jahr vermutlich falsch gelesen: Beleg älter als 18 Monate oder in der Zukunft
     const alter = (Date.now() - new Date(g.datum).getTime()) / 86400000
     g.datumPruefen = !(alter >= -1 && alter <= 548)
@@ -69,7 +82,7 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
         </div>
         {doppelte > 0 && (
           <div className="rounded-xl px-3 py-2 text-xs border bg-ember/10 text-ember border-ember/25 flex gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" /> {doppelte} Belege haben am selben Tag den gleichen Betrag. Bitte prüfen, ob einer doppelt gescannt wurde.
+            <AlertTriangle className="w-4 h-4 shrink-0" /> {doppelte} Belege ähneln sich stark (gleicher Betrag oder fast dieselben Positionen). Bitte prüfen, ob einer doppelt gescannt wurde.
           </div>
         )}
         {belege.length > 0 && (
