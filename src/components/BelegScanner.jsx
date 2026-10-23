@@ -3,6 +3,7 @@ import { Camera, ImagePlus, ScanLine, RotateCcw, X, Plus } from 'lucide-react'
 import { ladeBild, dateiAlsDataUrl, verkleinern, entzerren, verbessern, eckenFinden, dokumentFilter } from '../lib/scan'
 import { belegLesen } from '../lib/ai'
 import { parseBetrag } from '../lib/abrechnung'
+import Vollbild from './Vollbild'
 
 const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 
@@ -22,6 +23,7 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
   const [ergebnis, setErgebnis] = useState('')
   const [fassungen, setFassungen] = useState(null) // { dokument, farbe } – zwischen beiden umschaltbar
   const [modus, setModus] = useState('dokument')
+  const [gross, setGross] = useState(false)
   const [busy, setBusy] = useState('')
   const kamera = useRef(null), galerie = useRef(null), bild = useRef(null), svg = useRef(null)
   // Ziehen ohne React-Neuzeichnen: Positionen in einer Ref, SVG direkt aktualisieren
@@ -189,7 +191,11 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
         </>
       ) : (
         <>
-          <img src={ergebnis} alt="Beleg" className="w-full max-h-[45dvh] object-contain rounded-xl bg-black/40 border border-white/20" />
+          <button onClick={() => setGross(true)} className="block w-full relative">
+            <img src={ergebnis} alt="Beleg" className="w-full max-h-[45dvh] object-contain rounded-xl bg-black/40 border border-white/20" />
+            <span className="absolute bottom-2 right-2 text-xs bg-black/70 text-white rounded-full px-2.5 py-1">Antippen zum Vergrößern</span>
+          </button>
+          {gross && <Vollbild src={ergebnis} onClose={() => setGross(false)} />}
           <div className="flex items-center justify-between gap-2">
             <button onClick={() => setErgebnis('')} className="text-amber text-xs">Zuschnitt ändern</button>
             {fassungen && (

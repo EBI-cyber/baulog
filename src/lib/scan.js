@@ -213,7 +213,7 @@ export function eckenFinden(canvas) {
 // 1. Helligkeitsverlauf des Papiers schätzen (Schrift per Maximum-Filter entfernen, dann weichzeichnen)
 // 2. jedes Pixel durch diesen Hintergrund teilen → gleichmäßig weißes Papier, Schatten verschwinden
 // 3. Graustufen mit kräftiger Kontrastkurve → dunkle, scharfe Schrift, keine Farbstiche
-export function dokumentFilter(canvas) {
+export function dokumentFilter(canvas, S = 8, perz = 0.95) {
   const W = canvas.width, H = canvas.height
   const ctx = canvas.getContext('2d')
   const img = ctx.getImageData(0, 0, W, H)
@@ -221,7 +221,7 @@ export function dokumentFilter(canvas) {
   const lum = new Float32Array(W * H)
   for (let i = 0; i < W * H; i++) lum[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]
   // Hintergrund auf grobem Raster schätzen
-  const S = 16
+  // S: Rastergröße der Hintergrundschätzung (fein genug, um harten Schattenkanten wie einer Hand zu folgen)
   const gw = Math.ceil(W / S), gh = Math.ceil(H / S)
   let g = new Float32Array(gw * gh)
   for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
@@ -229,7 +229,7 @@ export function dokumentFilter(canvas) {
     const werte = []
     for (let y = gy * S; y < Math.min(H, gy * S + S); y += 2) for (let x = gx * S; x < Math.min(W, gx * S + S); x += 2) werte.push(lum[y * W + x])
     werte.sort((a, b) => a - b)
-    g[gy * gw + gx] = werte[Math.floor(werte.length * 0.9)] || 255
+    g[gy * gw + gx] = werte[Math.floor(werte.length * perz)] || 255
   }
   // Maximum-Filter (Schrift und Linien größerer Zellen entfernen), dann zweimal glätten
   const filter = (src, fn) => {
