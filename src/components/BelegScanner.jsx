@@ -7,6 +7,7 @@ import { parseBetrag } from '../lib/abrechnung'
 // Beleg fotografieren → KI findet Ecken und liest Lieferant/Datum/Betrag → Ecken prüfen → entzerrt speichern
 export default function BelegScanner({ onFertig, onAbbrechen }) {
   const [quelle, setQuelle] = useState(null) // Canvas des verkleinerten Fotos
+  const [vorschau, setVorschau] = useState('') // Bild-URL dazu, einmal erzeugt (nicht bei jedem Ziehen neu)
   const [ecken, setEcken] = useState(null)
   const [daten, setDaten] = useState({ lieferant: '', datum: '', betrag: '', beschreibung: '' })
   const [ergebnis, setErgebnis] = useState('')
@@ -21,7 +22,7 @@ export default function BelegScanner({ onFertig, onAbbrechen }) {
     setBusy('Lade Foto …')
     try {
       const c = verkleinern(await ladeBild(await dateiAlsDataUrl(f)), 1600)
-      setQuelle(c); setErgebnis('')
+      setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85)); setErgebnis('')
       const W = c.width, H = c.height
       // Ecken zuerst per Bildanalyse (Papier vor dunklerem Untergrund), sonst übernimmt die KI
       const gefunden = eckenFinden(c)
@@ -81,16 +82,25 @@ export default function BelegScanner({ onFertig, onAbbrechen }) {
     <div className="space-y-3">
       {!ergebnis ? (
         <>
-          <div className="text-white/75 text-xs">Die Ecken an die Belegkanten ziehen, dann „Zuschneiden“.</div>
-          <div className="relative select-none touch-none" onPointerMove={(ev) => { if (ziehe >= 0) { const p = punkt(ev); setEcken((e) => e.map((q, i) => (i === ziehe ? p : q))) } }}
+          <div className="text-white/75 text-xs">Tippe neben eine Ecke und zieh sie an die Belegkante, dann „Zuschneiden“.</div>
+          <div className="relative select-none touch-none"
+            onPointerDown={(ev) => {
+              // irgendwo tippen: die nächstgelegene Ecke wird gegriffen (große Trefferfläche auf dem Handy)
+              const p = punkt(ev)
+              let best = 0
+              ecken.forEach((q, i) => { if (Math.hypot(q.x - p.x, q.y - p.y) < Math.hypot(ecken[best].x - p.x, ecken[best].y - p.y)) best = i })
+              ev.currentTarget.setPointerCapture?.(ev.pointerId)
+              setZiehe(best); setEcken((e) => e.map((q, i) => (i === best ? p : q)))
+            }}
+            onPointerMove={(ev) => { if (ziehe >= 0) { const p = punkt(ev); setEcken((e) => e.map((q, i) => (i === ziehe ? p : q))) } }}
             onPointerUp={() => setZiehe(-1)} onPointerLeave={() => setZiehe(-1)}>
-            <img ref={bild} src={quelle.toDataURL('image/jpeg', 0.85)} alt="" className="w-full rounded-xl" draggable={false} />
+            <img ref={bild} src={vorschau} alt="" className="w-full rounded-xl" draggable={false} />
             {ecken && (
               <svg viewBox={'0 0 ' + quelle.width + ' ' + quelle.height} className="absolute inset-0 w-full h-full">
                 <polygon points={ecken.map((p) => p.x + ',' + p.y).join(' ')} fill="rgba(245,158,11,0.15)" stroke="#f59e0b" strokeWidth={quelle.width / 200} />
                 {ecken.map((p, i) => (
                   <circle key={i} cx={p.x} cy={p.y} r={quelle.width / 28} fill="rgba(245,158,11,0.9)" stroke="#fff" strokeWidth={quelle.width / 300}
-                    style={{ cursor: 'grab' }} onPointerDown={(ev) => { ev.preventDefault(); ev.currentTarget.ownerSVGElement.parentNode.setPointerCapture?.(ev.pointerId); setZiehe(i) }} />
+                    style={{ pointerEvents: 'none' }} />
                 ))}
               </svg>
             )}
