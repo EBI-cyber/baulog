@@ -21,6 +21,7 @@ import IconChip from '../ui/IconChip'
 import ProjektSheet from '../components/ProjektSheet'
 import BelegScanner from '../components/BelegScanner'
 import Vollbild from '../components/Vollbild'
+import BelegeSheet, { belegeAus } from '../components/BelegeSheet'
 import { useCloudRefresh } from '../lib/useCloudRefresh'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
@@ -927,6 +928,7 @@ export default function ProjektDetail() {
   const { user } = useAuth()
   const [team, setTeam] = useState(false)
   const [bearbeiten, setBearbeiten] = useState(false)
+  const [belegeOffen, setBelegeOffen] = useState(false)
   const [allowedGewerke, setAllowedGewerke] = useState([])
   const [projekt, setProjekt] = useState(null)
   const [eintraege, setEintraege] = useState([])
@@ -1163,6 +1165,21 @@ export default function ProjektDetail() {
                   <span className="text-amber text-xs font-semibold shrink-0">Zahlung eintragen</span>
                 </button>
               )}
+              {(() => {
+                const bl = belegeAus(eintraege)
+                if (!bl.length) return null
+                const doppelt = bl.some((b) => b.doppelt)
+                return (
+                  <button onClick={() => setBelegeOffen(true)} className="w-full glass card-hover rounded-2xl p-3 flex items-center gap-3 text-left">
+                    <IconChip icon={Package} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-white/70 text-xs">Materialbelege · {bl.length} {bl.length === 1 ? 'Beleg' : 'Belege'}</div>
+                      <div className="font-bold">{euro(bl.reduce((a, b) => a + b.betrag, 0))}{doppelt && <span className="text-ember text-xs font-semibold ml-2">möglicherweise doppelt</span>}</div>
+                    </div>
+                    <span className="text-amber text-xs font-semibold shrink-0">Ansehen</span>
+                  </button>
+                )
+              })()}
             </>
           )}
 
@@ -1282,6 +1299,14 @@ export default function ProjektDetail() {
       {nachtrag && (
         <NachtragSheet s={s} defaultGewerk={gewerk} gewerkeList={gewerkeList} onClose={() => setNachtrag(false)}
           onSave={async (entries) => { for (const e of entries) await addEintrag({ projektId: Number(id), ...e }); setNachtrag(false); await load() }} />
+      )}
+
+      {belegeOffen && (
+        <BelegeSheet eintraege={eintraege} onClose={() => setBelegeOffen(false)} onDelete={async (liste) => {
+          await sicherungAnlegen('Vor dem Löschen eines Belegs')
+          for (const e of liste) await deleteEintrag(e.id)
+          setEintraege(await listEintraege(id))
+        }} />
       )}
 
       {bearbeiten && (
