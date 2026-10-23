@@ -6,6 +6,13 @@ const hh = (min) => ((Number(min) || 0) / 60).toLocaleString('de-DE', { maximumF
 const num = (n) => (Number(n) || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 })
 const dmy = (d) => { try { return new Date(d).toLocaleDateString('de-DE') } catch { return '' } }
 const hm = (d) => { try { return new Date(d).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) } catch { return '' } }
+const tagLang = (d) => { try { return new Date(d).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }) } catch { return dmy(d) } }
+
+// Farbwelt (BauLog: Amber → Ember), dezent für Druck
+const C = {
+  text: [28, 25, 23], grau: [120, 113, 108], hell: [168, 162, 158], linie: [231, 229, 228],
+  flaeche: [247, 245, 242], amber: [245, 158, 11], ember: [239, 68, 68], pill: [254, 243, 199], pillText: [146, 64, 14],
+}
 
 export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   const mitKosten = opts.mitKosten !== false
@@ -15,29 +22,55 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   const M = 48, R = 547
   let y = 56
   const line = () => { doc.setDrawColor(210).line(M, y, R, y); y += 14 }
-  const need = (h) => { if (y + h > 800) { doc.addPage(); y = 56 } }
+  const need = (h) => { if (y + h > 785) { doc.addPage(); y = 56 } }
 
-  // Kopf
-  // Firmenkopf nur, wenn Firmendaten eingetragen sind (sonst stand „Leistungsnachweis“ doppelt da)
-  if (s.company) { doc.setFont('helvetica', 'bold').setFontSize(18).text(s.company, M, y); y += 16 }
-  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(90)
-  ;[s.owner, s.street, [s.zip, s.city].filter(Boolean).join(' '), s.taxId ? 'Steuernr.: ' + s.taxId : '']
-    .filter(Boolean).forEach((t) => { doc.text(String(t), M, y); y += 12 })
-  doc.setTextColor(0)
+  const farbe = (c) => doc.setTextColor(c[0], c[1], c[2])
+  const fuell = (c) => doc.setFillColor(c[0], c[1], c[2])
+  const strich = (c) => doc.setDrawColor(c[0], c[1], c[2])
+  // Abschnittsüberschrift mit kleinem Farbbalken
+  const abschnitt = (titel) => {
+    need(34); y += 6
+    fuell(C.amber); doc.rect(M, y - 9, 3, 12, 'F')
+    doc.setFont('helvetica', 'bold').setFontSize(11.5); farbe(C.text); doc.text(titel, M + 9, y)
+    y += 14
+  }
 
-  y += s.company ? 14 : 0
-  const titel = mitKosten && opts.abschnittNr != null ? 'Abschlagsrechnung Nr. ' + opts.abschnittNr : 'Leistungsnachweis'
-  doc.setFont('helvetica', 'bold').setFontSize(15).text(titel, M, y)
-  doc.setFont('helvetica', 'normal').setFontSize(10)
-  y += 20
-  doc.text('Projekt: ' + (projekt.name || ''), M, y); y += 14
-  if (projekt.customer) { doc.text('Kunde: ' + projekt.customer, M, y); y += 14 }
-  if (projekt.address) { doc.text('Adresse: ' + projekt.address, M, y); y += 14 }
+  // Farbband oben
+  fuell(C.amber); doc.rect(0, 0, 595.28, 6, 'F')
+  fuell(C.ember); doc.rect(0, 6, 595.28, 1.5, 'F')
+
+  // Kopf: Titel links, Firma rechts
+  y = 58
+  const titel = mitKosten && opts.abschnittNr != null ? 'Abschlagsrechnung' : 'Leistungsnachweis'
+  doc.setFont('helvetica', 'bold').setFontSize(8.5); farbe(C.amber)
+  doc.text((mitKosten && opts.abschnittNr != null ? 'ABSCHLAG NR. ' + opts.abschnittNr : 'NACHWEIS') + '  ·  ' + String(projekt.name || '').toUpperCase(), M, y - 16)
+  doc.setFont('helvetica', 'bold').setFontSize(22); farbe(C.text); doc.text(titel, M, y + 4)
+  let fy = y - 16
+  if (s.company) { doc.setFont('helvetica', 'bold').setFontSize(11); farbe(C.text); doc.text(s.company, R, fy, { align: 'right' }); fy += 13 }
+  doc.setFont('helvetica', 'normal').setFontSize(8.5); farbe(C.grau)
+  ;[s.owner, s.street, [s.zip, s.city].filter(Boolean).join(' '), s.taxId ? 'Steuernr. ' + s.taxId : '']
+    .filter(Boolean).forEach((t) => { doc.text(String(t), R, fy, { align: 'right' }); fy += 11 })
+  y = Math.max(y + 22, fy + 6)
+
+  // Infobox: Projektangaben in zwei Spalten
   const dates = eintraege.map((e) => e.createdAt).filter(Boolean).sort()
-  // Leistungszeitraum = erster bis letzter Arbeitstag der enthaltenen Einträge
-  if (dates.length) { doc.text('Leistungszeitraum: ' + dmy(dates[0]) + ' – ' + dmy(dates[dates.length - 1]), M, y); y += 14 }
-  doc.text('Erstellt: ' + dmy(new Date().toISOString()), M, y); y += 8
-  line()
+  const links = [['Projekt', projekt.name], ['Kunde', projekt.customer], ['Adresse', projekt.address]].filter((x) => x[1])
+  const rechts = [
+    dates.length ? ['Leistungszeitraum', dmy(dates[0]) + ' – ' + dmy(dates[dates.length - 1])] : null,
+    ['Erstellt', dmy(new Date().toISOString())],
+    mitKosten && opts.abschnittNr != null ? ['Abschlag', 'Nr. ' + opts.abschnittNr] : null,
+  ].filter(Boolean)
+  const zeilen = Math.max(links.length, rechts.length)
+  const boxH = 16 + zeilen * 24
+  fuell(C.flaeche); doc.roundedRect(M, y, R - M, boxH, 6, 6, 'F')
+  const feld = (x, yy, label, wert) => {
+    doc.setFont('helvetica', 'normal').setFontSize(7.5); farbe(C.grau); doc.text(String(label).toUpperCase(), x, yy)
+    doc.setFont('helvetica', 'bold').setFontSize(10); farbe(C.text); doc.text(String(wert), x, yy + 11)
+  }
+  links.forEach((f, k) => feld(M + 14, y + 18 + k * 24, f[0], f[1]))
+  rechts.forEach((f, k) => feld(M + (R - M) / 2 + 8, y + 18 + k * 24, f[0], f[1]))
+  y += boxH + 14
+  farbe(C.text); doc.setFont('helvetica', 'normal')
 
   // Tagesbericht: je Arbeitstag die Zeiten, darunter die ausgeführten Arbeiten aus dem Bautagebuch,
   // rechts die Stunden des Tages – statt Zeiterfassung und Bautagebuch getrennt aufzulisten
@@ -46,7 +79,7 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   const diaryEntries = eintraege.filter((e) => e.type === 'tagebuch' && e.text)
   const tage = [...new Set([...zeitEntries.map((e) => tagKey(e.startAt || e.createdAt)), ...diaryEntries.map((e) => tagKey(e.createdAt))])].sort()
   if (tage.length) {
-    need(30); doc.setFont('helvetica', 'bold').setFontSize(11).text('Tagesbericht', M, y); y += 16
+    abschnitt('Tagesbericht')
     tage.forEach((t) => {
       const zeiten = zeitEntries.filter((e) => tagKey(e.startAt || e.createdAt) === t)
         .sort((a, b) => String(a.startAt || a.createdAt).localeCompare(String(b.startAt || b.createdAt)))
@@ -62,13 +95,18 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
       }).join('   ·   ')
       const zeitLines = zeitText ? doc.setFontSize(9).splitTextToSize(zeitText, R - M) : []
       const textLines = texte.length ? doc.setFontSize(9.5).splitTextToSize(texte.map((e) => e.text.trim()).join(' '), R - M) : []
-      need(18 + zeitLines.length * 11 + textLines.length * 12 + 10)
-      doc.setFont('helvetica', 'bold').setFontSize(10).text(dmy(t), M, y)
-      if (minuten) doc.text(hh(minuten), R, y, { align: 'right' })
+      need(22 + zeitLines.length * 11 + textLines.length * 12 + 12)
+      doc.setFont('helvetica', 'bold').setFontSize(10); farbe(C.text); doc.text(tagLang(t), M, y)
+      if (minuten) {
+        // Stunden des Tages als Plakette rechts
+        const txt = hh(minuten), w = doc.getTextWidth(txt) + 14
+        fuell(C.pill); doc.roundedRect(R - w, y - 10, w, 14, 7, 7, 'F')
+        farbe(C.pillText); doc.text(txt, R - w / 2, y, { align: 'center' })
+      }
       y += 13
-      if (zeitLines.length) { doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(90); doc.text(zeitLines, M, y); y += zeitLines.length * 11; doc.setTextColor(0) }
-      if (textLines.length) { doc.setFont('helvetica', 'normal').setFontSize(9.5); y += 2; doc.text(textLines, M, y); y += textLines.length * 12 }
-      y += 6; doc.setDrawColor(230).line(M, y - 3, R, y - 3); y += 6
+      if (zeitLines.length) { doc.setFont('helvetica', 'normal').setFontSize(8.5); farbe(C.grau); doc.text(zeitLines, M, y); y += zeitLines.length * 11 }
+      if (textLines.length) { doc.setFont('helvetica', 'normal').setFontSize(9.5); farbe(C.text); y += 2; doc.text(textLines, M, y, { lineHeightFactor: 1.25 }); y += textLines.length * 12 }
+      y += 7; strich(C.linie); doc.setLineWidth(0.5).line(M, y - 3, R, y - 3); y += 9
     })
     doc.setFont('helvetica', 'normal'); y += 4
   }
@@ -103,12 +141,14 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
 
   // Spalten: Leistung | Menge | Stunden | EP (€/Einh) | Selbstkosten – je Gewerk ein Block mit Zwischensumme
   const cMenge = 248, cStd = 312, cEP = 372
-  doc.setFont('helvetica', 'bold').setFontSize(11).text('Ausgeführte Leistungen', M, y); y += 16
-  doc.setFontSize(9)
+  abschnitt('Ausgeführte Leistungen')
   const nurGewerke = opts.detail === 'gewerk'
-  doc.text(nurGewerke ? 'Gewerk' : 'Leistung', M, y); if (!nurGewerke) doc.text('Menge', cMenge, y); doc.text('Stunden', cStd, y)
-  if (mitKosten) { if (!nurGewerke) doc.text('EP €/Einh.', cEP, y); doc.text(nurGewerke ? 'Betrag' : 'Selbstkosten', R, y, { align: 'right' }) }
-  doc.setFont('helvetica', 'normal'); y += 4; line()
+  // Tabellenkopf als helles Band
+  fuell(C.flaeche); doc.rect(M, y - 10, R - M, 16, 'F')
+  doc.setFont('helvetica', 'bold').setFontSize(7.5); farbe(C.grau)
+  doc.text(nurGewerke ? 'GEWERK' : 'LEISTUNG', M + 6, y); if (!nurGewerke) doc.text('MENGE', cMenge, y); doc.text('STUNDEN', cStd, y)
+  if (mitKosten) { if (!nurGewerke) doc.text('EP €/EINH.', cEP, y); doc.text(nurGewerke ? 'BETRAG' : 'SELBSTKOSTEN', R - 6, y, { align: 'right' }) }
+  farbe(C.text); doc.setFont('helvetica', 'normal'); y += 18
 
   let sumMin = 0, sumCost = 0
   const gewerke = [...new Set(rows.map((g) => g.gewerk || ''))]
@@ -118,15 +158,15 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
     const blockMin = block.reduce((a, g) => a + g.minAnzeige, 0)
     const blockCost = block.reduce((a, g) => a + kosten(g), 0)
     need(34)
-    doc.setFont('helvetica', 'bold').setFontSize(9.5)
-    doc.text(gw || 'Ohne Gewerk', M, y)
+    doc.setFont('helvetica', 'bold').setFontSize(9.5); farbe(C.text)
+    doc.text(gw || 'Ohne Gewerk', M + 6, y)
     if (blockMin) doc.text(hh(blockMin), cStd, y)
-    if (mitKosten) doc.text(eur(blockCost), R, y, { align: 'right' })
+    if (mitKosten) doc.text(eur(blockCost), R - 6, y, { align: 'right' })
     doc.setFont('helvetica', 'normal').setFontSize(9); y += 14
     // „Nur Gewerke“: Einzelleistungen nicht aufführen, die Gewerkzeile enthält Stunden und Betrag
     if (nurGewerke) {
       block.forEach((g) => { sumMin += g.minAnzeige; sumCost += kosten(g) })
-      y -= 2
+      strich(C.linie); doc.setLineWidth(0.5).line(M, y - 9, R, y - 9); y += 4
       return
     }
     block.forEach((g) => {
@@ -136,54 +176,62 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
       const total = kosten(g)
       const ep = g.menge > 0 ? total / g.menge : null
       sumMin += g.minAnzeige; sumCost += total
-      doc.setTextColor(60)
-      doc.text(nameLines, M + 12, y)
+      farbe(C.grau)
+      doc.text(nameLines, M + 18, y)
       doc.text(g.menge ? num(g.menge) + ' ' + (g.einheit || '') : '–', cMenge, y)
       doc.text(g.minAnzeige ? hh(g.minAnzeige) : '–', cStd, y)
       if (mitKosten) {
         doc.text(ep != null ? eur(ep).replace(' EUR', '') + (g.einheit ? '/' + g.einheit : '') : '–', cEP, y)
-        doc.text(eur(total), R, y, { align: 'right' })
+        doc.text(eur(total), R - 6, y, { align: 'right' })
       }
-      doc.setTextColor(0)
+      farbe(C.text)
       y += Math.max(14, nameLines.length * 11 + 4)
     })
     y += 4
   })
-  y += 2; line()
-  doc.setFont('helvetica', 'bold').setFontSize(10)
-  doc.text('Summe Stunden: ' + hh(sumMin), M, y)
-  if (mitKosten) doc.text('Selbstkosten gesamt: ' + eur(sumCost), R, y, { align: 'right' })
-  doc.setFont('helvetica', 'normal'); y += 18
+  // Summenzeile
+  need(24)
+  strich(C.text); doc.setLineWidth(0.8).line(M, y - 6, R, y - 6); y += 8
+  doc.setFont('helvetica', 'bold').setFontSize(10); farbe(C.text)
+  doc.text('Summe', M + 6, y); doc.text(hh(sumMin), cStd, y)
+  if (mitKosten) doc.text(eur(sumCost), R - 6, y, { align: 'right' })
+  doc.setFont('helvetica', 'normal'); doc.setLineWidth(0.5); y += 22
 
   // Abrechnungs-Abschnitt: Verrechnung mit Saldo aus dem vorherigen Abschnitt
   if (mitKosten && opts.abschnittNr != null) {
-    need(90)
-    doc.setFont('helvetica', 'bold').setFontSize(11).text('Abrechnung — Abschlag Nr. ' + opts.abschnittNr, M, y); y += 16
-    doc.setFont('helvetica', 'normal').setFontSize(9.5)
-    doc.text('Leistungen dieses Abschlags', M, y); doc.text(eur(sumCost), R, y, { align: 'right' }); y += 14
+    need(105)
+    abschnitt('Abrechnung')
+    const boxY = y - 4
+    y += 12
+    doc.setFont('helvetica', 'normal').setFontSize(9.5); farbe(C.text)
+    doc.text('Leistungen dieses Abschlags', M + 14, y); doc.text(eur(sumCost), R - 14, y, { align: 'right' }); y += 14
     const vs = Number(opts.vorherigerSaldo) || 0
     const va = opts.vorherigerAbschlag
     if (vs !== 0) {
       const nr = va && va.nr != null ? va.nr : opts.abschnittNr - 1
       // Herleitung des Übertrags, damit der Kunde sieht, was schon gezahlt wurde
+      doc.text(vs > 0 ? 'Noch offen aus Abschlag ' + nr : 'Guthaben aus Abschlag ' + nr, M + 14, y)
+      doc.text((vs > 0 ? '+ ' : '- ') + eur(Math.abs(vs)), R - 14, y, { align: 'right' }); y += 12
       if (va) {
-        doc.setTextColor(110)
-        doc.text('Abschlag ' + nr + ': berechnet ' + eur(va.gesamtbetrag) + ', gezahlt ' + eur(va.bezahlt), M, y); y += 13
-        doc.setTextColor(0)
+        doc.setFontSize(8.5); farbe(C.grau)
+        doc.text('Abschlag ' + nr + ': berechnet ' + eur(va.gesamtbetrag) + ', gezahlt ' + eur(va.bezahlt), M + 14, y); y += 12
+        doc.setFontSize(9.5); farbe(C.text)
       }
-      doc.text(vs > 0 ? 'Noch offen aus Abschlag ' + nr : 'Guthaben aus Abschlag ' + nr, M, y)
-      doc.text((vs > 0 ? '+ ' : '- ') + eur(Math.abs(vs)), R, y, { align: 'right' }); y += 14
     }
-    line()
-    doc.setFont('helvetica', 'bold').setFontSize(10.5)
-    doc.text(vs !== 0 ? 'Zu zahlen nach Verrechnung' : 'Zu zahlen', M, y); doc.text(eur(sumCost + vs), R, y, { align: 'right' }); y += 18
-    doc.setFont('helvetica', 'normal')
+    // „Zu zahlen“ als hervorgehobene Leiste
+    y += 6
+    fuell(C.pill); doc.roundedRect(M + 6, y - 13, R - M - 12, 24, 5, 5, 'F')
+    doc.setFont('helvetica', 'bold').setFontSize(11.5); farbe(C.pillText)
+    doc.text(vs !== 0 ? 'Zu zahlen nach Verrechnung' : 'Zu zahlen', M + 16, y + 3); doc.text(eur(sumCost + vs), R - 16, y + 3, { align: 'right' })
+    y += 22
+    strich(C.linie); doc.setLineWidth(0.8).roundedRect(M, boxY, R - M, y - boxY, 6, 6, 'S'); doc.setLineWidth(0.5)
+    y += 14; farbe(C.text); doc.setFont('helvetica', 'normal')
   }
 
   // Fotos
   const fotos = eintraege.filter((e) => e.type === 'foto' && e.dataUrl).slice(0, 8)
   if (fotos.length) {
-    need(30); doc.setFont('helvetica', 'bold').setFontSize(11).text('Fotodokumentation', M, y); y += 16
+    abschnitt('Fotodokumentation')
     const w = 150, h = 110, gap = 12
     let x = M
     fotos.forEach((e) => {
@@ -198,9 +246,12 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   // Fußzeile auf jeder Seite
   const pages = doc.getNumberOfPages()
   for (let i = 1; i <= pages; i++) {
-    doc.setPage(i); doc.setFontSize(7).setTextColor(140)
-    doc.text('Erstellt mit BauLog · ' + dmy(new Date().toISOString()) + ' · Seite ' + i + '/' + pages, M, 812)
-    doc.setTextColor(0)
+    doc.setPage(i)
+    strich(C.linie); doc.setLineWidth(0.5).line(M, 800, R, 800)
+    doc.setFont('helvetica', 'normal').setFontSize(7.5); farbe(C.hell)
+    doc.text([s.company, projekt.name, projekt.customer].filter(Boolean).join('  ·  '), M, 812)
+    doc.text('Seite ' + i + ' von ' + pages, R, 812, { align: 'right' })
+    farbe(C.text)
   }
   return doc
 }
