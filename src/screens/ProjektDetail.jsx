@@ -1383,7 +1383,14 @@ export default function ProjektDetail() {
       )}
 
       {belegeOffen && (
-        <BelegeSheet eintraege={eintraege} projektName={projekt.name} verschleissProzent={s.verschleissProzent ?? 25}
+        <BelegeSheet eintraege={eintraege} projektName={projekt.name} projektToken={projekt.token}
+          onRestore={async (e) => {
+            // als neuen Eintrag anlegen (neues Token), damit eine noch offene Löschung ihn nicht wieder entfernt
+            const { id: _id, token: _t, synced: _s, abschlagToken: _a, ...rest } = e
+            await addEintrag({ ...rest, projektId: Number(id) })
+            setEintraege(await listEintraege(id))
+          }}
+          verschleissProzent={s.verschleissProzent ?? 25}
           onUpdate={async (e, patch) => { await updateEintrag(e.id, patch); setEintraege(await listEintraege(id)) }} onClose={() => setBelegeOffen(false)} onDelete={async (liste) => {
           await sicherungAnlegen('Vor dem Löschen eines Belegs')
           for (const e of liste) await deleteEintrag(e.id)
