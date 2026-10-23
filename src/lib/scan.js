@@ -171,7 +171,30 @@ export function eckenFinden(canvas) {
       const nb = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]
       for (const j of nb) if (j >= 0 && lum[j] > schwelle && markiert[j] < 0) { markiert[j] = start; stapel[top++] = j }
     }
-    if (!groesste || n > groesste.n) groesste = { n, pts }
+    if (!groesste || n > groesste.n) groesste = { n, pts, start }
+  }
+  // Hysterese: von der gefundenen Fläche aus auch etwas dunklere Papierstellen (Schatten, Falz) mitnehmen,
+  // damit Ecken im Schatten nicht nach innen rutschen
+  if (groesste) {
+    let sB = 0, nB = 0
+    for (let i = 0; i < w * h; i++) if (lum[i] <= schwelle) { sB += lum[i]; nB++ }
+    const weich = nB ? sB / nB + 0.5 * (schwelle - sB / nB) : schwelle
+    const drin = new Uint8Array(w * h)
+    let n = 0, top = 0
+    stapel[top++] = groesste.start; drin[groesste.start] = 1
+    const pts = { tl: [0, 0, Infinity], tr: [0, 0, -Infinity], br: [0, 0, -Infinity], bl: [0, 0, Infinity] }
+    while (top) {
+      const i = stapel[--top]; n++
+      const x = i % w, y = (i / w) | 0
+      if (x + y < pts.tl[2]) pts.tl = [x, y, x + y]
+      if (x + y > pts.br[2]) pts.br = [x, y, x + y]
+      if (x - y > pts.tr[2]) pts.tr = [x, y, x - y]
+      if (x - y < pts.bl[2]) pts.bl = [x, y, x - y]
+      const nb = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]
+      for (const j of nb) if (j >= 0 && lum[j] > weich && !drin[j]) { drin[j] = 1; stapel[top++] = j }
+    }
+    // nur übernehmen, wenn das weichere Wachsen nicht in den Untergrund ausläuft
+    if (n < groesste.n * 1.2) groesste = { n, pts, start: groesste.start }
   }
   // nur verwenden, wenn die Fläche plausibel groß ist und nicht das ganze Bild ausfüllt
   if (!groesste || groesste.n < w * h * 0.12 || groesste.n > w * h * 0.97) return null
