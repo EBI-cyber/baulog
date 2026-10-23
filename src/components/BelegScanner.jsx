@@ -23,7 +23,22 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
   const [busy, setBusy] = useState('')
   const kamera = useRef(null), galerie = useRef(null), bild = useRef(null), svg = useRef(null)
   // Ziehen ohne React-Neuzeichnen: Positionen in einer Ref, SVG direkt aktualisieren
-  const live = useRef(null), griff = useRef(null)
+  const live = useRef(null), griff = useRef(null), lupe = useRef(null)
+  // Lupe wie bei OneDrive: zeigt die Umgebung des gezogenen Punkts vergrößert mit Fadenkreuz
+  const LUPE = 120, ZOOM = 3
+  const lupeZeigen = (p) => {
+    const l = lupe.current, b = bild.current; if (!l || !b) return
+    const r = b.getBoundingClientRect(), f = r.width / quelle.width
+    const px = p.x * f, py = p.y * f
+    l.style.display = 'block'
+    l.style.backgroundSize = (r.width * ZOOM) + 'px ' + (r.height * ZOOM) + 'px'
+    l.style.backgroundPosition = (LUPE / 2 - px * ZOOM) + 'px ' + (LUPE / 2 - py * ZOOM) + 'px'
+    // Lupe in die gegenüberliegende obere Ecke, damit der Finger sie nicht verdeckt
+    const links = px > r.width / 2
+    l.style.left = links ? '8px' : (r.width - LUPE - 8) + 'px'
+    l.style.top = py < LUPE + 24 ? (r.height - LUPE - 8) + 'px' : '8px'
+  }
+  const lupeAus = () => { if (lupe.current) lupe.current.style.display = 'none' }
   const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
 
   const laden = async (ev) => {
@@ -70,6 +85,7 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
     ev.currentTarget.setPointerCapture?.(ev.pointerId)
     live.current = ecken.map((q) => ({ ...q }))
     griff.current = { i: best, start: p, basis: ecken.map((q) => ({ ...q })) }
+    lupeZeigen(g[best])
   }
   const bewegen = (ev) => {
     const gr = griff.current; if (!gr) return
@@ -83,8 +99,9 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
     }
     live.current = e
     zeichne(e)
+    lupeZeigen(gr.i < 4 ? e[gr.i] : mitte(e, gr.i - 4))
   }
-  const hoch = () => { if (griff.current) { setEcken(live.current); griff.current = null } }
+  const hoch = () => { lupeAus(); if (griff.current) { setEcken(live.current); griff.current = null } }
 
   // Zuschneiden, dann liest die KI den geraden, kontrastreichen Beleg (deutlich zuverlässiger als das Rohfoto)
   const zuschneiden = () => {
@@ -150,6 +167,11 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
                 ))}
               </svg>
             )}
+            <div ref={lupe} className="absolute pointer-events-none rounded-full border-2 border-amber shadow-2xl overflow-hidden"
+              style={{ display: 'none', width: LUPE, height: LUPE, backgroundImage: 'url(' + vorschau + ')', backgroundRepeat: 'no-repeat', backgroundColor: '#000' }}>
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-amber/90" />
+              <div className="absolute top-1/2 left-0 right-0 h-px bg-amber/90" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => { setQuelle(null); setEcken(null); setKi(null) }} className="rounded-2xl py-2.5 bg-white/10 inline-flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> Neues Foto</button>
