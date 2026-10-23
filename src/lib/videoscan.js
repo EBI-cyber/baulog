@@ -72,7 +72,19 @@ export function verschiebung(a, b, gx = 0, gy = 0, rx = 6, ry = 10) {
   if (!best) return null
   // eindeutig, wenn das Minimum deutlich unter dem Durchschnitt liegt
   best.eindeutig = anzahl > 4 && best.fehler < (summe / anzahl) * 0.8
+  // Treffer am Rand des Suchbereichs: das wahre Minimum liegt wahrscheinlich außerhalb
+  best.rand = Math.abs(best.dy - Math.round(gy)) >= ry || Math.abs(best.dx - Math.round(gx)) >= rx
   return best
+}
+
+// Bild um seine Mitte drehen (winkel im Bogenmaß, positiv = im Uhrzeigersinn), gleiche Größe, Ränder weiß
+export function drehen(quelle, winkel) {
+  const w = quelle.videoWidth || quelle.width, h = quelle.videoHeight || quelle.height
+  const c = document.createElement('canvas'); c.width = w; c.height = h
+  const x = c.getContext('2d')
+  x.fillStyle = '#fff'; x.fillRect(0, 0, w, h)
+  x.translate(w / 2, h / 2); x.rotate(winkel); x.drawImage(quelle, -w / 2, -h / 2)
+  return c
 }
 
 // Graustufen eines Bildbereichs (sx, sy, sw, sh in Pixeln der Quelle), auf Breite w skaliert
@@ -129,12 +141,26 @@ export function zusammensetzenUebersicht(abschnitte, uebersicht, WR, HO) {
   const breiten = a.map((x) => (x.r - x.l) * x.bild.width).sort((p, q) => p - q)
   const Wout = Math.round(Math.min(1100, breiten[Math.floor(breiten.length / 2)]))
   const s = Wout / WR, M = 400
-  const streifen = (x) => grauBereich(x.bild, x.l * x.bild.width, 0, (x.r - x.l) * x.bild.width, x.bild.height, M)
+  // Papierstreifen eines Abschnitts auf Breite M (f = Ausschnitt breiter/schmaler, d. h. Maßstab korrigieren)
+  const streifen = (x, f = 1) => {
+    const c = (x.l + x.r) / 2 * x.bild.width, b = (x.r - x.l) * f * x.bild.width
+    return grauBereich(x.bild, c - b / 2, 0, b, x.bild.height, M)
+  }
+  // Nachbarn in der Überlappung genau aufeinanderlegen: Lage, seitlicher Versatz und Maßstab.
+  // Die Lage aus der Übersicht ist nur auf wenige Pixel genau – das reicht nicht für saubere Nähte.
   for (let i = 1; i < a.length; i++) {
     const p = a[i - 1], q = a[i]
     if (q.y > p.y + p.hO * 0.85) continue // kaum Überlappung
-    const v = verschiebung(streifen(p), streifen(q), 0, (q.y - p.y) * M / WR, 5, 10)
-    if (v && v.eindeutig) { q.y = p.y + v.dy * WR / M; q.xoff = p.xoff + v.dx * Wout / M }
+    const A = streifen(p)
+    let best = null
+    for (const f of [0.97, 0.985, 1, 1.015, 1.03]) {
+      const v = verschiebung(A, streifen(q, f), 0, (q.y - p.y) * M / WR, 6, 16)
+      if (v && !v.rand && (!best || v.fehler < best.v.fehler)) best = { f, v }
+    }
+    if (!best) continue
+    const c = (q.l + q.r) / 2, b = (q.r - q.l) * best.f
+    q.l = c - b / 2; q.r = c + b / 2; q.hO /= best.f
+    q.y = p.y + best.v.dy * WR / M; q.xoff = p.xoff + best.v.dx * Wout / M
   }
   const out = document.createElement('canvas')
   out.width = Wout; out.height = Math.round(HO * s)
@@ -145,20 +171,22 @@ export function zusammensetzenUebersicht(abschnitte, uebersicht, WR, HO) {
     const k = x.hO / x.bild.height // Übersichtszeilen je Kamerapixel
     let oben = 0
     if (i) { const p = a[i - 1], ende = Math.min(p.y + p.hO, x.y + x.hO); if (ende > x.y) oben = ((x.y + ende) / 2 - x.y) / k }
-    const sx = x.l * x.bild.width, sw = (x.r - x.l) * x.bild.width
-    ctx.drawImage(x.bild, sx, oben, sw, x.bild.height - oben, Math.round(x.xoff), (x.y + oben * k) * s, Wout, (x.bild.height - oben) * k * s)
+    // an den Seiten 2 % weglassen, damit kein Untergrund vom Kamerabild stehen bleibt (dort bleibt das Übersichtsfoto)
+    const sw = (x.r - x.l) * x.bild.width * 0.96, sx = x.l * x.bild.width + sw * 0.02 / 0.96
+    ctx.drawImage(x.bild, sx, oben, sw, x.bild.height - oben, Math.round(x.xoff + Wout * 0.02), (x.y + oben * k) * s, Wout * 0.96, (x.bild.height - oben) * k * s)
   })
   return out
 }
 
 // Wo liegt das Papier im Bild? Spalten-Helligkeit im mittleren Bereich: Papier ist heller als der Untergrund.
 // Rückgabe { links, rechts } als Anteile der Bildbreite, oder null, wenn der Untergrund zu hell ist (kein Kontrast).
-export function papierSpalten(g) {
+// von/bis: ausgewerteter Höhenbereich (Anteile), z. B. oben und unten getrennt, um Schräglage zu erkennen.
+export function papierSpalten(g, von = 0.2, bis = 0.8) {
   const { w, h, d } = g
   const spalte = new Float32Array(w)
   for (let x = 0; x < w; x++) {
     let s = 0, n = 0
-    for (let y = Math.round(h * 0.2); y < h * 0.8; y += 2) { s += d[y * w + x]; n++ }
+    for (let y = Math.round(h * von); y < h * bis; y += 2) { s += d[y * w + x]; n++ }
     spalte[x] = s / n
   }
   let lo = 255, hi = 0
@@ -222,7 +250,7 @@ export function verfolger(uebersicht) {
   const WR = Math.min(200, uebersicht.width)
   const O = grau(uebersicht, WR), HO = O.h
   const bedeckt = new Uint8Array(HO)
-  const z = { f: 1, y: null, hO: 0, v: 0, unsicher: 9, lr: null, letzteSuche: -1e9, bestScharf: 0, abschnitte: [] }
+  const z = { winkel: 0, f: 1, y: null, hO: 0, v: 0, unsicher: 9, lr: null, letzteSuche: -1e9, bestScharf: 0, abschnitte: [] }
   // Papierbereich des Kamerabilds auf Übersichtsbreite bringen (f = Breite strecken/stauchen)
   const streifen = (q, lr, f = 1) => {
     const qw = q.videoWidth || q.width, qh = q.videoHeight || q.height
@@ -247,7 +275,18 @@ export function verfolger(uebersicht) {
   const bereich = (y, h) => [y <= h * 0.1 ? 0 : Math.max(0, Math.round(y + h * 0.08)), y + h >= HO - h * 0.1 ? HO : Math.min(HO, Math.round(y + h * 0.92))]
 
   function schritt(q, t, aufnehmen, vollbild) {
-    const g = grau(q, SPUR)
+    let g = grau(q, SPUR)
+    // Schräglage: Papiermitte oben und unten vergleichen; liegt der Beleg schräg im Bild, das Bild gerade drehen
+    const oben = papierSpalten(g, 0.15, 0.35), unten = papierSpalten(g, 0.65, 0.85)
+    if (oben && unten && Math.abs((oben.rechts - oben.links) - (unten.rechts - unten.links)) < 0.08 && oben.rechts - oben.links > 0.15) {
+      const dx = ((unten.links + unten.rechts) - (oben.links + oben.rechts)) / 2 * g.w, dy = 0.5 * g.h
+      z.winkel = z.winkel * 0.6 + Math.atan2(dx, dy) * 0.4
+    }
+    if (Math.abs(z.winkel) > 0.004) {
+      const gedreht = drehen(q, z.winkel)
+      q = gedreht; vollbild = () => gedreht
+      g = grau(q, SPUR)
+    }
     const s = schaerfe(g)
     z.bestScharf = Math.max(z.bestScharf * 0.995, s)
     const p = papierSpalten(g)
