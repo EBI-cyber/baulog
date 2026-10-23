@@ -60,10 +60,28 @@ export function belegeAus(eintraege) {
   return liste
 }
 
-export default function BelegeSheet({ eintraege, projektName, verschleissProzent = 25, onUpdate, onClose, onDelete }) {
+export default function BelegeSheet({ eintraege, projektName, projektToken, verschleissProzent = 25, onUpdate, onRestore, onClose, onDelete }) {
   const [gross, setGross] = useState('') // Bild-URL oder { src, markierung, titel }
   const [suche, setSuche] = useState('')
   const [nachscan, setNachscan] = useState(null) // Beleg, dessen Bild neu fotografiert wird
+  const [geloeschte, setGeloeschte] = useState(null) // gelöschte Material-Positionen aus den Sicherungen
+
+  // Material-Positionen dieses Projekts, die in einer Sicherung stehen, aber heute fehlen
+  const geloeschteSuchen = async () => {
+    setSuche('geloeschte')
+    try {
+      const jetzt = new Set(eintraege.map((e) => e.token))
+      const gefunden = new Map()
+      for (const s of await listeSicherungen()) {
+        const d = await sicherungLesen(s.id)
+        for (const e of (d && d.eintraege) || []) {
+          if (e.type === 'material' && e.projektToken === projektToken && e.token && !jetzt.has(e.token) && !gefunden.has(e.token)) gefunden.set(e.token, { e, wann: s.createdAt })
+        }
+      }
+      setGeloeschte([...gefunden.values()])
+    } catch (err) { alert(err && err.message ? err.message : String(err)) }
+    setSuche('')
+  }
   const [datumEdit, setDatumEdit] = useState('') // key des Belegs, dessen Datum gerade geändert wird
   const [verdacht, setVerdacht] = useState(null) // [{ e, grund }]
   const [busy, setBusy] = useState(false)
@@ -143,6 +161,33 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
             )}
           </div>
         )}
+        <div className="rounded-xl p-3 border border-white/20 bg-white/5 space-y-2">
+          {!geloeschte ? (
+            <button onClick={geloeschteSuchen} disabled={suche === 'geloeschte'} className="w-full rounded-xl py-2 text-sm font-semibold bg-white/10 disabled:opacity-50">
+              {suche === 'geloeschte' ? 'Suche in den Sicherungen …' : 'Gelöschte Positionen wiederfinden'}
+            </button>
+          ) : geloeschte.length === 0 ? (
+            <div className="text-white/70 text-sm">In den Sicherungen dieses Geräts gibt es keine gelöschten Material-Positionen.</div>
+          ) : (
+            <>
+              <div className="text-sm font-semibold">Gelöschte Positionen ({geloeschte.length})</div>
+              {geloeschte.map((g) => {
+                const voll = (Number(g.e.qty) || 0) * (Number(g.e.unitCost) || 0)
+                const fertig = (patch) => async () => { await onRestore({ ...g.e, ...patch }); setGeloeschte((l) => l.filter((x) => x !== g)) }
+                return (
+                  <div key={g.e.token} className="flex items-center gap-2 text-sm flex-wrap">
+                    <div className="flex-1 min-w-[10rem]">
+                      <div className="truncate">{g.e.label}</div>
+                      <div className="text-white/60 text-xs">{eur(voll)} · {g.e.note ? g.e.note.replace(/\s*·.*$/, '') : ''}</div>
+                    </div>
+                    <button onClick={fertig({ unitCost: 0, dataUrl: '', belegRoh: null, label: (g.e.label || '') + ' (privat, nicht berechnet: ' + eur(voll) + ')' })} className="text-xs px-2 py-1 rounded-lg btn-grad font-semibold">als privat dokumentieren</button>
+                    <button onClick={fertig({})} className="text-xs px-2 py-1 rounded-lg border border-white/20 text-white/75">normal zurückholen</button>
+                  </div>
+                )
+              })}
+            </>
+          )}
+        </div>
         {belege.length === 0 && <div className="text-white/70 text-sm">Noch keine Belege gescannt. Über die Kachel „Material“ geht es los.</div>}
         <div className="space-y-2">
           {belege.map((b, i) => (
