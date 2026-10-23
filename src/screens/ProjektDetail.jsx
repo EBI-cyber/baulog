@@ -227,10 +227,12 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-20" onClick={onClose}>
       <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[90dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
         <div className="text-lg font-bold flex items-center gap-2.5"><IconChip icon={TitleIcon} size="w-9 h-9" iconClass="w-[18px] h-[18px]" /> {title}</div>
+        {!(type === 'material' && scan) && (
         <select value={gewerk} onChange={(e) => changeGewerk(e.target.value)} className={inp}>
           {gewerkeOpts.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
-        {type !== 'tagebuch' && (
+        )}
+        {type !== 'tagebuch' && !(type === 'material' && scan) && (
           <select value={leistung} onChange={(e) => setLeistung(e.target.value)} className={inp}>
             <option value="">— allgemein —</option>
             {leistungen.map((l) => <option key={l.name} value={l.name}>{l.name} ({l.einheit})</option>)}
@@ -257,11 +259,20 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
           </div>
         )}
         {type === 'material' && scan && (
-          <BelegScanner onAbbrechen={() => setScan(false)} onFertig={(b) => {
-            setLabel([b.lieferant, b.beschreibung].filter(Boolean).join(' · ') || 'Materialbeleg')
-            setQty('1'); setUnitCost(String(b.betrag).replace('.', ',')); setDataUrl(b.dataUrl); setBelegDatum(b.datum || '')
-            setNote('Beleg' + (b.lieferant ? ' ' + b.lieferant : '') + (b.datum ? ' vom ' + new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : ''))
-            setScan(false)
+          <BelegScanner gewerke={gewerkeOpts} onAbbrechen={() => setScan(false)} onFertig={(b) => {
+            // jede Belegposition wird ein eigener Material-Eintrag; der erste trägt das Belegbild
+            const createdAt = b.datum ? new Date(b.datum + 'T12:00:00').toISOString() : new Date().toISOString()
+            const notiz = 'Beleg' + (b.lieferant ? ' ' + b.lieferant : '') + (b.datum ? ' vom ' + new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : '') +
+              ' · ' + b.betrag.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+            const pos = b.positionen.length ? b.positionen : [{ bezeichnung: b.lieferant || 'Materialbeleg', menge: 1, gesamt: b.betrag, gewerk }]
+            const summe = pos.reduce((a, p) => a + p.gesamt, 0)
+            if (Math.abs(summe - b.betrag) > 0.01) pos.push({ bezeichnung: 'Differenz laut Beleg', menge: 1, gesamt: Math.round((b.betrag - summe) * 100) / 100, gewerk: pos[0].gewerk || gewerk })
+            onSave(pos.map((p, i) => ({
+              type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt, note: notiz,
+              label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung,
+              qty: p.menge > 0 ? p.menge : 1, unitCost: Math.round((p.gesamt / (p.menge > 0 ? p.menge : 1)) * 10000) / 10000,
+              dataUrl: i === 0 ? b.dataUrl : '',
+            })))
           }} />
         )}
         {type === 'material' && !scan && (
