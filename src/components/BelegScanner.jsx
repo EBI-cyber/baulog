@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { Camera, ImagePlus, ScanLine, RotateCcw } from 'lucide-react'
-import { ladeBild, dateiAlsDataUrl, verkleinern, entzerren, verbessern } from '../lib/scan'
+import { ladeBild, dateiAlsDataUrl, verkleinern, entzerren, verbessern, eckenFinden } from '../lib/scan'
 import { belegLesen } from '../lib/ai'
 import { parseBetrag } from '../lib/abrechnung'
 
@@ -23,11 +23,13 @@ export default function BelegScanner({ onFertig, onAbbrechen }) {
       const c = verkleinern(await ladeBild(await dateiAlsDataUrl(f)), 1600)
       setQuelle(c); setErgebnis('')
       const W = c.width, H = c.height
-      setEcken([{ x: W * 0.05, y: H * 0.05 }, { x: W * 0.95, y: H * 0.05 }, { x: W * 0.95, y: H * 0.95 }, { x: W * 0.05, y: H * 0.95 }])
+      // Ecken zuerst per Bildanalyse (Papier vor dunklerem Untergrund), sonst übernimmt die KI
+      const gefunden = eckenFinden(c)
+      setEcken(gefunden || [{ x: W * 0.05, y: H * 0.05 }, { x: W * 0.95, y: H * 0.05 }, { x: W * 0.95, y: H * 0.95 }, { x: W * 0.05, y: H * 0.95 }])
       setBusy('KI sucht den Beleg …')
       try {
         const k = await belegLesen(c.toDataURL('image/jpeg', 0.8))
-        if (Array.isArray(k.ecken) && k.ecken.length === 4 && k.ecken.every((p) => p && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1)) {
+        if (!gefunden && Array.isArray(k.ecken) && k.ecken.length === 4 && k.ecken.every((p) => p && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1)) {
           setEcken(k.ecken.map((p) => ({ x: p.x * W, y: p.y * H })))
         }
         setDaten({
