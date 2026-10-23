@@ -80,7 +80,8 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
                   <div key={x.e.id} className="flex items-center gap-2 text-sm">
                     <button className="flex-1 min-w-0 text-left" title="Beleg mit markierter Position ansehen" onClick={async () => {
                       // zugehörigen Beleg finden und die Position darauf markieren lassen
-                      const b = belege.find((g) => g.eintraege.includes(x.e))
+                      // über die id suchen: nach Änderungen sind die Eintrags-Objekte neu
+                      const b = belege.find((g) => g.eintraege.some((e) => e.id === x.e.id))
                       if (!b || !b.bild) { alert('Zu dieser Position gibt es kein Belegbild.'); return }
                       setSuche(String(x.e.id))
                       let markierung = null
