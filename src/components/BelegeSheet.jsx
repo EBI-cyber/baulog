@@ -34,6 +34,7 @@ export function belegeAus(eintraege) {
 export default function BelegeSheet({ eintraege, projektName, verschleissProzent = 25, onUpdate, onClose, onDelete }) {
   const [gross, setGross] = useState('') // Bild-URL oder { src, markierung, titel }
   const [suche, setSuche] = useState('')
+  const [datumEdit, setDatumEdit] = useState('') // key des Belegs, dessen Datum gerade geändert wird
   const [verdacht, setVerdacht] = useState(null) // [{ e, grund }]
   const [busy, setBusy] = useState(false)
   const belege = belegeAus(eintraege)
@@ -116,9 +117,27 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
               </button>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm truncate">{i + 1}. {b.lieferant || 'Beleg'}</div>
-                <div className="text-white/70 text-xs">{tag(b.datum)} · {b.eintraege.length} {b.eintraege.length === 1 ? 'Position' : 'Positionen'}</div>
+                {datumEdit === b.key ? (
+                  <input type="date" autoFocus defaultValue={String(b.datum).slice(0, 10)} className="bg-white/10 border border-amber/50 rounded-lg px-2 py-1 text-sm"
+                    onKeyDown={(ev) => { if (ev.key === 'Enter') ev.currentTarget.blur() }}
+                    onBlur={async (ev) => {
+                      // erst beim Verlassen übernehmen, damit halb getippte Jahreszahlen nicht gespeichert werden
+                      const neu = ev.target.value
+                      if (!/^\d{4}-\d{2}-\d{2}$/.test(neu) || neu === String(b.datum).slice(0, 10) || Number(neu.slice(0, 4)) < 2000) { setDatumEdit(''); return }
+                      // alle Positionen des Belegs auf das neue Datum setzen, auch in der Belegnotiz
+                      const de = new Date(neu + 'T12:00:00').toLocaleDateString('de-DE')
+                      for (const e of b.eintraege) {
+                        await onUpdate(e, { createdAt: new Date(neu + 'T12:00:00').toISOString(), note: (e.note || '').replace(/vom \d{1,2}\.\d{1,2}\.\d{4}/, 'vom ' + de) })
+                      }
+                      setDatumEdit('')
+                    }} />
+                ) : (
+                  <button onClick={() => setDatumEdit(b.key)} className="text-white/70 text-xs underline decoration-dotted underline-offset-2">
+                    {tag(b.datum)} · {b.eintraege.length} {b.eintraege.length === 1 ? 'Position' : 'Positionen'}
+                  </button>
+                )}
                 {b.doppelt && <div className="text-ember text-xs font-semibold">möglicherweise doppelt</div>}
-                {b.datumPruefen && <div className="text-amber text-xs font-semibold">Datum prüfen – Jahr weicht ab</div>}
+                {b.datumPruefen && <div className="text-amber text-xs font-semibold">Datum prüfen – Jahr weicht ab (Datum antippen zum Ändern)</div>}
               </div>
               <div className="font-bold text-sm shrink-0">{eur(b.betrag)}</div>
               <button onClick={() => { if (confirm('Beleg ' + (b.lieferant || '') + ' vom ' + tag(b.datum) + ' mit allen ' + b.eintraege.length + ' Positionen löschen?\n\nVorher wird automatisch gesichert.')) onDelete(b.eintraege) }}
