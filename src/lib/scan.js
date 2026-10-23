@@ -208,3 +208,59 @@ export function eckenFinden(canvas) {
   if (fuellung < 0.85 || fuellung > 1.1) return null
   return q.map(([x, y]) => ({ x: x / f, y: y / f }))
 }
+
+// Dokument-Filter für beste Lesbarkeit (wie „Dokument“ bei Scan-Apps):
+// 1. Helligkeitsverlauf des Papiers schätzen (Schrift per Maximum-Filter entfernen, dann weichzeichnen)
+// 2. jedes Pixel durch diesen Hintergrund teilen → gleichmäßig weißes Papier, Schatten verschwinden
+// 3. Graustufen mit kräftiger Kontrastkurve → dunkle, scharfe Schrift, keine Farbstiche
+export function dokumentFilter(canvas) {
+  const W = canvas.width, H = canvas.height
+  const ctx = canvas.getContext('2d')
+  const img = ctx.getImageData(0, 0, W, H)
+  const d = img.data
+  const lum = new Float32Array(W * H)
+  for (let i = 0; i < W * H; i++) lum[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]
+  // Hintergrund auf grobem Raster schätzen
+  const S = 16
+  const gw = Math.ceil(W / S), gh = Math.ceil(H / S)
+  let g = new Float32Array(gw * gh)
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+    // hellster Wert der Zelle (90. Perzentil gegen Ausreißer) ≈ Papier
+    const werte = []
+    for (let y = gy * S; y < Math.min(H, gy * S + S); y += 2) for (let x = gx * S; x < Math.min(W, gx * S + S); x += 2) werte.push(lum[y * W + x])
+    werte.sort((a, b) => a - b)
+    g[gy * gw + gx] = werte[Math.floor(werte.length * 0.9)] || 255
+  }
+  // Maximum-Filter (Schrift und Linien größerer Zellen entfernen), dann zweimal glätten
+  const filter = (src, fn) => {
+    const out = new Float32Array(gw * gh)
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+      const v = []
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = Math.min(gw - 1, Math.max(0, x + dx)), yy = Math.min(gh - 1, Math.max(0, y + dy))
+        v.push(src[yy * gw + xx])
+      }
+      out[y * gw + x] = fn(v)
+    }
+    return out
+  }
+  g = filter(g, (v) => Math.max(...v))
+  g = filter(g, (v) => v.reduce((a, b) => a + b, 0) / v.length)
+  g = filter(g, (v) => v.reduce((a, b) => a + b, 0) / v.length)
+  // bilinear auf volle Größe, teilen, Kontrastkurve
+  for (let y = 0; y < H; y++) {
+    const fy = Math.min(gh - 1.001, Math.max(0, y / S - 0.5)), y0 = Math.floor(fy), ty = fy - y0
+    for (let x = 0; x < W; x++) {
+      const fx = Math.min(gw - 1.001, Math.max(0, x / S - 0.5)), x0 = Math.floor(fx), tx = fx - x0
+      const i0 = y0 * gw + x0
+      const bg = (g[i0] * (1 - tx) + g[i0 + 1] * tx) * (1 - ty) + (g[i0 + gw] * (1 - tx) + g[i0 + gw + 1] * tx) * ty
+      let r = lum[y * W + x] / Math.max(40, bg) // 1 = Papier, kleiner = Schrift
+      r = Math.max(0, Math.min(1, (r - 0.45) / (0.9 - 0.45))) // Schwarz- und Weißpunkt
+      const v = Math.round(255 * Math.pow(r, 1.6)) // Schrift kräftiger
+      const o = (y * W + x) * 4
+      d[o] = d[o + 1] = d[o + 2] = v
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+  return canvas
+}
