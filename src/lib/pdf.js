@@ -91,8 +91,17 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   }
   // nach Gewerk sortiert, innerhalb des Gewerks die größten Posten zuerst
   const rows = Object.values(groups).sort((a, b) => String(a.gewerk || '').localeCompare(String(b.gewerk || ''), 'de') || b.minutes - a.minutes)
+  // Stunden auf Viertelstunden runden; die Rundungsdifferenz trägt der größte Posten, damit die Summe exakt bleibt
+  const zeitRows = rows.filter((g) => g.minutes > 0)
+  const echt = zeitRows.reduce((a, g) => a + g.minutes, 0)
+  zeitRows.forEach((g) => { g.minAnzeige = Math.round(g.minutes / 15) * 15 })
+  if (zeitRows.length) {
+    const groesster = zeitRows.reduce((a, b) => (b.minutes > a.minutes ? b : a))
+    groesster.minAnzeige += echt - zeitRows.reduce((a, g) => a + g.minAnzeige, 0)
+  }
+  rows.forEach((g) => { if (g.minAnzeige == null) g.minAnzeige = g.minutes })
 
-  // Spalten: Leistung | Menge | Stunden | EP (€/Einh) | Selbstkosten
+  // Spalten: Leistung | Menge | Stunden | EP (€/Einh) | Selbstkosten – je Gewerk ein Block mit Zwischensumme
   const cMenge = 248, cStd = 312, cEP = 372
   doc.setFont('helvetica', 'bold').setFontSize(11).text('Ausgeführte Leistungen', M, y); y += 16
   doc.setFontSize(9)
@@ -101,22 +110,37 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   doc.setFont('helvetica', 'normal'); y += 4; line()
 
   let sumMin = 0, sumCost = 0
-  rows.forEach((g) => {
-    // lange Bezeichnungen umbrechen statt in die nächste Zeile zu schreiben
-    const nameLines = doc.splitTextToSize(g.gewerk + ' › ' + g.leistung, cMenge - M - 10)
-    need(nameLines.length * 11 + 6)
-    const labor = (g.minutes / 60) * rate
-    const total = labor + g.material + g.maschine
-    const ep = g.menge > 0 ? total / g.menge : null
-    sumMin += g.minutes; sumCost += total
-    doc.text(nameLines, M, y)
-    doc.text(g.menge ? num(g.menge) + ' ' + (g.einheit || '') : '–', cMenge, y)
-    doc.text(g.minutes ? hh(g.minutes) : '–', cStd, y)
-    if (mitKosten) {
-      doc.text(ep != null ? eur(ep).replace(' EUR', '') + (g.einheit ? '/' + g.einheit : '') : '–', cEP, y)
-      doc.text(eur(total), R, y, { align: 'right' })
-    }
-    y += Math.max(16, nameLines.length * 11 + 6)
+  const gewerke = [...new Set(rows.map((g) => g.gewerk || ''))]
+  gewerke.forEach((gw) => {
+    const block = rows.filter((g) => (g.gewerk || '') === gw)
+    const kosten = (g) => (g.minAnzeige / 60) * rate + g.material + g.maschine
+    const blockMin = block.reduce((a, g) => a + g.minAnzeige, 0)
+    const blockCost = block.reduce((a, g) => a + kosten(g), 0)
+    need(34)
+    doc.setFont('helvetica', 'bold').setFontSize(9.5)
+    doc.text(gw || 'Ohne Gewerk', M, y)
+    if (blockMin) doc.text(hh(blockMin), cStd, y)
+    if (mitKosten) doc.text(eur(blockCost), R, y, { align: 'right' })
+    doc.setFont('helvetica', 'normal').setFontSize(9); y += 14
+    block.forEach((g) => {
+      // lange Bezeichnungen umbrechen statt in die nächste Zeile zu schreiben
+      const nameLines = doc.splitTextToSize(g.leistung, cMenge - M - 22)
+      need(nameLines.length * 11 + 6)
+      const total = kosten(g)
+      const ep = g.menge > 0 ? total / g.menge : null
+      sumMin += g.minAnzeige; sumCost += total
+      doc.setTextColor(60)
+      doc.text(nameLines, M + 12, y)
+      doc.text(g.menge ? num(g.menge) + ' ' + (g.einheit || '') : '–', cMenge, y)
+      doc.text(g.minAnzeige ? hh(g.minAnzeige) : '–', cStd, y)
+      if (mitKosten) {
+        doc.text(ep != null ? eur(ep).replace(' EUR', '') + (g.einheit ? '/' + g.einheit : '') : '–', cEP, y)
+        doc.text(eur(total), R, y, { align: 'right' })
+      }
+      doc.setTextColor(0)
+      y += Math.max(14, nameLines.length * 11 + 4)
+    })
+    y += 4
   })
   y += 2; line()
   doc.setFont('helvetica', 'bold').setFontSize(10)
