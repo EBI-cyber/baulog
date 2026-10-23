@@ -118,7 +118,7 @@ export function verbessern(canvas) {
   return canvas
 }
 
-// Ecken automatisch finden: hellstes zusammenhängendes Objekt (Papier vor dunklerem Untergrund).
+// Ecken automatisch finden: weißestes zusammenhängendes Objekt (Papier vor farbigem oder dunklerem Untergrund).
 // Schwelle nach Otsu, größte helle Fläche, Ecken über die Extrempunkte von x+y und x−y.
 // Rückgabe: 4 Punkte in Pixeln von canvas (oben-links, oben-rechts, unten-rechts, unten-links) oder null.
 export function eckenFinden(canvas) {
@@ -129,7 +129,18 @@ export function eckenFinden(canvas) {
   const d = kx.getImageData(0, 0, w, h).data
   const lum = new Uint8Array(w * h)
   const hist = new Array(256).fill(0)
-  for (let i = 0; i < w * h; i++) { const v = Math.round(0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]); lum[i] = v; hist[v]++ }
+  // „Weiß-Anteil“ = kleinster Farbkanal: Papier ist in allen Kanälen hell, Holz/Tisch/Boden meist nicht (wenig Blau).
+  // Danach leicht weichzeichnen (3×3), damit Schrift und Maserung die Fläche nicht zerreißen.
+  const roh = new Uint8Array(w * h)
+  for (let i = 0; i < w * h; i++) roh[i] = Math.min(d[i * 4], d[i * 4 + 1], d[i * 4 + 2])
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let sum = 0, n = 0
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const xx = x + dx, yy = y + dy
+      if (xx >= 0 && yy >= 0 && xx < w && yy < h) { sum += roh[yy * w + xx]; n++ }
+    }
+    const v = Math.round(sum / n); lum[y * w + x] = v; hist[v]++
+  }
   // Otsu
   let sum = 0; for (let v = 0; v < 256; v++) sum += v * hist[v]
   let sumB = 0, wB = 0, best = 0, schwelle = 128
