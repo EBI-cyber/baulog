@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ReceiptText, Trash2, AlertTriangle, Sparkles } from 'lucide-react'
 import IconChip from '../ui/IconChip'
 import Vollbild from './Vollbild'
-import { privatPruefen } from '../lib/ai'
+import { privatPruefen, positionFinden } from '../lib/ai'
 
 const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const tag = (d) => { try { return new Date(d).toLocaleDateString('de-DE') } catch { return '' } }
@@ -24,12 +24,16 @@ export function belegeAus(eintraege) {
   liste.forEach((g) => {
     g.lieferant = g.note.replace(/^Beleg\s*/, '').replace(/\s*vom .*$/, '').replace(/\s*·.*$/, '').trim()
     g.doppelt = liste.some((h) => h !== g && String(h.datum).slice(0, 10) === String(g.datum).slice(0, 10) && Math.abs(h.betrag - g.betrag) < 0.01)
+    // Jahr vermutlich falsch gelesen: Beleg älter als 18 Monate oder in der Zukunft
+    const alter = (Date.now() - new Date(g.datum).getTime()) / 86400000
+    g.datumPruefen = !(alter >= -1 && alter <= 548)
   })
   return liste
 }
 
 export default function BelegeSheet({ eintraege, projektName, verschleissProzent = 25, onUpdate, onClose, onDelete }) {
-  const [gross, setGross] = useState('')
+  const [gross, setGross] = useState('') // Bild-URL oder { src, markierung, titel }
+  const [suche, setSuche] = useState('')
   const [verdacht, setVerdacht] = useState(null) // [{ e, grund }]
   const [busy, setBusy] = useState(false)
   const belege = belegeAus(eintraege)
@@ -73,10 +77,19 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
                 <div className="text-ember text-sm font-semibold">Bitte prüfen ({verdacht.length})</div>
                 {verdacht.map((x) => (
                   <div key={x.e.id} className="flex items-center gap-2 text-sm">
-                    <div className="flex-1 min-w-0">
-                      <div className="truncate">{x.e.label}</div>
+                    <button className="flex-1 min-w-0 text-left" title="Beleg mit markierter Position ansehen" onClick={async () => {
+                      // zugehörigen Beleg finden und die Position darauf markieren lassen
+                      const b = belege.find((g) => g.eintraege.includes(x.e))
+                      if (!b || !b.bild) { alert('Zu dieser Position gibt es kein Belegbild.'); return }
+                      setSuche(String(x.e.id))
+                      let markierung = null
+                      try { markierung = await positionFinden(b.bild, (x.e.label || '').replace(/^[^:]*:\s*/, '').replace(/\s*\(Verschleißanteil.*$/, '')) } catch { /* ohne Markierung zeigen */ }
+                      setSuche('')
+                      setGross({ src: b.bild, markierung, titel: (x.e.label || '') + (markierung ? '' : ' (Stelle nicht gefunden)') })
+                    }}>
+                      <div className="truncate underline decoration-dotted underline-offset-2">{suche === String(x.e.id) ? 'Suche auf dem Beleg …' : x.e.label}</div>
                       <div className={'text-xs ' + (x.art === 'verschleiss' ? 'text-amber' : 'text-ember')}>{x.art === 'verschleiss' ? 'Verschleißteil' : 'Privat?'} · {x.grund} · {eur((Number(x.e.qty) || 0) * (Number(x.e.unitCost) || 0))}</div>
-                    </div>
+                    </button>
                     <button onClick={() => setVerdacht((v) => v.filter((y) => y !== x))} className="text-xs px-2 py-1 rounded-lg border border-white/20 text-white/70 shrink-0">gehört dazu</button>
                     {x.art === 'verschleiss' ? (
                       <button onClick={async () => {
@@ -105,6 +118,7 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
                 <div className="font-semibold text-sm truncate">{i + 1}. {b.lieferant || 'Beleg'}</div>
                 <div className="text-white/70 text-xs">{tag(b.datum)} · {b.eintraege.length} {b.eintraege.length === 1 ? 'Position' : 'Positionen'}</div>
                 {b.doppelt && <div className="text-ember text-xs font-semibold">möglicherweise doppelt</div>}
+                {b.datumPruefen && <div className="text-amber text-xs font-semibold">Datum prüfen – Jahr weicht ab</div>}
               </div>
               <div className="font-bold text-sm shrink-0">{eur(b.betrag)}</div>
               <button onClick={() => { if (confirm('Beleg ' + (b.lieferant || '') + ' vom ' + tag(b.datum) + ' mit allen ' + b.eintraege.length + ' Positionen löschen?\n\nVorher wird automatisch gesichert.')) onDelete(b.eintraege) }}
@@ -115,7 +129,9 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
         {ohneBeleg.length > 0 && <div className="text-white/60 text-xs">Dazu {ohneBeleg.length} Material-Einträge ohne Beleg (von Hand erfasst).</div>}
         <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/70 text-sm">Schließen</button>
       </div>
-      {gross && <Vollbild src={gross} onClose={() => setGross('')} />}
+      {gross && (typeof gross === 'string'
+        ? <Vollbild src={gross} onClose={() => setGross('')} />
+        : <Vollbild src={gross.src} markierung={gross.markierung} titel={gross.titel} onClose={() => setGross('')} />)}
     </div>
   )
 }
