@@ -164,7 +164,9 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
   const [unitCost, setUnitCost] = useState(editEntry && editEntry.unitCost != null ? String(editEntry.unitCost) : '')
   const [note, setNote] = useState((editEntry && editEntry.note) || ''); const [dataUrl, setDataUrl] = useState((editEntry && editEntry.dataUrl) || '')
   const [text, setText] = useState((editEntry && editEntry.text) || '')
-  const [scan, setScan] = useState(false)
+  // Material neu: direkt den Belegscanner öffnen; von Hand nur auf Wunsch
+  const [scan, setScan] = useState(type === 'material' && !editEntry)
+  const [manuell, setManuell] = useState(false)
   const [scanNr, setScanNr] = useState(0)
   const [belegRoh, setBelegRoh] = useState((editEntry && editEntry.belegRoh) || null)
   const [korrigiere, setKorrigiere] = useState(false)
@@ -265,7 +267,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
           </div>
         )}
         {type === 'material' && scan && (
-          <BelegScanner key={scanNr} gewerke={gewerkeOpts} onAbbrechen={() => setScan(false)} onFertig={(b, opt) => {
+          <BelegScanner key={scanNr} gewerke={gewerkeOpts} onAbbrechen={() => (editEntry ? setScan(false) : onClose())} onOhneBeleg={editEntry ? null : () => { setScan(false); setManuell(true) }} onFertig={(b, opt) => {
             // jede Belegposition wird ein eigener Material-Eintrag; der erste trägt das Belegbild
             const createdAt = b.datum ? new Date(b.datum + 'T12:00:00').toISOString() : new Date().toISOString()
             const notiz = 'Beleg' + (b.lieferant ? ' ' + b.lieferant : '') + (b.datum ? ' vom ' + new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : '') +
@@ -288,7 +290,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
             setDataUrl(url); setBelegRoh({ ...belegRoh, ecken }); setKorrigiere(false)
           }} />
         )}
-        {type === 'material' && !scan && !korrigiere && (
+        {type === 'material' && !scan && !korrigiere && (editEntry || manuell) && (
           <>
             {!dataUrl ? (
               <button onClick={() => setScan(true)} className="w-full rounded-2xl py-2.5 font-semibold bg-white/10 border border-amber/40 text-amber inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> Beleg scannen</button>
@@ -358,7 +360,9 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
           </>
         )}
 
-        <button onClick={save} className="w-full rounded-2xl py-3 font-bold btn-grad">{editEntry ? 'Änderungen speichern' : 'Speichern'}</button>
+        {!(type === 'material' && (scan || korrigiere || (!editEntry && !manuell))) && (
+          <button onClick={save} className="w-full rounded-2xl py-3 font-bold btn-grad">{editEntry ? 'Änderungen speichern' : 'Speichern'}</button>
+        )}
       </div>
     </div>
   )
