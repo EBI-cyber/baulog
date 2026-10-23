@@ -36,21 +36,15 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
       const gefunden = eckenFinden(c)
       setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85)); setErgebnis(''); setKi(null)
       setEcken(gefunden ? einruecken(gefunden, 0.012) : [{ x: W * 0.05, y: H * 0.05 }, { x: W * 0.95, y: H * 0.05 }, { x: W * 0.95, y: H * 0.95 }, { x: W * 0.05, y: H * 0.95 }])
-      setBusy('KI liest den Beleg …')
-      try {
-        const k = await belegLesen(c.toDataURL('image/jpeg', 0.8), gewerke)
-        if (!gefunden && Array.isArray(k.ecken) && k.ecken.length === 4 && k.ecken.every((p) => p && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1)) {
-          setEcken(einruecken(k.ecken.map((p) => ({ x: p.x * W, y: p.y * H })), 0.01))
-        }
-        setKi({
-          lieferant: k.lieferant || '', datum: /^\d{4}-\d{2}-\d{2}$/.test(k.datum || '') ? k.datum : '',
-          betrag: k.betrag != null ? String(k.betrag).replace('.', ',') : '',
-          positionen: (Array.isArray(k.positionen) ? k.positionen : []).filter((p) => p && p.bezeichnung)
-            .map((p) => ({ bezeichnung: String(p.bezeichnung), menge: Number(p.menge) || 1, gesamt: String(p.gesamt ?? '').replace('.', ','), gewerk: gewerke.includes(p.gewerk) ? p.gewerk : (gewerke.includes(k.gewerk) ? k.gewerk : gewerke[0]) })),
-        })
-      } catch (err) {
-        setKi({ lieferant: '', datum: '', betrag: '', positionen: [] })
-        alert('KI konnte den Beleg nicht lesen: ' + (err && err.message ? err.message : err) + '\nDu kannst die Angaben selbst eintragen.')
+      // Ecken nicht gefunden: KI um eine Schätzung bitten (die Angaben liest sie später vom zugeschnittenen Beleg)
+      if (!gefunden) {
+        setBusy('Suche den Beleg …')
+        try {
+          const k = await belegLesen(c.toDataURL('image/jpeg', 0.8), gewerke)
+          if (Array.isArray(k.ecken) && k.ecken.length === 4 && k.ecken.every((p) => p && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1)) {
+            setEcken(einruecken(k.ecken.map((p) => ({ x: p.x * W, y: p.y * H })), 0.01))
+          }
+        } catch { /* dann eben von Hand */ }
       }
     } catch (err) { alert(err && err.message ? err.message : String(err)) }
     setBusy('')
@@ -92,11 +86,27 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen }) {
   }
   const hoch = () => { if (griff.current) { setEcken(live.current); griff.current = null } }
 
+  // Zuschneiden, dann liest die KI den geraden, kontrastreichen Beleg (deutlich zuverlässiger als das Rohfoto)
   const zuschneiden = () => {
     setBusy('Schneide zu …')
-    setTimeout(() => {
-      try { setErgebnis(verbessern(entzerren(quelle, ecken, 1400)).toDataURL('image/jpeg', 0.75)) }
-      catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)) }
+    setTimeout(async () => {
+      let url = ''
+      try { url = verbessern(entzerren(quelle, ecken, 1600)).toDataURL('image/jpeg', 0.8); setErgebnis(url) }
+      catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)); setBusy(''); return }
+      if (ki) { setBusy(''); return }
+      setBusy('KI liest den Beleg …')
+      try {
+        const k = await belegLesen(url, gewerke)
+        setKi({
+          lieferant: k.lieferant || '', datum: /^\d{4}-\d{2}-\d{2}$/.test(k.datum || '') ? k.datum : '',
+          betrag: k.betrag != null ? String(k.betrag).replace('.', ',') : '',
+          positionen: (Array.isArray(k.positionen) ? k.positionen : []).filter((p) => p && p.bezeichnung)
+            .map((p) => ({ bezeichnung: String(p.bezeichnung), menge: Number(p.menge) || 1, gesamt: String(p.gesamt ?? '').replace('.', ','), gewerk: gewerke.includes(p.gewerk) ? p.gewerk : (gewerke.includes(k.gewerk) ? k.gewerk : gewerke[0]) })),
+        })
+      } catch (err) {
+        setKi({ lieferant: '', datum: '', betrag: '', positionen: [] })
+        alert('KI konnte den Beleg nicht lesen: ' + (err && err.message ? err.message : err) + '\nDu kannst die Angaben selbst eintragen.')
+      }
       setBusy('')
     }, 30)
   }
