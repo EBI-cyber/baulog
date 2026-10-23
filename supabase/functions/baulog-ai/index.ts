@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       jsonMode = true
       messages = [
         { role: 'system', content: 'Du liest Fotos von Einkaufsbelegen (Rechnung, Kassenbon, Lieferschein) für einen Handwerksbetrieb. ' +
-          'Bestimme (1) die vier Ecken des Belegs im Foto als Anteile der Bildbreite/-höhe (0 bis 1), Reihenfolge oben-links, oben-rechts, unten-rechts, unten-links, bezogen auf die Leserichtung des Belegs; ' +
+          'Bestimme (1) die vier Ecken des Papiers im Foto so genau wie möglich (auf 0,01) als Anteile der Bildbreite/-höhe (0 bis 1), Reihenfolge oben-links, oben-rechts, unten-rechts, unten-links in Bildkoordinaten (oben = kleines y). Die Ecken liegen exakt am Papierrand, nicht am Text; ist ein Rand abgeschnitten, nimm den Bildrand; ' +
           '(2) lieferant (Firmenname), datum (Belegdatum YYYY-MM-DD), betrag (Gesamtbetrag brutto in Euro als Zahl), mwst (enthaltene MwSt. in Euro oder null), beschreibung (2–6 Wörter, was gekauft wurde, z. B. „Rohre und Fittings“). Unlesbares als null. ' +
           'Antworte NUR als JSON: {"ecken":[{"x":0,"y":0},{"x":1,"y":0},{"x":1,"y":1},{"x":0,"y":1}],"lieferant":"","datum":"","betrag":0,"mwst":null,"beschreibung":""}' },
         { role: 'user', content: [{ type: 'text', text: 'Beleg auswerten.' }, { type: 'image_url', image_url: { url: String(body.bild || ''), detail: 'high' } }] },

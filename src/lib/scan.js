@@ -165,5 +165,12 @@ export function eckenFinden(canvas) {
   // nur verwenden, wenn die Fläche plausibel groß ist und nicht das ganze Bild ausfüllt
   if (!groesste || groesste.n < w * h * 0.12 || groesste.n > w * h * 0.97) return null
   const p = groesste.pts
-  return [p.tl, p.tr, p.br, p.bl].map(([x, y]) => ({ x: x / f, y: y / f }))
+  const q = [p.tl, p.tr, p.br, p.bl]
+  // Plausibilität: Ein Beleg füllt sein Viereck fast vollständig aus (Flächenvergleich, Gaußsche Trapezformel)
+  let flaeche = 0
+  for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4]; flaeche += a[0] * b[1] - b[0] * a[1] }
+  flaeche = Math.abs(flaeche) / 2
+  const fuellung = groesste.n / Math.max(1, flaeche)
+  if (fuellung < 0.85 || fuellung > 1.1) return null
+  return q.map(([x, y]) => ({ x: x / f, y: y / f }))
 }
