@@ -269,7 +269,7 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
       doc.addPage(); y = 56
       abschnitt('Materialbeleg ' + (k + 1) + ' von ' + belege.length)
       doc.setFont('helvetica', 'normal').setFontSize(9.5); farbe(C.grau)
-      doc.text([e.label, dmy(e.createdAt), eur((Number(e.qty) || 0) * (Number(e.unitCost) || 0))].filter(Boolean).join('  ·  '), M, y); y += 14
+      doc.text(e.note || [e.label, dmy(e.createdAt), eur((Number(e.qty) || 0) * (Number(e.unitCost) || 0))].filter(Boolean).join('  ·  '), M, y); y += 14
       try {
         const p = doc.getImageProperties(e.dataUrl)
         const maxW = R - M, maxH = 780 - y
