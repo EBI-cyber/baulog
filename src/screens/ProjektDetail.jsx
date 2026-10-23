@@ -19,6 +19,7 @@ import { useAuth } from '../lib/auth'
 import { listMembers, addMember, setMemberGewerke, removeMember, myGewerke } from '../lib/team'
 import IconChip from '../ui/IconChip'
 import ProjektSheet from '../components/ProjektSheet'
+import BelegScanner from '../components/BelegScanner'
 import { useCloudRefresh } from '../lib/useCloudRefresh'
 import {
   ChevronLeft, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
@@ -107,7 +108,7 @@ function EntryRow({ e, rate, onDelete, onEdit, hideCost }) {
   else if (e.type === 'tagebuch') { main = (e.text || '').slice(0, 70); sub = e.gewerk || '' }
   return (
     <div className="glass card-hover rounded-2xl p-3 flex items-center gap-3">
-      {e.type === 'foto' && e.dataUrl ? <img src={e.dataUrl} alt="" className="w-11 h-11 rounded-xl object-cover shrink-0" /> : <IconChip icon={I} size="w-11 h-11" />}
+      {(e.type === 'foto' || e.type === 'material') && e.dataUrl ? <img src={e.dataUrl} alt="" className="w-11 h-11 rounded-xl object-cover shrink-0" /> : <IconChip icon={I} size="w-11 h-11" />}
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{main}</div>
         <div className="text-white/70 text-xs truncate">{dmyhm(e.createdAt)}{sub ? ' · ' + sub : ''}</div>
@@ -162,6 +163,8 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
   const [unitCost, setUnitCost] = useState(editEntry && editEntry.unitCost != null ? String(editEntry.unitCost) : '')
   const [note, setNote] = useState((editEntry && editEntry.note) || ''); const [dataUrl, setDataUrl] = useState((editEntry && editEntry.dataUrl) || '')
   const [text, setText] = useState((editEntry && editEntry.text) || '')
+  const [scan, setScan] = useState(false)
+  const [belegDatum, setBelegDatum] = useState(editEntry && editEntry.dataUrl && editEntry.type === 'material' ? String(editEntry.createdAt || '').slice(0, 10) : '')
   const [dinBusy, setDinBusy] = useState(false)
   const [korrBusy, setKorrBusy] = useState(false)
   const [maschine, setMaschine] = useState((editEntry && editEntry.maschine) || (s.maschinen && s.maschinen[0] ? s.maschinen[0].name : ''))
@@ -196,7 +199,14 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
       onSave(withId(data))
     }
     else if (type === 'menge') { if (!leistung || !menge) return; onSave(withId({ type: 'menge', gewerk, leistung, einheit, menge: Number(menge) || 0 })) }
-    else if (type === 'material') { if (!label.trim()) return; onSave(withId({ type: 'material', gewerk, leistung, label: label.trim(), qty: Number(qty) || 1, unitCost: Number(unitCost) || 0 })) }
+    else if (type === 'material') {
+      if (!label.trim()) return
+      const data = { type: 'material', gewerk, leistung, label: label.trim(), qty: parseBetrag(qty) || 1, unitCost: parseBetrag(unitCost) || 0 }
+      // gescannter Beleg: Bild und Belegdatum mitspeichern
+      data.dataUrl = dataUrl || ''
+      if (dataUrl) { data.note = note; if (belegDatum) data.createdAt = new Date(belegDatum + 'T12:00:00').toISOString() }
+      onSave(withId(data))
+    }
     else if (type === 'maschine') {
       if (!maschine || !minutes) return
       const m = (s.maschinen || []).find((x) => x.name === maschine)
@@ -246,13 +256,31 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
             <span className="text-white/80 w-12 text-center">{einheit || '—'}</span>
           </div>
         )}
-        {type === 'material' && (
+        {type === 'material' && scan && (
+          <BelegScanner onAbbrechen={() => setScan(false)} onFertig={(b) => {
+            setLabel([b.lieferant, b.beschreibung].filter(Boolean).join(' · ') || 'Materialbeleg')
+            setQty('1'); setUnitCost(String(b.betrag).replace('.', ',')); setDataUrl(b.dataUrl); setBelegDatum(b.datum || '')
+            setNote('Beleg' + (b.lieferant ? ' ' + b.lieferant : '') + (b.datum ? ' vom ' + new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : ''))
+            setScan(false)
+          }} />
+        )}
+        {type === 'material' && !scan && (
           <>
+            {!dataUrl ? (
+              <button onClick={() => setScan(true)} className="w-full rounded-2xl py-2.5 font-semibold bg-white/10 border border-amber/40 text-amber inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> Beleg scannen</button>
+            ) : (
+              <div className="flex items-center gap-3">
+                <img src={dataUrl} alt="Beleg" className="w-14 h-14 rounded-lg object-cover bg-white" />
+                <div className="text-white/75 text-xs flex-1">{note || 'Beleg gescannt'}</div>
+                <button onClick={() => { setDataUrl(''); setNote('') }} className="text-white/60 hover:text-ember p-1"><X className="w-4 h-4" /></button>
+              </div>
+            )}
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Material / Bezeichnung" className={inp} />
             <div className="grid grid-cols-2 gap-2">
               <input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" placeholder="Menge" className={inp} />
               <input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} inputMode="decimal" placeholder="EK €/Stk" className={inp} />
             </div>
+            {dataUrl && <input type="date" value={belegDatum} onChange={(e) => setBelegDatum(e.target.value)} className={inp} />}
           </>
         )}
         {type === 'maschine' && (
@@ -878,6 +906,7 @@ export default function ProjektDetail() {
   const [abschluss, setAbschluss] = useState(null)
   const [nachweis, setNachweis] = useState(false)
   const [mitKosten, setMitKosten] = useState(true)
+  const [belegeAnhaengen, setBelegeAnhaengen] = useState(true)
   const [detail, setDetail] = useState('gewerk') // Leistungen im PDF: 'gewerk' (für Kunden) oder 'leistung' (intern)
   const [rechnungen, setRechnungen] = useState([])
   const [rechnungenOpen, setRechnungenOpen] = useState(false)
@@ -1259,6 +1288,12 @@ export default function ProjektDetail() {
               </div>
             </div>
             <div className="text-white/70 text-xs">„Nur Gewerke“ zeigt dem Kunden je Gewerk Stunden und Betrag. „Im Detail“ listet jede Leistung einzeln, eher für dich intern.</div>
+            {(alsRechnung ? offene : filterByRange(eintraege, nvon, nbis)).some((e) => e.type === 'material' && e.dataUrl) && (
+              <label className="flex items-center justify-between py-1">
+                <span className="text-white/70">Materialbelege anhängen</span>
+                <input type="checkbox" checked={belegeAnhaengen} onChange={(e) => setBelegeAnhaengen(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
+              </label>
+            )}
             <label className="flex items-center justify-between py-2 border-t border-white/20">
               <span className="text-white/70">Als Abschlag Nr. {naechsteAbschnittNr} festhalten</span>
               <input type="checkbox" checked={alsRechnung} onChange={(e) => setAlsRechnung(e.target.checked)} className="w-5 h-5 accent-[#f59e0b]" />
@@ -1307,8 +1342,8 @@ export default function ProjektDetail() {
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => {
                 try {
-                  if (alsRechnung) previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(offene), s, { mitKosten, detail, ...abschlagOpts }))
-                  else previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, detail, von: nvon, bis: nbis }))
+                  if (alsRechnung) previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(offene), s, { mitKosten, detail, belege: belegeAnhaengen, ...abschlagOpts }))
+                  else previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, detail, belege: belegeAnhaengen, von: nvon, bis: nbis }))
                 } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
               }} className="w-full rounded-2xl py-3 font-semibold bg-white/10">Vorschau</button>
               <button onClick={async () => {
@@ -1319,7 +1354,7 @@ export default function ProjektDetail() {
                   if (alsRechnung) {
                     const liste = mitVorschlag(offene)
                     const betrag = projektTotals(liste, projekt.hourlyRate).total
-                    await sharePdf(buildLeistungsnachweis(projekt, liste, s, { mitKosten, detail, ...abschlagOpts }), nachweisFilename(projekt))
+                    await sharePdf(buildLeistungsnachweis(projekt, liste, s, { mitKosten, detail, belege: belegeAnhaengen, ...abschlagOpts }), nachweisFilename(projekt))
                     const gesamtbetrag = betrag + vorherigerSaldo
                     const rid = await createRechnung({
                       projektId: Number(id), nr: naechsteAbschnittNr, ...leistungszeitraum(liste),
@@ -1329,7 +1364,7 @@ export default function ProjektDetail() {
                     await eintraegeZuordnen(liste.map((e) => e.id), neu.token)
                     setRechnungen(await listRechnungen(id)); setEintraege(await listEintraege(id))
                   } else {
-                    await sharePdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, detail, von: nvon, bis: nbis }), nachweisFilename(projekt))
+                    await sharePdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, detail, belege: belegeAnhaengen, von: nvon, bis: nbis }), nachweisFilename(projekt))
                   }
                   setNachweis(false)
                 } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }

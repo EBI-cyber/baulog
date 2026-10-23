@@ -151,12 +151,14 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
   farbe(C.text); doc.setFont('helvetica', 'normal'); y += 18
 
   let sumMin = 0, sumCost = 0
+  const sumMaterial = rows.reduce((a, g) => a + g.material, 0)
   const gewerke = [...new Set(rows.map((g) => g.gewerk || ''))]
   gewerke.forEach((gw) => {
     const block = rows.filter((g) => (g.gewerk || '') === gw)
     const kosten = (g) => (g.minAnzeige / 60) * rate + g.material + g.maschine
     const blockMin = block.reduce((a, g) => a + g.minAnzeige, 0)
-    const blockCost = block.reduce((a, g) => a + kosten(g), 0)
+    // „Nur Gewerke“: Material steht als eigene Zeile, damit Arbeit und Belege getrennt bleiben
+    const blockCost = block.reduce((a, g) => a + kosten(g) - (nurGewerke ? g.material : 0), 0)
     need(34)
     doc.setFont('helvetica', 'bold').setFontSize(9.5); farbe(C.text)
     doc.text(gw || 'Ohne Gewerk', M + 6, y)
@@ -165,7 +167,7 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
     doc.setFont('helvetica', 'normal').setFontSize(9); y += 14
     // „Nur Gewerke“: Einzelleistungen nicht aufführen, die Gewerkzeile enthält Stunden und Betrag
     if (nurGewerke) {
-      block.forEach((g) => { sumMin += g.minAnzeige; sumCost += kosten(g) })
+      block.forEach((g) => { sumMin += g.minAnzeige; sumCost += kosten(g) - g.material })
       strich(C.linie); doc.setLineWidth(0.5).line(M, y - 9, R, y - 9); y += 4
       return
     }
@@ -189,6 +191,15 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
     })
     y += 4
   })
+  if (nurGewerke && sumMaterial > 0) {
+    need(20)
+    doc.setFont('helvetica', 'bold').setFontSize(9.5); farbe(C.text)
+    doc.text('Material laut Belegen', M + 6, y)
+    if (mitKosten) doc.text(eur(sumMaterial), R - 6, y, { align: 'right' })
+    sumCost += sumMaterial
+    strich(C.linie); doc.setLineWidth(0.5).line(M, y + 5, R, y + 5); y += 18
+    doc.setFont('helvetica', 'normal')
+  }
   // Summenzeile
   need(24)
   strich(C.text); doc.setLineWidth(0.8).line(M, y - 6, R, y - 6); y += 8
@@ -204,7 +215,14 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
     const boxY = y - 4
     y += 12
     doc.setFont('helvetica', 'normal').setFontSize(9.5); farbe(C.text)
-    doc.text('Leistungen dieses Abschlags', M + 14, y); doc.text(eur(sumCost), R - 14, y, { align: 'right' }); y += 14
+    doc.text('Leistungen dieses Abschlags', M + 14, y); doc.text(eur(sumCost), R - 14, y, { align: 'right' }); y += 12
+    if (sumMaterial > 0) {
+      // aufschlüsseln, damit der Kunde Arbeit und weiterberechnetes Material getrennt sieht
+      doc.setFontSize(8.5); farbe(C.grau)
+      doc.text('davon Arbeitsleistung und Geräte', M + 24, y); doc.text(eur(sumCost - sumMaterial), R - 14, y, { align: 'right' }); y += 11
+      doc.text('davon Material laut Belegen', M + 24, y); doc.text(eur(sumMaterial), R - 14, y, { align: 'right' }); y += 13
+      doc.setFontSize(9.5); farbe(C.text)
+    } else y += 2
     const vs = Number(opts.vorherigerSaldo) || 0
     const va = opts.vorherigerAbschlag
     if (vs !== 0) {
@@ -241,6 +259,25 @@ export function buildLeistungsnachweis(projekt, alleEintraege, s, opts = {}) {
       x += w + gap
     })
     y += h + 8
+  }
+
+  // Materialbelege: jeder Beleg auf eigener Seite, mit Lieferant, Datum und Betrag
+  if (opts.belege) {
+    const belege = eintraege.filter((e) => e.type === 'material' && e.dataUrl)
+      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    belege.forEach((e, k) => {
+      doc.addPage(); y = 56
+      abschnitt('Materialbeleg ' + (k + 1) + ' von ' + belege.length)
+      doc.setFont('helvetica', 'normal').setFontSize(9.5); farbe(C.grau)
+      doc.text([e.label, dmy(e.createdAt), eur((Number(e.qty) || 0) * (Number(e.unitCost) || 0))].filter(Boolean).join('  ·  '), M, y); y += 14
+      try {
+        const p = doc.getImageProperties(e.dataUrl)
+        const maxW = R - M, maxH = 780 - y
+        const f = Math.min(maxW / p.width, maxH / p.height)
+        doc.addImage(e.dataUrl, 'JPEG', M, y, p.width * f, p.height * f)
+      } catch { /* Bild nicht lesbar */ }
+      farbe(C.text)
+    })
   }
 
   // Fußzeile auf jeder Seite
