@@ -16,7 +16,8 @@ function einruecken(ecken, anteil) {
 // Beleg fotografieren → Ecken finden → nachziehen (Ecken oder ganze Kanten) → entzerren →
 // KI liest Lieferant, Datum, Betrag und die einzelnen Positionen mit Gewerk → speichern
 // korrektur = { bild, ecken }: gespeichertes Originalfoto erneut zuschneiden (ohne KI), Ergebnis über onKorrigiert
-export default function BelegScanner({ gewerke, projekt, verschleissProzent = 25, onFertig, onAbbrechen, onOhneBeleg, korrektur, onKorrigiert }) {
+// nurBild: nur fotografieren und zuschneiden (z. B. fehlendes Belegbild nachscannen), Ergebnis über onKorrigiert
+export default function BelegScanner({ gewerke = [], projekt, verschleissProzent = 25, onFertig, onAbbrechen, onOhneBeleg, korrektur, nurBild, onKorrigiert }) {
   const [quelle, setQuelle] = useState(null) // Canvas des verkleinerten Fotos
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
@@ -134,7 +135,7 @@ export default function BelegScanner({ gewerke, projekt, verschleissProzent = 25
         setFassungen(f); url = f.dokument; setModus('dokument'); setErgebnis(url)
       }
       catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)); setBusy(''); return }
-      if (ki || korrektur) { setBusy(''); return }
+      if (ki || korrektur || nurBild) { setBusy(''); return }
       setBusy('KI liest den Beleg …')
       try {
         const k = await belegLesen(url, gewerke, projekt)
@@ -225,8 +226,8 @@ export default function BelegScanner({ gewerke, projekt, verschleissProzent = 25
               </div>
             )}
           </div>
-          {korrektur ? (
-            <button onClick={() => onKorrigiert(ergebnis, ecken)} className="w-full rounded-2xl py-3 font-bold btn-grad">Zuschnitt übernehmen</button>
+          {korrektur || nurBild ? (
+            <button onClick={() => onKorrigiert(ergebnis, ecken, korrektur ? korrektur.bild : quelle.toDataURL('image/jpeg', 0.7))} className="w-full rounded-2xl py-3 font-bold btn-grad">{nurBild ? 'Bild übernehmen' : 'Zuschnitt übernehmen'}</button>
           ) : !ki ? <div className="text-amber text-sm">KI liest den Beleg …</div> : (
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
