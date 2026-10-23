@@ -16,7 +16,7 @@ function einruecken(ecken, anteil) {
 // Beleg fotografieren → Ecken finden → nachziehen (Ecken oder ganze Kanten) → entzerren →
 // KI liest Lieferant, Datum, Betrag und die einzelnen Positionen mit Gewerk → speichern
 // korrektur = { bild, ecken }: gespeichertes Originalfoto erneut zuschneiden (ohne KI), Ergebnis über onKorrigiert
-export default function BelegScanner({ gewerke, onFertig, onAbbrechen, korrektur, onKorrigiert }) {
+export default function BelegScanner({ gewerke, onFertig, onAbbrechen, onOhneBeleg, korrektur, onKorrigiert }) {
   const [quelle, setQuelle] = useState(null) // Canvas des verkleinerten Fotos
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
@@ -172,7 +172,8 @@ export default function BelegScanner({ gewerke, onFertig, onAbbrechen, korrektur
         <input ref={kamera} type="file" accept="image/*" capture="environment" className="hidden" onChange={laden} />
         <input ref={galerie} type="file" accept="image/*" className="hidden" onChange={laden} />
         {busy && <div className="text-amber text-sm">{busy}</div>}
-        {onAbbrechen && <button onClick={onAbbrechen} className="w-full text-white/70 text-sm py-1">Zurück</button>}
+        {onOhneBeleg && <button onClick={onOhneBeleg} className="w-full text-white/60 text-xs py-1">Ohne Beleg von Hand eintragen</button>}
+        {onAbbrechen && <button onClick={onAbbrechen} className="w-full text-white/70 text-sm py-1">Abbrechen</button>}
       </div>
     )
   }
