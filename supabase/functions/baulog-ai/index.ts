@@ -116,6 +116,13 @@ Deno.serve(async (req) => {
           '(3) Gleiche Tätigkeit überall gleich benannt, Bezeichnung als Angebotsposition. (4) Summe der Stunden je Zeiteintrag = seine Stunden. Antworte NUR mit dem vollständigen korrigierten JSON im selben Format.' },
       ], 0)
     }
+    if (task === 'beleg' && content.trim()) {
+      content = await ask([
+        ...messages,
+        { role: 'assistant', content },
+        { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen das Bild: Gesamtbetrag (Zeile „Gesamtsumme“/„Summe“/„zu zahlen“), Menge und Zeilenbetrag jeder Position, Datum. Die Summe der Positionen muss den Gesamtbetrag ergeben; passt es nicht, hast du dich verlesen – lies die betroffenen Zahlen erneut. Antworte NUR mit dem vollständigen korrigierten JSON im selben Format.' },
+      ], 0)
+    }
     if (jsonMode) { try { return out(JSON.parse(content)) } catch { return out({}) } }
     return out({ text: String(content).trim() })
   } catch (e) {
