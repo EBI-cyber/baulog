@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ReceiptText, Trash2, AlertTriangle, Sparkles } from 'lucide-react'
 import IconChip from '../ui/IconChip'
 import Vollbild from './Vollbild'
+import BelegScanner from './BelegScanner'
 import { privatPruefen, positionFinden } from '../lib/ai'
 import { listeSicherungen, sicherungLesen } from '../lib/backup'
 
@@ -49,6 +50,7 @@ export function belegeAus(eintraege) {
 export default function BelegeSheet({ eintraege, projektName, verschleissProzent = 25, onUpdate, onClose, onDelete }) {
   const [gross, setGross] = useState('') // Bild-URL oder { src, markierung, titel }
   const [suche, setSuche] = useState('')
+  const [nachscan, setNachscan] = useState(null) // Beleg, dessen Bild neu fotografiert wird
   const [datumEdit, setDatumEdit] = useState('') // key des Belegs, dessen Datum gerade geändert wird
   const [verdacht, setVerdacht] = useState(null) // [{ e, grund }]
   const [busy, setBusy] = useState(false)
@@ -135,7 +137,7 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
                 try {
                   const r = await bildAusSicherung(b)
                   if (r) { await onUpdate(b.eintraege[0], r); setGross(r.dataUrl) }
-                  else alert('Für diesen Beleg ist in den Sicherungen dieses Geräts kein Bild zu finden. Bitte den Beleg neu scannen.')
+                  else if (confirm('Für diesen Beleg ist in den Sicherungen dieses Geräts kein Bild zu finden.\n\nJetzt nur das Bild neu fotografieren? Positionen und Beträge bleiben unverändert.')) setNachscan(b)
                 } catch (err) { alert(err && err.message ? err.message : String(err)) }
                 setSuche('')
               }} className="shrink-0">
@@ -175,6 +177,18 @@ export default function BelegeSheet({ eintraege, projektName, verschleissProzent
         {ohneBeleg.length > 0 && <div className="text-white/60 text-xs">Dazu {ohneBeleg.length} Material-Einträge ohne Beleg (von Hand erfasst).</div>}
         <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/70 text-sm">Schließen</button>
       </div>
+      {nachscan && (
+        <div className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-40" onClick={(e) => { e.stopPropagation(); setNachscan(null) }}>
+          <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[92dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+            <div className="text-lg font-bold">Bild nachscannen</div>
+            <div className="text-white/75 text-xs">{nachscan.note}</div>
+            <BelegScanner nurBild onAbbrechen={() => setNachscan(null)} onKorrigiert={async (url, ecken, roh) => {
+              await onUpdate(nachscan.eintraege[0], { dataUrl: url, belegRoh: { bild: roh, ecken } })
+              setNachscan(null)
+            }} />
+          </div>
+        </div>
+      )}
       {gross && (typeof gross === 'string'
         ? <Vollbild src={gross} onClose={() => setGross('')} />
         : <Vollbild src={gross.src} markierung={gross.markierung} titel={gross.titel} onClose={() => setGross('')} />)}
