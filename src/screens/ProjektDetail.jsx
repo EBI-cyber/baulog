@@ -335,7 +335,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
           </div>
         )}
         {type === 'material' && scan && (
-          <BelegScanner key={scanNr} gewerke={gewerkeOpts} projekt={projektName} onAbbrechen={() => (editEntry ? setScan(false) : onClose())} onOhneBeleg={editEntry ? null : () => { setScan(false); setManuell(true) }} onFertig={(b, opt) => {
+          <BelegScanner key={scanNr} gewerke={gewerkeOpts} projekt={projektName} verschleissProzent={s.verschleissProzent ?? 25} onAbbrechen={() => (editEntry ? setScan(false) : onClose())} onOhneBeleg={editEntry ? null : () => { setScan(false); setManuell(true) }} onFertig={(b, opt) => {
             // jede Belegposition wird ein eigener Material-Eintrag; der erste trägt das Belegbild
             const createdAt = b.datum ? new Date(b.datum + 'T12:00:00').toISOString() : new Date().toISOString()
             const fmt = (n) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
@@ -347,12 +347,16 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
             // Privatanteil gehört nicht zur Baustelle: Differenz nur gegen den Baustellenanteil rechnen
             const baustelle = b.betrag - (b.privat || 0)
             if (b.positionen.length && Math.abs(summe - baustelle) > 0.01) pos.push({ bezeichnung: 'Differenz laut Beleg', menge: 1, gesamt: Math.round((baustelle - summe) * 100) / 100, gewerk: pos[0].gewerk || gewerk })
-            onSave(pos.map((p, i) => ({
+            onSave(pos.map((p, i) => {
+              // Verschleißteil: nur der Anteil wird berechnet, der volle Preis steht in der Bezeichnung
+              const anteil = p.anteil != null && p.anteil < 100 ? p.anteil : 100
+              const berechnet = p.gesamt * anteil / 100
+              return {
               type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt, note: notiz,
-              label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung,
-              qty: p.menge > 0 ? p.menge : 1, unitCost: Math.round((p.gesamt / (p.menge > 0 ? p.menge : 1)) * 10000) / 10000,
+              label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung + (anteil < 100 ? ' (Verschleißanteil ' + anteil + ' % von ' + fmt(p.gesamt) + ')' : ''),
+              qty: p.menge > 0 ? p.menge : 1, unitCost: Math.round((berechnet / (p.menge > 0 ? p.menge : 1)) * 10000) / 10000,
               dataUrl: i === 0 ? b.dataUrl : '', belegRoh: i === 0 ? b.roh : null,
-            })), { weiter: opt && opt.weiter })
+            } }), { weiter: opt && opt.weiter })
             // Serienscan: Scanner für den nächsten Beleg frisch starten
             if (opt && opt.weiter) setScanNr((n) => n + 1)
           }} />
@@ -1373,7 +1377,8 @@ export default function ProjektDetail() {
       )}
 
       {belegeOffen && (
-        <BelegeSheet eintraege={eintraege} projektName={projekt.name} onClose={() => setBelegeOffen(false)} onDelete={async (liste) => {
+        <BelegeSheet eintraege={eintraege} projektName={projekt.name} verschleissProzent={s.verschleissProzent ?? 25}
+          onUpdate={async (e, patch) => { await updateEintrag(e.id, patch); setEintraege(await listEintraege(id)) }} onClose={() => setBelegeOffen(false)} onDelete={async (liste) => {
           await sicherungAnlegen('Vor dem Löschen eines Belegs')
           for (const e of liste) await deleteEintrag(e.id)
           setEintraege(await listEintraege(id))

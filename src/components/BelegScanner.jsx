@@ -16,7 +16,7 @@ function einruecken(ecken, anteil) {
 // Beleg fotografieren → Ecken finden → nachziehen (Ecken oder ganze Kanten) → entzerren →
 // KI liest Lieferant, Datum, Betrag und die einzelnen Positionen mit Gewerk → speichern
 // korrektur = { bild, ecken }: gespeichertes Originalfoto erneut zuschneiden (ohne KI), Ergebnis über onKorrigiert
-export default function BelegScanner({ gewerke, projekt, onFertig, onAbbrechen, onOhneBeleg, korrektur, onKorrigiert }) {
+export default function BelegScanner({ gewerke, projekt, verschleissProzent = 25, onFertig, onAbbrechen, onOhneBeleg, korrektur, onKorrigiert }) {
   const [quelle, setQuelle] = useState(null) // Canvas des verkleinerten Fotos
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
@@ -142,7 +142,7 @@ export default function BelegScanner({ gewerke, projekt, onFertig, onAbbrechen, 
           lieferant: k.lieferant || '', datum: /^\d{4}-\d{2}-\d{2}$/.test(k.datum || '') ? k.datum : '',
           betrag: k.betrag != null ? String(k.betrag).replace('.', ',') : '',
           positionen: (Array.isArray(k.positionen) ? k.positionen : []).filter((p) => p && p.bezeichnung)
-            .map((p) => ({ bezeichnung: String(p.bezeichnung), menge: Number(p.menge) || 1, gesamt: String(p.gesamt ?? '').replace('.', ','), gewerk: gewerke.includes(p.gewerk) ? p.gewerk : (gewerke.includes(k.gewerk) ? k.gewerk : gewerke[0]), privat: Boolean(p.privat), grund: p.grund || '' })),
+            .map((p) => ({ bezeichnung: String(p.bezeichnung), menge: Number(p.menge) || 1, gesamt: String(p.gesamt ?? '').replace('.', ','), gewerk: gewerke.includes(p.gewerk) ? p.gewerk : (gewerke.includes(k.gewerk) ? k.gewerk : gewerke[0]), privat: Boolean(p.privat), verschleiss: Boolean(p.verschleiss) && !p.privat, anteil: String(verschleissProzent), grund: p.grund || '' })),
         })
       } catch (err) {
         setKi({ lieferant: '', datum: '', betrag: '', positionen: [] })
@@ -156,7 +156,8 @@ export default function BelegScanner({ gewerke, projekt, onFertig, onAbbrechen, 
     const betrag = parseBetrag(ki.betrag)
     if (Number.isNaN(betrag) || betrag <= 0) { alert('Bitte den Gesamtbetrag des Belegs eintragen, z. B. 127,53.'); return }
     const alle = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt > 0)
-    const positionen = alle.filter((p) => !p.privat)
+    // Verschleißteile: nur der eingestellte Anteil wird berechnet
+    const positionen = alle.filter((p) => !p.privat).map((p) => ({ ...p, anteil: p.verschleiss ? Math.max(0, Math.min(100, parseBetrag(p.anteil) || 0)) : 100 }))
     const privat = alle.filter((p) => p.privat).reduce((a, p) => a + p.gesamt, 0)
     // Originalfoto (komprimiert) und Ecken mitgeben, damit der Zuschnitt später korrigierbar bleibt
     const roh = { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
@@ -234,14 +235,22 @@ export default function BelegScanner({ gewerke, projekt, onFertig, onAbbrechen, 
               </div>
               <div className="text-white/80 text-sm font-semibold pt-1">Positionen</div>
               {ki.positionen.map((p, i) => (
-                <div key={i} className={'flex flex-wrap items-center gap-1.5 ' + (p.privat ? 'rounded-xl p-1.5 bg-ember/10 border border-ember/40' : '')}>
+                <div key={i} className={'flex flex-wrap items-center gap-1.5 ' + (p.privat ? 'rounded-xl p-1.5 bg-ember/10 border border-ember/40' : p.verschleiss ? 'rounded-xl p-1.5 bg-amber/10 border border-amber/40' : '')}>
                   {p.privat && <div className="w-full text-ember text-xs font-semibold">Privat? {p.grund || 'gehört vermutlich nicht zur Baustelle'} – wird nicht verrechnet</div>}
+                  {p.verschleiss && !p.privat && (
+                    <div className="w-full text-amber text-xs font-semibold flex items-center gap-1.5 flex-wrap">
+                      Verschleißteil{p.grund ? ' (' + p.grund + ')' : ''} – berechnet werden
+                      <input value={p.anteil} onChange={(e) => setPos(i, { anteil: e.target.value })} inputMode="decimal" className="w-12 bg-white/10 border border-amber/40 rounded px-1 py-0.5 text-right" /> %
+                      = {eur((parseBetrag(p.gesamt) || 0) * (parseBetrag(p.anteil) || 0) / 100)}
+                    </div>
+                  )}
                   <input value={p.bezeichnung} onChange={(e) => setPos(i, { bezeichnung: e.target.value })} className={inp + ' flex-1 min-w-[10rem] py-1.5 text-sm'} />
                   <select value={p.gewerk} onChange={(e) => setPos(i, { gewerk: e.target.value })} className="bg-white/10 border border-white/20 rounded-lg px-1.5 py-1.5 text-xs max-w-[7.5rem]">
                     {gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
                   <input value={p.gesamt} onChange={(e) => setPos(i, { gesamt: e.target.value })} inputMode="decimal" className="w-20 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-right" />
-                  <button onClick={() => setPos(i, { privat: !p.privat })} className={'text-xs px-2 py-1 rounded-lg border ' + (p.privat ? 'border-ember/60 text-ember' : 'border-white/20 text-white/60')}>privat</button>
+                  <button onClick={() => setPos(i, { privat: !p.privat, verschleiss: false })} className={'text-xs px-2 py-1 rounded-lg border ' + (p.privat ? 'border-ember/60 text-ember' : 'border-white/20 text-white/60')}>privat</button>
+                  <button onClick={() => setPos(i, { verschleiss: !p.verschleiss, privat: false, anteil: p.anteil || String(verschleissProzent) })} className={'text-xs px-2 py-1 rounded-lg border ' + (p.verschleiss ? 'border-amber/60 text-amber' : 'border-white/20 text-white/60')}>Verschleiß</button>
                   <button onClick={() => setKi({ ...ki, positionen: ki.positionen.filter((_, j) => j !== i) })} className="text-white/60 hover:text-ember p-1"><X className="w-4 h-4" /></button>
                 </div>
               ))}
@@ -250,7 +259,10 @@ export default function BelegScanner({ gewerke, projekt, onFertig, onAbbrechen, 
                 const summe = ki.positionen.reduce((a, p) => a + (parseBetrag(p.gesamt) || 0), 0), betrag = parseBetrag(ki.betrag) || 0
                 const privat = ki.positionen.filter((p) => p.privat).reduce((a, p) => a + (parseBetrag(p.gesamt) || 0), 0)
                 return <>
-                  {privat > 0 && <div className="text-ember text-xs font-semibold">Privatanteil {eur(privat)} wird nicht verrechnet. Dem Kunden werden {eur(betrag - privat)} berechnet.</div>}
+                  {(() => {
+                    const rest = ki.positionen.filter((p) => p.verschleiss && !p.privat).reduce((a, p) => a + (parseBetrag(p.gesamt) || 0) * (1 - (parseBetrag(p.anteil) || 0) / 100), 0)
+                    return (privat > 0 || rest > 0) ? <div className="text-amber text-xs font-semibold">{privat > 0 ? 'Privat ' + eur(privat) + ' · ' : ''}{rest > 0 ? 'Verschleiß nicht berechnet ' + eur(rest) + ' · ' : ''}Dem Kunden werden {eur(betrag - privat - rest)} berechnet.</div> : null
+                  })()}
                   {Math.abs(summe - betrag) > 0.01 && ki.positionen.length ? <div className="text-amber text-xs">Positionen ergeben {eur(summe)}, Beleg {eur(betrag)}. Die Differenz wird als eigene Zeile übernommen.</div> : null}
                 </>
               })()}
