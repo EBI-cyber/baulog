@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Play, Check, Flashlight, Volume2, VolumeX } from 'lucide-react'
-import { grau, schaerfe, verschiebung, zusammensetzen, versatzVerfeinern, papierSpalten, helligkeit, begleiter } from '../lib/videoscan'
+import { verfolger, begleiter } from '../lib/videoscan'
 
-const SPUR = 320 // Breite der Graustufenbilder für die Verfolgung
-const NEU_AB = 0.42 // neuer Abschnitt, sobald sich das Bild um diesen Anteil der Höhe verschoben hat
-const SPAETESTENS = 0.6 // dann auch ohne bestes Schärfe-Ergebnis
-const MAX_ABSCHNITTE = 16
 const FARBE = { gut: 'bg-emerald-500', achtung: 'bg-amber', stopp: 'bg-ember' }
 
 // Hinweis vorlesen (de-DE), nicht öfter als alle 2,5 s und nur bei neuem Text
@@ -21,13 +17,18 @@ function sprecher() {
   }
 }
 
-// Langer Beleg: Kamera von oben nach unten über den Beleg ziehen. Ergebnis = ein langes Bild (Canvas) über onFertig.
+// Langer Beleg, Schritt 2: Kamera über den Beleg ziehen. uebersicht = zugeschnittenes Übersichtsfoto (Canvas).
+// Jedes Kamerabild wird im Übersichtsfoto wiedergefunden; die Leiste rechts zeigt, was schon erfasst ist.
+// Reihenfolge und Tempo sind egal, Lücken kann man durch Zurückfahren füllen. Ergebnis = ein langes Bild über onFertig.
 // Ein Begleiter achtet laufend auf waagerechte Haltung, Abstand, Tempo, Licht und Schärfe.
-export default function VideoScan({ onFertig, onAbbrechen }) {
+export default function VideoScan({ uebersicht, onFertig, onAbbrechen }) {
   const video = useRef(null), stream = useRef(null)
-  const zustand = useRef({ laeuft: false, stop: false, lage: null, bestScharf: 0, sprich: sprecher() })
+  const zustand = useRef({ laeuft: false, stop: false, lage: null, sprich: sprecher() })
+  const spur = useRef(null)
+  if (!spur.current) spur.current = verfolger(uebersicht)
+  const [karte] = useState(() => uebersicht.toDataURL('image/jpeg', 0.6))
   const [laeuft, setLaeuft] = useState(false)
-  const [anzeige, setAnzeige] = useState({ abschnitte: 0, fortschritt: 0, hinweis: { text: 'Kamera startet …', stufe: 'gut', werte: {} }, lage: null })
+  const [anzeige, setAnzeige] = useState({ abschnitte: 0, abdeckung: 0, bereiche: [], lage: null, pos: null, hinweis: { text: 'Kamera startet …', stufe: 'gut', werte: {} } })
   const [fehler, setFehler] = useState('')
   const [licht, setLicht] = useState(null) // null = Taschenlampe nicht verfügbar
   const [ton, setTon] = useState(true)
@@ -87,74 +88,49 @@ export default function VideoScan({ onFertig, onAbbrechen }) {
     c.getContext('2d').drawImage(v, 0, 0, c.width, c.height)
     return c
   }
-  const faktor = () => Math.min(1200, video.current.videoWidth) / SPUR
 
-  // Ein Durchgang je ~45 ms: Begleiter-Hinweise immer, Verfolgung und Aufnahme nur nach Start
+  // Ein Durchgang je ~45 ms: Lage im Beleg bestimmen, nach Start Abschnitte sammeln, Begleiter-Hinweise
   const schritt = (t) => {
     const z = zustand.current, v = video.current
     if (z.stop) return
     requestAnimationFrame(schritt)
     if (!v || !v.videoWidth || t - (z.zuletzt || 0) < 45) return
     z.zuletzt = t
-    const g = grau(v, SPUR), h = g.h
-    const s = schaerfe(g)
-    z.bestScharf = Math.max(z.bestScharf * 0.995, s)
-    let tempo = null
-    if (z.laeuft) {
-      // um die erwartete Position herum suchen; nach mehreren unsicheren Bildern großflächig
-      const m = z.unsicher > 8
-        ? verschiebung(z.anker, g, 0, h * 0.3, 10, h * 0.3)
-        : verschiebung(z.anker, g, z.pos.dx + z.tempo.dx, z.pos.dy + z.tempo.dy, 6, Math.max(10, Math.round(h * 0.04)))
-      if (m && m.eindeutig) {
-        z.tempo = { dx: (z.tempo.dx + (m.dx - z.pos.dx)) / 2, dy: (z.tempo.dy + (m.dy - z.pos.dy)) / 2 }
-        z.pos = { dx: m.dx, dy: m.dy }
-        z.unsicher = 0
-      } else z.unsicher++
-      tempo = z.tempo.dy / h
-      const anteil = z.pos.dy / h
-      if (anteil >= NEU_AB && z.unsicher === 0 && (s >= z.scharf * 0.8 || anteil >= SPAETESTENS)) {
-        const f = faktor()
-        z.abschnitte.push({ bild: vollbild(), dx: z.pos.dx * f, dy: z.pos.dy * f })
-        z.anker = g; z.scharf = s; z.pos = { dx: 0, dy: 0 }
-        if (navigator.vibrate) navigator.vibrate(30)
-        if (z.abschnitte.length >= MAX_ABSCHNITTE) { fertig(); return }
-      }
-    }
-    let hinweis = begleiter({ lage: z.lage, papier: papierSpalten(g), tempo, hell: helligkeit(g), scharf: z.bestScharf ? s / z.bestScharf : null, laeuft: z.laeuft })
-    if (z.laeuft && z.unsicher > 8) hinweis = { ...hinweis, text: 'Position verloren – bitte ein Stück zurück nach oben', stufe: 'stopp' }
+    // einmal je Durchgang ein festes Bild ziehen: Lagebestimmung und Aufnahme müssen genau dasselbe Bild sehen
+    const bildJetzt = vollbild()
+    const st = spur.current.schritt(bildJetzt, t, z.laeuft, () => bildJetzt)
+    if (st.neu && navigator.vibrate) navigator.vibrate(30)
+    let hinweis = begleiter({ lage: z.lage, papier: st.papier, tempo: z.laeuft && st.sicher ? st.tempo : null, hell: st.hell, scharf: st.scharf, laeuft: z.laeuft })
+    if (st.verloren) hinweis = { ...hinweis, text: 'Suche die Stelle im Beleg – Handy ruhig halten', stufe: 'achtung' }
+    else if (z.laeuft && st.luecke && hinweis.stufe === 'gut') hinweis = { ...hinweis, text: 'Weiter oben fehlt noch ein Stück – kurz zurückfahren', stufe: 'achtung' }
     // Hinweise erst nach einer halben Sekunde zeigen, damit sie nicht flackern
     if (hinweis.text !== (z.kandidat && z.kandidat.text)) { z.kandidat = hinweis; z.seit = t }
     const gezeigt = t - z.seit > 500 || hinweis.stufe === 'stopp' ? hinweis : (z.gezeigt || hinweis)
     z.gezeigt = gezeigt
     if (gezeigt.stufe !== 'gut' || !z.laeuft) z.sprich(gezeigt.text, tonRef.current)
-    setAnzeige({ abschnitte: z.laeuft ? z.abschnitte.length : 0, fortschritt: z.laeuft ? Math.max(0, Math.min(1, z.pos.dy / h / NEU_AB)) : 0, hinweis: gezeigt, lage: z.lage })
+    setAnzeige({ abschnitte: st.abschnitte, abdeckung: st.abdeckung, bereiche: spur.current.bereiche(), lage: z.lage, pos: st.y != null && !st.verloren ? [st.y / st.HO, (st.y + st.hO) / st.HO] : null, hinweis: gezeigt })
+    // ganzer Beleg erfasst: automatisch fertig
+    if (z.laeuft && st.abdeckung >= 0.985) fertig()
   }
 
   const start = () => {
-    const v = video.current, z = zustand.current
-    if (!v || !v.videoWidth) return
     lageHoeren()
-    const g = grau(v, SPUR)
-    Object.assign(z, { anker: g, scharf: schaerfe(g), pos: { dx: 0, dy: 0 }, tempo: { dx: 0, dy: 0 }, unsicher: 0, abschnitte: [{ bild: vollbild(), dx: 0, dy: 0 }], laeuft: true })
+    zustand.current.laeuft = true
     setLaeuft(true)
   }
 
   const fertig = () => {
     const z = zustand.current; if (!z.laeuft || z.stop) return
+    if (!spur.current.anzahl()) { alert('Noch kein Abschnitt aufgenommen. Bitte das Handy über den Beleg führen.'); return }
     z.stop = true
     if (window.speechSynthesis) window.speechSynthesis.cancel()
-    // letztes Stück mitnehmen, wenn seit dem letzten Abschnitt noch etwas dazugekommen ist
-    if (z.pos.dy > z.anker.h * 0.08 && z.unsicher === 0) {
-      const f = faktor()
-      z.abschnitte.push({ bild: vollbild(), dx: z.pos.dx * f, dy: z.pos.dy * f })
-    }
+    if (navigator.vibrate) navigator.vibrate([40, 60, 40])
     setBusy('Setze den Beleg zusammen …')
     setTimeout(() => {
       try {
-        const a = z.abschnitte.map((x, i) => (i ? { ...x, ...versatzVerfeinern(z.abschnitte[i - 1].bild, x.bild, x.dx, x.dy) } : x))
-        const bild = zusammensetzen(a)
+        const bild = spur.current.zusammensetzen()
         if (stream.current) stream.current.getTracks().forEach((t) => t.stop())
-        onFertig(bild, a.length)
+        onFertig(bild, spur.current.anzahl())
       } catch (err) {
         setBusy('')
         alert('Zusammensetzen fehlgeschlagen: ' + (err && err.message ? err.message : err))
@@ -196,11 +172,19 @@ export default function VideoScan({ onFertig, onAbbrechen }) {
               {ampel('Abstand', hinweis.werte.abstand)}
               {laeuft && ampel('Tempo', hinweis.werte.tempo)}
             </div>
-            {laeuft && <div className="h-1.5 rounded-full bg-white/20 overflow-hidden"><div className="h-full btn-grad" style={{ width: anzeige.fortschritt * 100 + '%' }} /></div>}
+            {laeuft && <div className="text-xs text-white/80">{Math.round(anzeige.abdeckung * 100)} % des Belegs erfasst</div>}
+          </div>
+        )}
+        {!fehler && !busy && (
+          // Mini-Karte: Übersichtsfoto, grün = schon erfasst, Rahmen = gerade im Bild
+          <div className="absolute right-3 top-32 bottom-3 w-12 rounded-lg overflow-hidden border border-white/40 bg-black/50">
+            <img src={karte} alt="" className="absolute inset-0 w-full h-full object-fill opacity-70" />
+            {anzeige.bereiche.map(([a, b], i) => <div key={i} className="absolute left-0 right-0 bg-emerald-500/55" style={{ top: a * 100 + '%', height: (b - a) * 100 + '%' }} />)}
+            {anzeige.pos && <div className="absolute -left-px -right-px border-2 border-amber rounded-sm" style={{ top: Math.max(0, anzeige.pos[0]) * 100 + '%', height: (Math.min(1, anzeige.pos[1]) - Math.max(0, anzeige.pos[0])) * 100 + '%' }} />}
           </div>
         )}
         {punkt && !busy && (
-          <div className="absolute right-3 bottom-3 w-16 h-16 rounded-full border-2 border-white/60 bg-black/40">
+          <div className="absolute left-3 bottom-3 w-16 h-16 rounded-full border-2 border-white/60 bg-black/40">
             <div className="absolute left-1/2 top-1/2 w-5 h-5 -ml-2.5 -mt-2.5 rounded-full border border-white/50" />
             <div className={'absolute w-3.5 h-3.5 -ml-[7px] -mt-[7px] rounded-full ' + FARBE[hinweis.werte.lage || 'gut']}
               style={{ left: (50 + punkt.x * 42) + '%', top: (50 + punkt.y * 42) + '%' }} />
@@ -211,11 +195,11 @@ export default function VideoScan({ onFertig, onAbbrechen }) {
       <div className="p-3 space-y-2">
         {!laeuft ? (
           <>
-            <div className="text-white/75 text-xs">Beleg flach auf einen dunkleren Untergrund legen. Handy waagerecht darüber halten, sodass der Beleg gut zwei Drittel der Bildbreite füllt und der obere Rand zu sehen ist. Der Begleiter oben sagt dir, ob Haltung und Abstand passen. Dann auf Start tippen und das Handy langsam nach unten ziehen, ohne die Höhe zu ändern.</div>
+            <div className="text-white/75 text-xs">Schritt 2 von 2: Handy waagerecht über den Beleg halten, sodass er gut zwei Drittel der Bildbreite füllt. Der orange Rahmen in der Leiste rechts zeigt, welche Stelle die App gerade erkennt. Auf Start tippen und das Handy ruhig über den Beleg führen, bis die Leiste ganz grün ist. Lücken füllst du einfach durch Zurückfahren.</div>
             <button onClick={start} disabled={!!fehler} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Play className="w-5 h-5" /> Start</button>
           </>
         ) : (
-          <button onClick={fertig} disabled={!!busy} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Check className="w-5 h-5" /> Fertig – Ende des Belegs erreicht</button>
+          <button onClick={fertig} disabled={!!busy} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Check className="w-5 h-5" /> Fertig{anzeige.abdeckung < 0.95 ? ' (Lücken nimmt die App aus dem Übersichtsfoto)' : ''}</button>
         )}
       </div>
     </div>,

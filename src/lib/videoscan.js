@@ -1,6 +1,6 @@
-// Video-Scan für lange Belege: Handy langsam über den Beleg nach unten ziehen.
-// Die App verfolgt die Verschiebung von Bild zu Bild, nimmt dabei scharfe Abschnitte auf
-// und setzt sie zu einem langen Belegbild zusammen.
+// Video-Scan für lange Belege: Erst ein Übersichtsfoto des ganzen Belegs, dann das Handy langsam über den Beleg ziehen.
+// Jedes Kamerabild wird in der Übersicht wiedergefunden. So weiß die App immer, welcher Teil gerade zu sehen ist,
+// nimmt scharfe Abschnitte auf und setzt sie passend zur Übersicht zu einem langen Belegbild zusammen.
 
 // Canvas/Video → Graustufenbild { w, h, d } in der Breite w
 export function grau(quelle, w) {
@@ -52,7 +52,7 @@ export function verschiebung(a, b, gx = 0, gy = 0, rx = 6, ry = 10) {
   let best = null, zweit = Infinity, summe = 0, anzahl = 0
   for (let dy = Math.round(gy - ry); dy <= Math.round(gy + ry); dy++) {
     // gemeinsamer Bereich muss mindestens ein Viertel der Höhe sein
-    const y0 = Math.max(rand, dy + rand), y1 = Math.min(h - rand, h + dy - rand)
+    const y0 = Math.max(rand, dy + rand), y1 = Math.min(h - rand, b.h + dy - rand)
     if (y1 - y0 < h * 0.25) continue
     for (let dx = Math.round(gx - rx); dx <= Math.round(gx + rx); dx++) {
       const x0 = Math.max(rand, dx + rand), x1 = Math.min(w - rand, w + dx - rand)
@@ -75,34 +75,80 @@ export function verschiebung(a, b, gx = 0, gy = 0, rx = 6, ry = 10) {
   return best
 }
 
-// Abschnitte zusammensetzen. abschnitte: [{ bild: Canvas, dx, dy }] – dx/dy = Versatz zum vorigen Abschnitt in Pixeln.
-// Jeder Abschnitt wird ab der Mitte der Überlappung gezeichnet (dort ist das Bild am wenigsten verzerrt).
-export function zusammensetzen(abschnitte) {
-  const W = abschnitte[0].bild.width, H = abschnitte[0].bild.height
-  const pos = []
-  let x = 0, y = 0
-  abschnitte.forEach((a, i) => { if (i) { x += a.dx; y += a.dy } pos.push({ x, y }) })
-  const minX = Math.min(...pos.map((p) => p.x)), maxX = Math.max(...pos.map((p) => p.x))
-  const out = document.createElement('canvas')
-  out.width = Math.round(W + maxX - minX); out.height = Math.round(pos[pos.length - 1].y + H)
-  const ctx = out.getContext('2d')
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, out.width, out.height)
-  abschnitte.forEach((a, i) => {
-    const schnitt = i ? Math.max(0, Math.round((H - a.dy) / 2)) : 0
-    const px = Math.round(pos[i].x - minX), py = Math.round(pos[i].y)
-    ctx.drawImage(a.bild, 0, schnitt, W, H - schnitt, px, py + schnitt, W, H - schnitt)
-  })
-  return out
+// Graustufen eines Bildbereichs (sx, sy, sw, sh in Pixeln der Quelle), auf Breite w skaliert
+export function grauBereich(quelle, sx, sy, sw, sh, w) {
+  const h = Math.max(1, Math.round(sh * w / sw))
+  const c = document.createElement('canvas'); c.width = w; c.height = h
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(quelle, sx, sy, sw, sh, 0, 0, w, h)
+  const p = x.getImageData(0, 0, w, h).data
+  const d = new Uint8Array(w * h)
+  let summe = 0
+  for (let i = 0; i < w * h; i++) { d[i] = (p[i * 4] * 77 + p[i * 4 + 1] * 150 + p[i * 4 + 2] * 29) >> 8; summe += d[i] }
+  return { w, h, d, hell: summe / (w * h) }
 }
 
-// Versatz zweier Abschnitte genauer bestimmen (mittlere Auflösung, um die Schätzung aus der Verfolgung herum)
-export function versatzVerfeinern(a, b, dx, dy) {
-  // feiner als die Verfolgung, damit sich gleich aussehende Textzeilen unterscheiden lassen
-  const B = Math.min(500, a.width), f = a.width / B
-  const ga = grau(a, B), gb = grau(b, B)
-  const v = verschiebung(ga, gb, dx / f, dy / f, 8, 16)
-  if (!v || !v.eindeutig) return { dx, dy }
-  return { dx: v.dx * f, dy: v.dy * f }
+// Kamerabild-Streifen F (gleiche Breite wie die Übersicht O) in der Übersicht einpassen:
+// Zeile 0 von F liegt bei Zeile y von O, um dx Spalten verschoben. F darf über Anfang/Ende des Belegs hinausragen,
+// mindestens 40 % von F müssen aber auf dem Beleg liegen. Rückgabe { y, dx, fehler, eindeutig, rand } oder null.
+// band = [von, bis] (Anteile der Höhe von F): nur diese Zeilen vergleichen. Ein Band in der Bildmitte ist
+// unempfindlich gegen kleine Maßstabsfehler (Abstand zum Beleg ändert sich beim Ziehen leicht).
+export function einpassen(O, F, ymin, ymax, rx = 2, band = [0, 1]) {
+  const w = O.w, rand = Math.round(w * 0.05), schritt = w > 150 ? 3 : 2
+  const bA = Math.round(F.h * band[0]), bB = Math.round(F.h * band[1])
+  let best = null, summe = 0, anzahl = 0
+  const y0 = Math.round(ymin), y1 = Math.round(ymax)
+  for (let y = y0; y <= y1; y++) {
+    const j0 = Math.max(bA, -y), j1 = Math.min(bB, O.h - y)
+    if (j1 - j0 < (bB - bA) * 0.4) continue
+    for (let dx = -rx; dx <= rx; dx++) {
+      const x0 = Math.max(rand, rand + dx), x1 = Math.min(w - rand, w - rand + dx)
+      const k = mittel(O, x0, y + j0, x1, y + j1) - mittel(F, x0 - dx, j0, x1 - dx, j1)
+      let s = 0, n = 0
+      for (let j = j0; j < j1; j += schritt) {
+        const io = (y + j) * w, iF = j * w - dx
+        for (let x = x0; x < x1; x += schritt) { s += Math.abs(O.d[io + x] - F.d[iF + x] - k); n++ }
+      }
+      const f = s / n
+      summe += f; anzahl++
+      if (!best || f < best.fehler) best = { y, dx, fehler: f }
+    }
+  }
+  if (!best) return null
+  best.eindeutig = anzahl > 4 && best.fehler < (summe / anzahl) * 0.8
+  best.mittel = summe / anzahl
+  best.rand = best.y <= y0 || best.y >= y1 // Treffer am Rand des Suchbereichs: wahrscheinlich daneben
+  return best
+}
+
+// Abschnitte anhand ihrer Lage in der Übersicht zu einem Bild zusammensetzen.
+// abschnitte: [{ bild: Canvas (volles Kamerabild), l, r (Papierränder 0–1), y (Oberkante in Übersichtszeilen), hO (Höhe in Übersichtszeilen) }]
+// uebersicht: Canvas des zugeschnittenen Übersichtsfotos, WR = Breite der Übersicht in der Verfolgung.
+// Nachbarn werden in höherer Auflösung genau aneinander ausgerichtet; Lücken füllt das (unschärfere) Übersichtsfoto.
+export function zusammensetzenUebersicht(abschnitte, uebersicht, WR, HO) {
+  const a = [...abschnitte].sort((p, q) => p.y - q.y).map((x) => ({ ...x, xoff: 0 }))
+  const breiten = a.map((x) => (x.r - x.l) * x.bild.width).sort((p, q) => p - q)
+  const Wout = Math.round(Math.min(1100, breiten[Math.floor(breiten.length / 2)]))
+  const s = Wout / WR, M = 400
+  const streifen = (x) => grauBereich(x.bild, x.l * x.bild.width, 0, (x.r - x.l) * x.bild.width, x.bild.height, M)
+  for (let i = 1; i < a.length; i++) {
+    const p = a[i - 1], q = a[i]
+    if (q.y > p.y + p.hO * 0.85) continue // kaum Überlappung
+    const v = verschiebung(streifen(p), streifen(q), 0, (q.y - p.y) * M / WR, 5, 10)
+    if (v && v.eindeutig) { q.y = p.y + v.dy * WR / M; q.xoff = p.xoff + v.dx * Wout / M }
+  }
+  const out = document.createElement('canvas')
+  out.width = Wout; out.height = Math.round(HO * s)
+  const ctx = out.getContext('2d')
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, out.width, out.height)
+  ctx.drawImage(uebersicht, 0, 0, out.width, out.height)
+  a.forEach((x, i) => {
+    const k = x.hO / x.bild.height // Übersichtszeilen je Kamerapixel
+    let oben = 0
+    if (i) { const p = a[i - 1], ende = Math.min(p.y + p.hO, x.y + x.hO); if (ende > x.y) oben = ((x.y + ende) / 2 - x.y) / k }
+    const sx = x.l * x.bild.width, sw = (x.r - x.l) * x.bild.width
+    ctx.drawImage(x.bild, sx, oben, sw, x.bild.height - oben, Math.round(x.xoff), (x.y + oben * k) * s, Wout, (x.bild.height - oben) * k * s)
+  })
+  return out
 }
 
 // Wo liegt das Papier im Bild? Spalten-Helligkeit im mittleren Bereich: Papier ist heller als der Untergrund.
@@ -158,11 +204,141 @@ export function begleiter({ lage, papier, tempo, hell, scharf, laeuft }) {
   if (laeuft && tempo != null) {
     if (tempo > 0.06) { werte.tempo = 'stopp'; hinweise.push({ text: 'Langsamer!', stufe: 'stopp', rang: 1 }) }
     else if (tempo > 0.035) { werte.tempo = 'achtung'; hinweise.push({ text: 'Etwas langsamer', stufe: 'achtung', rang: 1 }) }
-    else if (tempo < -0.01) { werte.tempo = 'achtung'; hinweise.push({ text: 'Nach unten bewegen, nicht nach oben', stufe: 'achtung', rang: 1 }) }
   }
   if (hell < 70) hinweise.push({ text: 'Zu dunkel – Licht einschalten', stufe: 'achtung', rang: 5 })
   if (scharf != null && scharf < 0.5) hinweise.push({ text: 'Unscharf – ruhig halten, kurz warten', stufe: 'achtung', rang: 6 })
   hinweise.sort((a, b) => (a.stufe === 'stopp' ? 0 : 1) - (b.stufe === 'stopp' ? 0 : 1) || a.rang - b.rang)
   const h = hinweise[0]
-  return { text: h ? h.text : (laeuft ? 'Gut so – gleichmäßig weiter nach unten' : 'Gut so – jetzt auf Start tippen'), stufe: h ? h.stufe : 'gut', werte }
+  return { text: h ? h.text : (laeuft ? 'Gut so – weiter, bis die Leiste rechts ganz grün ist' : 'Gut so – jetzt auf Start tippen'), stufe: h ? h.stufe : 'gut', werte }
+}
+
+// Verfolgung über das Übersichtsfoto. uebersicht = zugeschnittenes Foto des ganzen Belegs (Canvas).
+// schritt(quelle, t, aufnehmen, vollbild) einmal je Kamerabild aufrufen:
+//   quelle = Video oder Canvas, t = Zeit in ms, aufnehmen = ob Abschnitte gesammelt werden,
+//   vollbild() = liefert das aktuelle Kamerabild als Canvas in voller Auflösung.
+// Rückgabe: Lage im Beleg, Abdeckung und Werte für den Begleiter.
+export function verfolger(uebersicht) {
+  const SPUR = 320, BAND = [0.3, 0.7]
+  const WR = Math.min(200, uebersicht.width)
+  const O = grau(uebersicht, WR), HO = O.h
+  const bedeckt = new Uint8Array(HO)
+  const z = { f: 1, y: null, hO: 0, v: 0, unsicher: 9, lr: null, letzteSuche: -1e9, bestScharf: 0, abschnitte: [] }
+  // Papierbereich des Kamerabilds auf Übersichtsbreite bringen (f = Breite strecken/stauchen)
+  const streifen = (q, lr, f = 1) => {
+    const qw = q.videoWidth || q.width, qh = q.videoHeight || q.height
+    const c = (lr.links + lr.rechts) / 2, b = (lr.rechts - lr.links) * f
+    return grauBereich(q, (c - b / 2) * qw, 0, b * qw, qh, WR)
+  }
+  const streifenHoehe = (q, lr, f) => {
+    const qw = q.videoWidth || q.width, qh = q.videoHeight || q.height
+    return Math.max(1, Math.round(qh * WR / ((lr.rechts - lr.links) * f * qw)))
+  }
+  // Maßstab f (Breite des Papierausschnitts) um f0 ± spanne durchprobieren, Lage um y ± ry: bester Treffer
+  const skalieren = (q, y, f0, spanne, ry, stufe = 0.02) => {
+    let best = null
+    for (let f = f0 - spanne; f <= f0 + spanne + 1e-9; f += stufe) {
+      const F = streifen(q, z.lr, f), r = einpassen(O, F, y - ry, y + ry, 2, [0.05, 0.95])
+      if (r && (!best || r.fehler < best.r.fehler)) best = { f, r, h: F.h }
+    }
+    return best
+  }
+  const abdeckung = () => { let n = 0; for (let i = 0; i < HO; i++) n += bedeckt[i]; return n / HO }
+  // Zeilen, die ein Abschnitt ab y mit Höhe h abdeckt (an den Bildrändern nicht ganz bis zum Rand)
+  const bereich = (y, h) => [y <= h * 0.1 ? 0 : Math.max(0, Math.round(y + h * 0.08)), y + h >= HO - h * 0.1 ? HO : Math.min(HO, Math.round(y + h * 0.92))]
+
+  function schritt(q, t, aufnehmen, vollbild) {
+    const g = grau(q, SPUR)
+    const s = schaerfe(g)
+    z.bestScharf = Math.max(z.bestScharf * 0.995, s)
+    const p = papierSpalten(g)
+    if (p && p.rechts - p.links > 0.15) z.lr = z.lr ? { links: z.lr.links * 0.6 + p.links * 0.4, rechts: z.lr.rechts * 0.6 + p.rechts * 0.4 } : p
+    let m = null
+    if (z.lr) {
+      const F = streifen(q, z.lr, z.f)
+      // erst nahe der erwarteten Lage suchen (passt, wenn ähnlich gut wie bisher). Die Vorhersage über das Tempo ist
+      // begrenzt, damit sie bei gleich aussehenden Textzeilen nicht davonläuft; die Gegenproben unten fangen Fehler ab.
+      let ok = false
+      if (z.y != null && z.unsicher < 6) {
+        const vor = z.y + Math.max(-12, Math.min(12, z.v))
+        m = einpassen(O, F, vor - 20, vor + 20, 2, [0.1, 0.9])
+        ok = m && !m.rand && (m.eindeutig || m.fehler < z.refFehler * 1.2)
+      }
+      // sonst höchstens alle 350 ms (zur Kontrolle jede Sekunde) im ganzen Beleg suchen. Dafür nur die Bildmitte
+      // vergleichen, die ist unempfindlich gegen einen noch ungenauen Maßstab; danach den Maßstab bestimmen.
+      if (t - z.letzteSuche > (ok ? 1000 : 350)) {
+        z.letzteSuche = t
+        const g2 = einpassen(O, F, -F.h * 0.6, HO - F.h * 0.4, 1, BAND)
+        // im ganzen Beleg strenger: der Treffer muss sich klar vom Rest abheben
+        if (g2 && g2.fehler > g2.mittel * 0.78) g2.eindeutig = false
+        if (g2 && g2.eindeutig && (!ok || (Math.abs(g2.y - m.y) > 10 && g2.fehler < z.refBand * 0.85))) {
+          const sk = skalieren(q, g2.y, z.f, 0.06, 8)
+          if (!ok || sk.r.fehler < m.fehler * 0.9) { m = sk.r; z.f = sk.f; ok = true; z.sprung = t }
+        }
+        if (g2 && g2.eindeutig) z.refBand = z.refBand ? z.refBand * 0.7 + g2.fehler * 0.3 : g2.fehler
+      }
+      if (ok) {
+        z.refFehler = z.refFehler ? z.refFehler * 0.8 + m.fehler * 0.2 : m.fehler
+        z.v = z.y != null && z.unsicher === 0 ? (z.v + (m.y - z.y)) / 2 : 0
+        z.y = m.y; z.hO = streifenHoehe(q, z.lr, z.f); z.unsicher = 0
+      } else z.unsicher++
+    } else z.unsicher++
+    let neu = false
+    // erst aufnehmen, wenn die Lage nach einem Sprung ein paar Bilder lang bestätigt ist
+    if (aufnehmen && z.unsicher === 0 && t - (z.sprung || -1e9) > 200) {
+      const [a, e] = bereich(z.y, z.hO)
+      let frei = 0
+      for (let i = a; i < e; i++) if (!bedeckt[i]) frei++
+      const anteil = frei / z.hO
+      // eine Lücke, die dieses Bild ganz schließt (oben und unten schon erfasst)
+      const schliesst = frei >= 3 && z.abschnitte.length > 0 && (a === 0 || bedeckt[a - 1] || bedeckt[a]) && (e === HO || bedeckt[e] || bedeckt[e - 1]) && s >= z.bestScharf * 0.8
+      if ((anteil >= 0.35 && (s >= z.bestScharf * 0.75 || anteil >= 0.55)) || (!z.abschnitte.length && anteil > 0.2) || schliesst) {
+        // Gegenprobe im ganzen Beleg: nur aufnehmen, wenn die Lage eindeutig dort ist (sonst neu suchen)
+        const probe = einpassen(O, streifen(q, z.lr, z.f), -z.hO * 0.6, HO - z.hO * 0.4, 1, BAND)
+        // weicht sie ab und ist dabei sehr klar, gilt die Gegenprobe (die Verfolgung hinkt bei schnellem Ziehen hinterher)
+        if (!probe || !probe.eindeutig) return zustandMelden(g, s, p, false)
+        if (Math.abs(probe.y - z.y) > 10) {
+          if (probe.fehler > probe.mittel * 0.5) return zustandMelden(g, s, p, false)
+          z.y = probe.y
+        }
+        // Maßstab und seitliche Lage genauer bestimmen
+        const best = skalieren(q, z.y, z.f, 0.03, 5, 0.01)
+        const b = (z.lr.rechts - z.lr.links) * best.f
+        const c = (z.lr.links + z.lr.rechts) / 2 - (best.r.dx / WR) * b
+        // nur den Papierstreifen (mit etwas Rand) aufheben, das spart Speicher auf dem Handy
+        const voll = vollbild(), x0 = Math.max(0, Math.floor((c - b / 2 - 0.04) * voll.width)), x1 = Math.min(voll.width, Math.ceil((c + b / 2 + 0.04) * voll.width))
+        const bild = document.createElement('canvas'); bild.width = x1 - x0; bild.height = voll.height
+        bild.getContext('2d').drawImage(voll, x0, 0, bild.width, bild.height, 0, 0, bild.width, bild.height)
+        const ab = { bild, l: ((c - b / 2) * voll.width - x0) / bild.width, r: ((c + b / 2) * voll.width - x0) / bild.width, y: best.r.y, hO: best.h }
+        z.abschnitte.push(ab)
+        const [a2, e2] = bereich(ab.y, ab.hO)
+        for (let i = a2; i < e2; i++) bedeckt[i] = 1
+        neu = true
+      }
+    }
+    return zustandMelden(g, s, p, neu)
+  }
+  function zustandMelden(g, s, p, neu) {
+    // Lücke: weiter oben fehlt etwas, obwohl darunter schon aufgenommen wurde
+    let luecke = false
+    if (z.y != null && z.abschnitte.length) {
+      for (let i = 0; i < Math.min(HO, z.y); i++) if (!bedeckt[i]) { luecke = true; break }
+    }
+    return {
+      y: z.y, hO: z.hO, HO, sicher: z.unsicher === 0, verloren: z.unsicher > 6, neu, abdeckung: abdeckung(), luecke,
+      tempo: z.hO ? z.v / z.hO : null, papier: p, hell: g.hell, scharf: z.bestScharf ? s / z.bestScharf : null,
+      abschnitte: z.abschnitte.length,
+    }
+  }
+  // bedeckte Bereiche als Liste [von, bis] in Anteilen 0–1 (für die Mini-Karte)
+  function bereiche() {
+    const out = []
+    let start = -1
+    for (let i = 0; i <= HO; i++) {
+      const b = i < HO && bedeckt[i]
+      if (b && start < 0) start = i
+      if (!b && start >= 0) { out.push([start / HO, i / HO]); start = -1 }
+    }
+    return out
+  }
+  return { schritt, bereiche, zusammensetzen: () => zusammensetzenUebersicht(z.abschnitte, uebersicht, WR, HO), anzahl: () => z.abschnitte.length, abschnitte: () => z.abschnitte }
 }
