@@ -49,11 +49,18 @@ export async function belegLesen(dataUrl, gewerke, projekt) {
   return callAI({ task: 'beleg', bild: dataUrl, gewerke, projekt })
 }
 
-// Position auf dem Belegbild finden → { x, y, w, h } (0–1) oder null
+// Position auf dem Belegbild finden → { x, y, w, h } (0–1) oder null.
+// Die App nummeriert die Textzeilen selbst, die KI nennt nur die passende Nummer – das ist viel genauer als Koordinaten.
 export async function positionFinden(bild, text) {
-  const d = await callAI({ task: 'finden', bild, text })
-  const b = d && d.box
-  return b && [b.x, b.y, b.w, b.h].every((v) => typeof v === 'number' && v >= 0 && v <= 1) && b.w > 0 && b.h > 0 ? b : null
+  const { nummeriertesBild } = await import('./scan')
+  const n = await nummeriertesBild(bild)
+  if (!n.zeilen.length) return null
+  const d = await callAI({ task: 'finden', bild: n.url, text })
+  const nr = (Array.isArray(d.zeilen) ? d.zeilen : []).map(Number).filter((k) => k >= 1 && k <= n.zeilen.length)
+  if (!nr.length) return null
+  const y0 = Math.min(...nr.map((k) => n.zeilen[k - 1].y0)), y1 = Math.max(...nr.map((k) => n.zeilen[k - 1].y1))
+  const pad = Math.max(3, (y1 - y0) * 0.25)
+  return { x: 0.01, y: Math.max(0, (y0 - pad) / n.hoehe), w: 0.98, h: Math.min(1, (y1 - y0 + 2 * pad) / n.hoehe) }
 }
 
 // Materialpositionen auf mögliche Privatkäufe prüfen → [{ id, grund }]
