@@ -165,7 +165,8 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
       try {
         const bild = spur.current.zusammensetzen()
         if (stream.current) stream.current.getTracks().forEach((t) => t.stop())
-        onFertig(bild, spur.current.anzahl())
+        // dazu die einzelnen scharfen Abschnitte: daraus liest die KI (unabhängig von den Nähten im Gesamtbild)
+        onFertig(bild, spur.current.anzahl(), spur.current.kiAbschnitte(10))
       } catch (err) {
         setBusy('')
         alert('Zusammensetzen fehlgeschlagen: ' + (err && err.message ? err.message : err))

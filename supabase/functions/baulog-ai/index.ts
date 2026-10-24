@@ -79,7 +79,9 @@ Deno.serve(async (req) => {
               { type: 'text', text: 'Übersichtsfoto des ganzen Belegs (unscharf, nur zur Orientierung: Aufbau, Reihenfolge, wo die Summe steht):' },
               { type: 'image_url', image_url: { url: String(body.uebersicht), detail: 'high' } },
             ] : []),
-            { type: 'text', text: 'Beleg auswerten. Es ist EIN langer Beleg, aufgeteilt in ' + body.bilder.length + ' scharfe Detailbilder von oben nach unten' + (body.uebersicht ? ' – alle Zahlen und Texte aus diesen Detailbildern lesen, nicht aus dem Übersichtsfoto' : '') + '. Aufeinanderfolgende Bilder überlappen sich: Zeilen, die am unteren Rand eines Bildes und am oberen Rand des nächsten stehen, sind dieselbe Zeile und dürfen nur EINMAL als Position vorkommen. Ecken: gib für das Gesamtbild einfach 0/0, 1/0, 1/1, 0/1 an.' },
+            { type: 'text', text: body.kamera
+              ? 'Beleg auswerten. Es ist EIN langer Beleg. Die folgenden ' + body.bilder.length + ' Detailbilder sind einzelne Kamerabilder, aufgenommen von oben nach unten' + (body.uebersicht ? ' – alle Zahlen und Texte aus diesen Detailbildern lesen, das Übersichtsfoto nur für Reihenfolge und Vollständigkeit nutzen' : '') + '. Aufeinanderfolgende Bilder überlappen sich unterschiedlich stark (manchmal nur eine Zeile, manchmal die Hälfte). Gehe Bild für Bild vor: Zeilen, die schon im vorigen Bild standen, sind dieselben Zeilen und kommen nur EINMAL vor. Erkennungsmerkmal ist die Artikelnummer (Art/EAN o. Ä.) zusammen mit Bezeichnung und Betrag; dieselbe Nummer in zwei benachbarten Bildern ist dieselbe Position. Eine Zeile, die am Bildrand angeschnitten ist, aus dem Nachbarbild lesen. Ecken: gib für das Gesamtbild einfach 0/0, 1/0, 1/1, 0/1 an.'
+              : 'Beleg auswerten. Es ist EIN langer Beleg, aufgeteilt in ' + body.bilder.length + ' scharfe Detailbilder von oben nach unten' + (body.uebersicht ? ' – alle Zahlen und Texte aus diesen Detailbildern lesen, nicht aus dem Übersichtsfoto' : '') + '. Aufeinanderfolgende Bilder überlappen sich: Zeilen, die am unteren Rand eines Bildes und am oberen Rand des nächsten stehen, sind dieselbe Zeile und dürfen nur EINMAL als Position vorkommen. Ecken: gib für das Gesamtbild einfach 0/0, 1/0, 1/1, 0/1 an.' },
             ...body.bilder.slice(0, 10).map((u: unknown) => ({ type: 'image_url', image_url: { url: String(u || ''), detail: 'high' } })),
           ] }
           : { role: 'user', content: [{ type: 'text', text: 'Beleg auswerten.' }, { type: 'image_url', image_url: { url: String(body.bild || ''), detail: 'high' } }] },
@@ -149,6 +151,28 @@ Deno.serve(async (req) => {
         { role: 'assistant', content },
         { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen das Bild (bei mehreren Bildern: keine Zeile aus dem Überlappungsbereich doppelt): Gesamtbetrag (Zeile „Gesamtsumme“/„Summe“/„zu zahlen“), Menge und Zeilenbetrag jeder Position, Datum. Die Summe der Positionen muss den Gesamtbetrag ergeben; passt es nicht, hast du dich verlesen – lies die betroffenen Zahlen erneut. Antworte NUR mit dem vollständigen korrigierten JSON im selben Format.' },
       ], 0)
+      // Summe passt immer noch nicht: gezielt nach der fehlenden oder doppelten Position suchen lassen
+      try {
+        const j = JSON.parse(content)
+        const pos = Array.isArray(j.positionen) ? j.positionen : []
+        const summe = pos.reduce((a: number, p: { gesamt?: unknown }) => a + (Number(p && p.gesamt) || 0), 0)
+        const betrag = Number(j.betrag) || 0
+        const diff = Math.round((betrag - summe) * 100) / 100
+        if (betrag > 0 && pos.length && Math.abs(diff) > 0.01) {
+          const eur = (n: number) => n.toFixed(2).replace('.', ',') + ' €'
+          const neu = await ask([
+            ...messages,
+            { role: 'assistant', content },
+            { role: 'user', content: 'Die Positionen ergeben zusammen ' + eur(summe) + ', der Gesamtbetrag ist ' + eur(betrag) + '. ' +
+              (diff > 0
+                ? 'Es fehlen ' + eur(diff) + ': Vermutlich hast du eine Position übersehen (oft eine kurze Zeile direkt neben einer ähnlichen, oder am Rand eines Bildes) oder eine Menge/einen Betrag verlesen. Gehe den Beleg Zeile für Zeile von oben nach unten durch und finde sie.'
+                : 'Es sind ' + eur(-diff) + ' zu viel: Vermutlich hast du eine Position doppelt gezählt (z. B. aus dem Überlappungsbereich zweier Bilder) oder einen Betrag verlesen. Gehe den Beleg Zeile für Zeile durch und streiche die doppelte.') +
+              ' Prüfe auch den Gesamtbetrag selbst. Erfinde nichts: Wenn du keine Position findest, lass die Liste so. Antworte NUR mit dem vollständigen korrigierten JSON im selben Format.' },
+          ], 0)
+          JSON.parse(neu) // nur gültiges JSON übernehmen
+          content = neu
+        }
+      } catch { /* erste Antwort behalten */ }
     }
     if (jsonMode) { try { return out(JSON.parse(content)) } catch { return out({}) } }
     return out({ text: String(content).trim() })

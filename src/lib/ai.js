@@ -47,8 +47,9 @@ export async function leistungenAusTagebuch(tage, gewerke, katalog) {
 // Belegfoto lesen: Ecken (0–1, oben-links, oben-rechts, unten-rechts, unten-links), Lieferant, Datum, Betrag.
 // Lange Belege als Liste überlappender Stücke von oben nach unten (dann ohne Ecken),
 // optional mit einem Übersichtsfoto des ganzen Belegs zur Orientierung.
-export async function belegLesen(dataUrl, gewerke, projekt, uebersicht) {
-  if (Array.isArray(dataUrl)) return callAI({ task: 'beleg', bilder: dataUrl, uebersicht, gewerke, projekt })
+// kamera = true: die Stücke sind einzelne Kamerabilder aus dem Video-Scan (überlappen unterschiedlich stark).
+export async function belegLesen(dataUrl, gewerke, projekt, uebersicht, kamera = false) {
+  if (Array.isArray(dataUrl)) return callAI({ task: 'beleg', bilder: dataUrl, uebersicht, gewerke, projekt, kamera })
   return callAI({ task: 'beleg', bild: dataUrl, gewerke, projekt })
 }
 
