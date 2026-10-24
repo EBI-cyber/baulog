@@ -6,6 +6,7 @@ import { syncAll } from '../lib/cloud'
 import { useRole } from '../lib/role'
 import IconChip from '../ui/IconChip'
 import Datensicherung from '../components/Datensicherung'
+import Zugangsdaten from '../components/Zugangsdaten'
 
 function Section({ icon, title, hint, children }) {
   return (
@@ -69,6 +70,7 @@ export default function Einstellungen() {
         <h2 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight mb-5">Einstellungen</h2>
         <div className="space-y-3">
           {AccountCard}
+          {isCloudReady && <Zugangsdaten isWorker />}
           <div className="glass rounded-3xl p-5 text-white/70 text-sm">
             Mitarbeiter-Ansicht: Du erfasst nur deine Zeiten in den freigegebenen Projekten. Kalkulation &amp; Firmendaten verwaltet dein Chef.
           </div>
@@ -83,6 +85,7 @@ export default function Einstellungen() {
 
       <div className="space-y-3">
         {AccountCard}
+        {isCloudReady && <Zugangsdaten />}
 
         <Datensicherung />
 
