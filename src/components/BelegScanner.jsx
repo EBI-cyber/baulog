@@ -50,6 +50,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const [lang, setLang] = useState(false) // Quelle stammt aus dem Video-Scan
   const autoZuschnitt = useRef(false)
   const kiBilder = useRef(null) // Stücke des zugeschnittenen Belegs für die KI
+  const videoStuecke = useRef(null) // einzelne scharfe Abschnitte aus dem Video-Scan für die KI
   const kamera = useRef(null), galerie = useRef(null), bild = useRef(null), svg = useRef(null)
   // Ziehen ohne React-Neuzeichnen: Positionen in einer Ref, SVG direkt aktualisieren
   const live = useRef(null), griff = useRef(null), lupe = useRef(null)
@@ -92,7 +93,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       const c = verkleinern(quellbild, 1600)
       const W = c.width, H = c.height
       const gefunden = eckenFinden(c)
-      setLang(false)
+      setLang(false); videoStuecke.current = null
       setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85)); setErgebnis(''); setKi(null)
       setEcken(gefunden ? einruecken(gefunden, 0.012) : [{ x: W * 0.05, y: H * 0.05 }, { x: W * 0.95, y: H * 0.05 }, { x: W * 0.95, y: H * 0.95 }, { x: W * 0.05, y: H * 0.95 }])
       // Ecken nicht gefunden: KI um eine Schätzung bitten (die Angaben liest sie später vom zugeschnittenen Beleg)
@@ -115,8 +116,12 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)) }
   }
   // Ergebnis des Video-Scans: das lange Bild ist schon passend zum Übersichtsfoto zugeschnitten
-  const videoFertig = (c) => {
+  const videoFertig = (c, anzahl, abschnitte) => {
     setVideo(false)
+    // die KI liest die einzelnen Abschnitte (kontrastreich, höchstens 1000 px breit) statt des zusammengesetzten Bildes
+    try {
+      videoStuecke.current = (abschnitte || []).map((a) => dokumentFilter(verkleinern(a, Math.max(a.width, a.height) * Math.min(1, 1000 / a.width))).toDataURL('image/jpeg', 0.85))
+    } catch { videoStuecke.current = null }
     setLang(true)
     autoZuschnitt.current = true
     setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85)); setErgebnis(''); setKi(null)
@@ -187,8 +192,11 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       setBusy('KI liest den Beleg …')
       try {
         // langer Beleg: Detailstücke und dazu das Übersichtsfoto zur Orientierung
-        const k = lang && uebersicht
-          ? await belegLesen(kiBilder.current, gewerke, projekt, uebersicht.toDataURL('image/jpeg', 0.8))
+        const uebersichtUrl = uebersicht ? uebersicht.toDataURL('image/jpeg', 0.8) : undefined
+        const k = lang && videoStuecke.current && videoStuecke.current.length
+          ? await belegLesen(videoStuecke.current, gewerke, projekt, uebersichtUrl, true)
+          : lang && uebersicht
+          ? await belegLesen(kiBilder.current, gewerke, projekt, uebersichtUrl)
           : await belegLesen(kiBilder.current && kiBilder.current.length > 1 ? kiBilder.current : url, gewerke, projekt)
         setKi({
           lieferant: k.lieferant || '', datum: /^\d{4}-\d{2}-\d{2}$/.test(k.datum || '') ? k.datum : '',
@@ -208,6 +216,8 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const betrag = parseBetrag(ki.betrag)
     if (Number.isNaN(betrag) || betrag <= 0) { alert('Bitte den Gesamtbetrag des Belegs eintragen, z. B. 127,53.'); return }
     const alle = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt > 0)
+    const summe = alle.reduce((a, p) => a + p.gesamt, 0)
+    if (alle.length && Math.abs(summe - betrag) > 0.01 && !confirm('Die Positionen ergeben ' + eur(summe) + ', der Beleg ' + eur(betrag) + '.\n\nTrotzdem speichern? Die Differenz von ' + eur(betrag - summe) + ' wird als eigene Zeile „Differenz laut Beleg“ gebucht und in den Materialbelegen markiert.')) return
     // Verschleißteile: nur der eingestellte Anteil wird berechnet
     const positionen = alle.filter((p) => !p.privat).map((p) => ({ ...p, anteil: p.verschleiss ? Math.max(0, Math.min(100, parseBetrag(p.anteil) || 0)) : 100 }))
     const privat = alle.filter((p) => p.privat).reduce((a, p) => a + p.gesamt, 0)
@@ -323,7 +333,12 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
                     const rest = ki.positionen.filter((p) => p.verschleiss && !p.privat).reduce((a, p) => a + (parseBetrag(p.gesamt) || 0) * (1 - (parseBetrag(p.anteil) || 0) / 100), 0)
                     return (privat > 0 || rest > 0) ? <div className="text-amber text-xs font-semibold">{privat > 0 ? 'Privat ' + eur(privat) + ' · ' : ''}{rest > 0 ? 'Verschleiß nicht berechnet ' + eur(rest) + ' · ' : ''}Dem Kunden werden {eur(betrag - privat - rest)} berechnet.</div> : null
                   })()}
-                  {Math.abs(summe - betrag) > 0.01 && ki.positionen.length ? <div className="text-amber text-xs">Positionen ergeben {eur(summe)}, Beleg {eur(betrag)}. Die Differenz wird als eigene Zeile übernommen.</div> : null}
+                  {Math.abs(summe - betrag) > 0.01 && ki.positionen.length ? (
+                    <div className="rounded-xl px-3 py-2 text-sm border bg-ember/10 text-ember border-ember/40">
+                      <div className="font-semibold">{summe < betrag ? 'Es fehlen ' + eur(betrag - summe) : 'Es sind ' + eur(summe - betrag) + ' zu viel'}</div>
+                      <div className="text-xs">Die Positionen ergeben {eur(summe)}, der Beleg {eur(betrag)}. {summe < betrag ? 'Vermutlich wurde eine Zeile nicht erkannt.' : 'Vermutlich ist eine Zeile doppelt.'} Bitte mit dem Bild vergleichen (antippen zum Vergrößern) und die Position {summe < betrag ? 'mit „Position hinzufügen“ ergänzen' : 'mit dem X entfernen'} oder neu scannen.</div>
+                    </div>
+                  ) : null}
                 </>
               })()}
               <div className="flex items-center gap-2">

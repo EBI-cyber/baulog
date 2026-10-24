@@ -178,6 +178,36 @@ export function zusammensetzenUebersicht(abschnitte, uebersicht, WR, HO) {
   return out
 }
 
+// Abschnitte für die KI auswählen: möglichst wenige, die den Beleg von oben nach unten mit Überlappung abdecken.
+// Die KI liest dann die einzelnen scharfen Kamerabilder statt des zusammengesetzten Bildes – eine schiefe Naht
+// kann so keine Zeile verschlucken oder verdoppeln. Rückgabe: Papierstreifen als Canvas, leer bei mehr als max Stück.
+export function kiAbschnitte(abschnitte, HO, max = 8) {
+  const a = [...abschnitte].sort((p, q) => p.y - q.y)
+  if (!a.length) return []
+  const gewaehlt = []
+  let bis = 0
+  while (bis < HO * 0.995) {
+    const frei = a.filter((x) => !gewaehlt.includes(x) && x.y + x.hO > bis + 2)
+    if (!frei.length) break
+    // bevorzugt mit deutlicher Überlappung (eine angeschnittene Zeile steht im nächsten Bild ganz), sonst lückenlos
+    const ueber = gewaehlt.length ? x => x.y <= bis - x.hO * 0.12 : x => x.y <= x.hO * 0.1
+    const k = frei.filter(ueber).length ? frei.filter(ueber) : frei.filter((x) => x.y <= bis)
+    // sonst bleibt eine Lücke: dann der nächste Abschnitt darunter
+    const n = k.length ? k.reduce((p, q) => (q.y + q.hO > p.y + p.hO ? q : p)) : frei[0]
+    gewaehlt.push(n)
+    bis = Math.max(bis, n.y + n.hO)
+  }
+  // zu viele für einen KI-Auftrag: dann liest die KI lieber Stücke des Gesamtbildes (Ausdünnen ließe Lücken)
+  if (gewaehlt.length > max) return []
+  return gewaehlt.map((x) => {
+    const rand = (x.r - x.l) * 0.03
+    const x0 = Math.max(0, Math.floor((x.l - rand) * x.bild.width)), x1 = Math.min(x.bild.width, Math.ceil((x.r + rand) * x.bild.width))
+    const c = document.createElement('canvas'); c.width = x1 - x0; c.height = x.bild.height
+    c.getContext('2d').drawImage(x.bild, x0, 0, c.width, c.height, 0, 0, c.width, c.height)
+    return c
+  })
+}
+
 // Wo liegt das Papier im Bild? Spalten-Helligkeit im mittleren Bereich: Papier ist heller als der Untergrund.
 // Rückgabe { links, rechts } als Anteile der Bildbreite, oder null, wenn der Untergrund zu hell ist (kein Kontrast).
 // von/bis: ausgewerteter Höhenbereich (Anteile), z. B. oben und unten getrennt, um Schräglage zu erkennen.
@@ -403,5 +433,5 @@ export function verfolger(uebersicht) {
     }
     return out
   }
-  return { schritt, bereiche, zusammensetzen: () => zusammensetzenUebersicht(z.abschnitte, uebersicht, WR, HO), anzahl: () => z.abschnitte.length, abschnitte: () => z.abschnitte }
+  return { schritt, bereiche, zusammensetzen: () => zusammensetzenUebersicht(z.abschnitte, uebersicht, WR, HO), anzahl: () => z.abschnitte.length, abschnitte: () => z.abschnitte, kiAbschnitte: (max) => kiAbschnitte(z.abschnitte, HO, max) }
 }

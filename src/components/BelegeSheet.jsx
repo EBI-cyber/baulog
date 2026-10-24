@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ReceiptText, Trash2, AlertTriangle, Sparkles } from 'lucide-react'
+import { ReceiptText, Trash2, AlertTriangle, Sparkles, CalendarDays, Camera } from 'lucide-react'
 import IconChip from '../ui/IconChip'
 import Vollbild from './Vollbild'
 import BelegScanner from './BelegScanner'
@@ -22,6 +22,8 @@ async function bildAusSicherung(beleg) {
 
 const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 const tag = (d) => { try { return new Date(d).toLocaleDateString('de-DE') } catch { return '' } }
+const zeile = (e) => (Number(e.qty) || 0) * (Number(e.unitCost) || 0)
+const istDifferenz = (e) => /Differenz laut Beleg/.test(e.label || '')
 
 // Gescannte Belege eines Projekts zusammenfassen: Einträge mit gleicher Belegnotiz und gleichem Datum gehören zu einem Beleg
 export function belegeAus(eintraege) {
@@ -64,6 +66,7 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
   const [gross, setGross] = useState('') // Bild-URL oder { src, markierung, titel }
   const [suche, setSuche] = useState('')
   const [nachscan, setNachscan] = useState(null) // Beleg, dessen Bild neu fotografiert wird
+  const [offen, setOffen] = useState('') // key des Belegs, dessen Positionen gerade angezeigt werden
   const [geloeschte, setGeloeschte] = useState(null) // gelöschte Material-Positionen aus den Sicherungen
 
   // Material-Positionen dieses Projekts, die in einer Sicherung stehen, aber heute fehlen
@@ -86,6 +89,16 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
   const [verdacht, setVerdacht] = useState(null) // [{ e, grund }]
   const [busy, setBusy] = useState(false)
   const belege = belegeAus(eintraege)
+  // Position auf dem Belegbild markieren lassen und das Bild groß zeigen
+  const aufBelegZeigen = async (b, e) => {
+    if (!b || !b.bild) { alert('Zu dieser Position gibt es kein Belegbild.'); return }
+    setSuche(String(e.id))
+    let markierung = null
+    try { markierung = await positionFinden(b.bild, (e.label || '').replace(/^[^:]*:\s*/, '').replace(/\s*\((Verschleißanteil|privat, nicht berechnet).*$/, '')) } catch { /* ohne Markierung zeigen */ }
+    setSuche('')
+    setGross({ src: b.bild, markierung, titel: (e.label || '') + (markierung ? '' : ' (Stelle nicht gefunden)') })
+  }
+  const offenerBeleg = belege.find((b) => b.key === offen)
   const summe = belege.reduce((a, b) => a + b.betrag, 0)
   const doppelte = belege.filter((b) => b.doppelt).length
   const ohneBeleg = eintraege.filter((e) => e.type === 'material' && !(e.note && /^Beleg/.test(e.note)))
@@ -126,17 +139,8 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                 <div className="text-ember text-sm font-semibold">Bitte prüfen ({verdacht.length})</div>
                 {verdacht.map((x) => (
                   <div key={x.e.id} className="flex items-center gap-2 text-sm">
-                    <button className="flex-1 min-w-0 text-left" title="Beleg mit markierter Position ansehen" onClick={async () => {
-                      // zugehörigen Beleg finden und die Position darauf markieren lassen
-                      // über die id suchen: nach Änderungen sind die Eintrags-Objekte neu
-                      const b = belege.find((g) => g.eintraege.some((e) => e.id === x.e.id))
-                      if (!b || !b.bild) { alert('Zu dieser Position gibt es kein Belegbild.'); return }
-                      setSuche(String(x.e.id))
-                      let markierung = null
-                      try { markierung = await positionFinden(b.bild, (x.e.label || '').replace(/^[^:]*:\s*/, '').replace(/\s*\(Verschleißanteil.*$/, '')) } catch { /* ohne Markierung zeigen */ }
-                      setSuche('')
-                      setGross({ src: b.bild, markierung, titel: (x.e.label || '') + (markierung ? '' : ' (Stelle nicht gefunden)') })
-                    }}>
+                    {/* zugehörigen Beleg über die id suchen: nach Änderungen sind die Eintrags-Objekte neu */}
+                    <button className="flex-1 min-w-0 text-left" title="Beleg mit markierter Position ansehen" onClick={() => aufBelegZeigen(belege.find((g) => g.eintraege.some((e) => e.id === x.e.id)), x.e)}>
                       <div className="truncate underline decoration-dotted underline-offset-2">{suche === String(x.e.id) ? 'Suche auf dem Beleg …' : x.e.label}</div>
                       <div className={'text-xs ' + (x.art === 'verschleiss' ? 'text-amber' : 'text-ember')}>{x.art === 'verschleiss' ? 'Verschleißteil' : 'Privat?'} · {x.grund} · {eur((Number(x.e.qty) || 0) * (Number(x.e.unitCost) || 0))}</div>
                     </button>
@@ -207,7 +211,6 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                   : <div className="w-14 h-16 rounded-lg bg-white/10 text-[10px] leading-tight text-amber flex items-center justify-center text-center p-1">{suche === 'bild:' + b.key ? 'suche …' : 'Bild holen'}</div>}
               </button>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm truncate">{i + 1}. {b.lieferant || 'Beleg'}</div>
                 {datumEdit === b.key ? (
                   <input type="date" autoFocus defaultValue={String(b.datum).slice(0, 10)} className="bg-white/10 border border-amber/50 rounded-lg px-2 py-1 text-sm"
                     onKeyDown={(ev) => { if (ev.key === 'Enter') ev.currentTarget.blur() }}
@@ -223,10 +226,12 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                       setDatumEdit('')
                     }} />
                 ) : (
-                  <button onClick={() => setDatumEdit(b.key)} className="text-white/70 text-xs underline decoration-dotted underline-offset-2">
-                    {tag(b.datum)} · {b.eintraege.length} {b.eintraege.length === 1 ? 'Position' : 'Positionen'}
+                  <button onClick={() => setOffen(b.key)} className="block w-full text-left" title="Positionen ansehen">
+                    <div className="font-semibold text-sm truncate">{i + 1}. {b.lieferant || 'Beleg'}</div>
+                    <div className="text-white/70 text-xs">{tag(b.datum)} · <span className="text-amber">{b.eintraege.length} {b.eintraege.length === 1 ? 'Position' : 'Positionen'} ansehen</span></div>
                   </button>
                 )}
+                {b.eintraege.some(istDifferenz) && <div className="text-ember text-xs font-semibold">Summe passt nicht – Positionen prüfen</div>}
                 {b.doppelt && <div className="text-ember text-xs font-semibold">möglicherweise doppelt</div>}
                 {b.datumPruefen && <div className="text-amber text-xs font-semibold">Datum prüfen – Jahr weicht ab (Datum antippen zum Ändern)</div>}
               </div>
@@ -249,6 +254,51 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
         )}
         <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/70 text-sm">Schließen</button>
       </div>
+      {offenerBeleg && (() => {
+        const b = offenerBeleg
+        const pos = [...b.eintraege].sort((x, y) => Number(istDifferenz(x)) - Number(istDifferenz(y)))
+        const diff = b.eintraege.filter(istDifferenz).reduce((a, e) => a + zeile(e), 0)
+        return (
+          <div className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-40" onClick={(e) => { e.stopPropagation(); setOffen('') }}>
+            <div className="glass w-full max-w-lg mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[92dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start gap-3">
+                {b.bild && <button onClick={() => setGross(b.bild)} className="shrink-0" title="Beleg groß ansehen"><img src={b.bild} alt="" className="w-16 h-20 rounded-lg object-cover object-top bg-white" /></button>}
+                <div className="flex-1 min-w-0">
+                  <div className="text-lg font-bold truncate">{b.lieferant || 'Beleg'}</div>
+                  <div className="text-white/70 text-sm">{tag(b.datum)} · {b.eintraege.length} {b.eintraege.length === 1 ? 'Position' : 'Positionen'}</div>
+                  <div className="font-bold">{eur(b.betrag)}</div>
+                </div>
+              </div>
+              {diff ? (
+                <div className="rounded-xl px-3 py-2 text-xs border bg-ember/10 text-ember border-ember/40">
+                  <div className="font-semibold text-sm">{diff > 0 ? 'Hier fehlt vermutlich eine Position (' + eur(diff) + ')' : 'Hier ist vermutlich eine Position doppelt (' + eur(-diff) + ')'}</div>
+                  Die erkannten Positionen ergaben nicht den Betrag des Belegs. Die Differenz steht unten als eigene Zeile. Bitte mit dem Bild vergleichen oder den Beleg neu scannen.
+                </div>
+              ) : (
+                <div className="rounded-xl px-3 py-2 text-xs border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">Die Positionen ergeben genau den Betrag des Belegs.</div>
+              )}
+              <div className="text-white/60 text-xs">Position antippen, um sie auf dem Beleg zu zeigen.</div>
+              <div className="space-y-1">
+                {pos.map((e) => (
+                  <button key={e.id} onClick={() => (istDifferenz(e) ? (b.bild && setGross(b.bild)) : aufBelegZeigen(b, e))}
+                    className={'w-full flex items-center gap-2 text-left text-sm rounded-xl px-2.5 py-2 ' + (istDifferenz(e) ? 'bg-ember/15 text-ember border border-ember/40' : 'bg-white/5')}>
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{suche === String(e.id) ? 'Suche auf dem Beleg …' : (e.label || '').replace(/^[^:]*:\s*/, '')}</div>
+                      <div className="text-white/60 text-xs">{Number(e.qty) || 1} × {eur(e.unitCost)}{e.gewerk ? ' · ' + e.gewerk : ''}</div>
+                    </div>
+                    <div className="font-semibold shrink-0">{eur(zeile(e))}</div>
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => { setOffen(''); setDatumEdit(b.key) }} className="rounded-2xl py-2 text-sm bg-white/10 inline-flex items-center justify-center gap-2"><CalendarDays className="w-4 h-4" /> Datum ändern</button>
+                <button onClick={() => { setOffen(''); setNachscan(b) }} className="rounded-2xl py-2 text-sm bg-white/10 inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> Bild neu fotografieren</button>
+              </div>
+              <button onClick={() => setOffen('')} className="w-full rounded-2xl py-2 text-white/70 text-sm">Zurück</button>
+            </div>
+          </div>
+        )
+      })()}
       {nachscan && (
         <div className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-40" onClick={(e) => { e.stopPropagation(); setNachscan(null) }}>
           <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[92dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
