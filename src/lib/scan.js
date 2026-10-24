@@ -61,6 +61,20 @@ export function homographie(src, dst) {
 
 const abstand = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
 
+// Bild für die Ablage (Cloud-Sync) klein halten: lange Belege auf max. 1000 px Breite,
+// Qualität so weit senken, bis die Daten-URL unter maxZeichen liegt
+export async function ablagefassung(dataUrl, maxZeichen = 900000) {
+  if (!dataUrl || dataUrl.length <= maxZeichen) return dataUrl
+  const img = await ladeBild(dataUrl)
+  const f = Math.min(1, 1000 / img.width)
+  const c = document.createElement('canvas')
+  c.width = Math.round(img.width * f); c.height = Math.round(img.height * f)
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+  let url = ''
+  for (const q of [0.8, 0.7, 0.6, 0.5, 0.4]) { url = c.toDataURL('image/jpeg', q); if (url.length <= maxZeichen) break }
+  return url
+}
+
 // Ecken (oben-links, oben-rechts, unten-rechts, unten-links, in Pixeln von quelle) → entzerrtes Canvas
 export function entzerren(quelle, ecken, maxSeite = 1400) {
   const [tl, tr, br, bl] = ecken
