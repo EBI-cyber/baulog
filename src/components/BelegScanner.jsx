@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Camera, ImagePlus, ScanLine, RotateCcw, X, Plus, ScrollText } from 'lucide-react'
-import { ladeBild, dateiAlsDataUrl, verkleinern, entzerren, verbessern, eckenFinden, dokumentFilter } from '../lib/scan'
+import { ladeBild, dateiAlsDataUrl, verkleinern, entzerren, verbessern, eckenFinden, dokumentFilter, ablagefassung } from '../lib/scan'
 import { belegLesen } from '../lib/ai'
 import { parseBetrag } from '../lib/abrechnung'
 import Vollbild from './Vollbild'
@@ -202,7 +202,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     }, 30)
   }
   const setPos = (i, patch) => setKi((k) => ({ ...k, positionen: k.positionen.map((p, j) => (j === i ? { ...p, ...patch } : p)) }))
-  const fertig = (weiter) => {
+  const fertig = async (weiter) => {
     const betrag = parseBetrag(ki.betrag)
     if (Number.isNaN(betrag) || betrag <= 0) { alert('Bitte den Gesamtbetrag des Belegs eintragen, z. B. 127,53.'); return }
     const alle = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt > 0)
@@ -210,9 +210,11 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const positionen = alle.filter((p) => !p.privat).map((p) => ({ ...p, anteil: p.verschleiss ? Math.max(0, Math.min(100, parseBetrag(p.anteil) || 0)) : 100 }))
     const privat = alle.filter((p) => p.privat).reduce((a, p) => a + p.gesamt, 0)
     // Originalfoto (komprimiert) und Ecken mitgeben, damit der Zuschnitt später korrigierbar bleibt
-    const roh = { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
+    // langer Beleg: das zusammengesetzte Bild ist schon zugeschnitten, ein Rohbild bräuchte nur Platz (und sprengt sonst den Cloud-Upload)
+    const roh = lang ? null : { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
     const privatPositionen = alle.filter((p) => p.privat)
-    onFertig({ dataUrl: ergebnis, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, privat, privatPositionen, roh }, { weiter })
+    const bildUrl = lang ? await ablagefassung(ergebnis) : ergebnis
+    onFertig({ dataUrl: bildUrl, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, privat, privatPositionen, roh }, { weiter })
   }
 
   if (!quelle) {
