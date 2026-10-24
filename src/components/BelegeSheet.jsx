@@ -237,6 +237,16 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
           ))}
         </div>
         {ohneBeleg.length > 0 && <div className="text-white/60 text-xs">Dazu {ohneBeleg.length} Material-Einträge ohne Beleg (von Hand erfasst).</div>}
+        {belege.length > 0 && (
+          <button onClick={() => {
+            const alle = belege.flatMap((b) => b.eintraege)
+            if (!confirm('Alle ' + belege.length + ' Belege mit zusammen ' + alle.length + ' Positionen (' + eur(summe) + ') löschen?\n\nVorher wird automatisch gesichert. Über „Gelöschte Positionen wiederfinden“ lassen sie sich zurückholen.')) return
+            if (!confirm('Wirklich ALLE Belege dieses Projekts löschen?')) return
+            onDelete(alle)
+          }} className="w-full rounded-2xl py-2 text-sm font-semibold border border-ember/40 text-ember inline-flex items-center justify-center gap-2">
+            <Trash2 className="w-4 h-4" /> Alle Belege löschen
+          </button>
+        )}
         <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/70 text-sm">Schließen</button>
       </div>
       {nachscan && (
