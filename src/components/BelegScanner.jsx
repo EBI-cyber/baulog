@@ -150,13 +150,15 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const gr = griff.current; if (!gr) return
     const p = punkt(ev)
     const e = gr.basis.map((q) => ({ ...q }))
-    if (gr.i < 4) e[gr.i] = p
+    // Ecke um die Fingerbewegung verschieben (springt beim Antippen nicht unter den Finger, der sie sonst verdeckt);
+    // langsam und genau: halbe Fingerbewegung, so trifft man die Kante leichter
+    if (gr.i < 4) e[gr.i] = { x: Math.max(0, Math.min(quelle.width, gr.basis[gr.i].x + (p.x - gr.start.x) * 0.5)), y: Math.max(0, Math.min(quelle.height, gr.basis[gr.i].y + (p.y - gr.start.y) * 0.5)) }
     else {
       // Kante einrücken: nur senkrecht zur Kante verschieben (die Linie rutscht nicht zur Seite)
       const a = gr.i - 4, b = (a + 1) % 4
       const lx = e[b].x - e[a].x, ly = e[b].y - e[a].y, len = Math.hypot(lx, ly) || 1
       const nx = -ly / len, ny = lx / len
-      const weg = (p.x - gr.start.x) * nx + (p.y - gr.start.y) * ny
+      const weg = ((p.x - gr.start.x) * nx + (p.y - gr.start.y) * ny) * 0.5
       e[a] = { x: e[a].x + nx * weg, y: e[a].y + ny * weg }; e[b] = { x: e[b].x + nx * weg, y: e[b].y + ny * weg }
     }
     live.current = e
@@ -242,7 +244,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       {!ergebnis ? (
         <>
           {langModus && !lang && <div className="text-amber text-sm font-semibold">Langer Beleg – Schritt 1 von 2: Übersichtsfoto genau auf den Beleg zuschneiden. Danach folgt der Video-Scan für die Details.</div>}
-          <div className="text-white/75 text-xs">Ecken oder Kantenmitten ziehen. Mit den Kanten rückst du eine ganze Seite ein, damit kein Untergrund stehen bleibt.</div>
+          <div className="text-white/75 text-xs">Ecken oder Kantenmitten ziehen. Sie bewegen sich langsamer als der Finger, so triffst du die Kante genau (die Lupe zeigt die Stelle vergrößert). Mit den Kanten rückst du eine ganze Seite ein.</div>
           <div className={'relative select-none touch-none ' + (quelle.height > quelle.width * 1.8 ? 'w-fit mx-auto' : '')} onPointerDown={runter} onPointerMove={bewegen} onPointerUp={hoch} onPointerCancel={hoch}>
             <img ref={bild} src={vorschau} alt="" className={'rounded-xl pointer-events-none ' + (quelle.height > quelle.width * 1.8 ? 'max-h-[65dvh] w-auto max-w-full' : 'w-full')} draggable={false} />
             {ecken && (
