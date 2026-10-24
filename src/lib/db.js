@@ -145,6 +145,7 @@ async function mergeFromCloud(table, tabelle, list, withProjektId) {
   const idByToken = {}
   if (withProjektId) (await db.projekte.toArray()).forEach((p) => { idByToken[p.token] = p.id })
   const cloudTokens = new Set()
+  let fehlgeschlagen = 0, letzterFehler = null
   for (const item of list) {
     cloudTokens.add(item.token)
     if (deleted.has(item.token)) continue
@@ -152,15 +153,23 @@ async function mergeFromCloud(table, tabelle, list, withProjektId) {
     if (ex && !ex.synced) continue
     const row = { ...item, synced: 1 }
     if (withProjektId) row.projektId = idByToken[item.projektToken] || item.projektId || (ex && ex.projektId) || null
-    if (ex) {
-      const same = Object.keys(row).every((k) => JSON.stringify(row[k] ?? null) === JSON.stringify(ex[k] ?? null))
-      if (!same) { await db[table].update(ex.id, row); geaendert = true }
-    } else { await db[table].add(row); geaendert = true }
+    // ein Datensatz, der sich nicht speichern lässt (z. B. Speicher voll), darf die übrigen nicht aufhalten
+    try {
+      if (ex) {
+        const same = Object.keys(row).every((k) => JSON.stringify(row[k] ?? null) === JSON.stringify(ex[k] ?? null))
+        if (!same) { await db[table].update(ex.id, row); geaendert = true }
+      } else { await db[table].add(row); geaendert = true }
+    } catch (err) { fehlgeschlagen++; letzterFehler = err }
   }
   // Synchronisierte Datensätze, die es in der Cloud nicht mehr gibt, wurden woanders gelöscht
   const lokal = await db[table].toArray()
   for (const ex of lokal) {
     if (ex.synced && ex.token && !cloudTokens.has(ex.token)) { await db[table].delete(ex.id); geaendert = true }
+  }
+  if (fehlgeschlagen) {
+    const e = new Error(fehlgeschlagen + ' Datensätze konnten auf diesem Gerät nicht gespeichert werden – ist der Speicher voll? (' + ((letzterFehler && (letzterFehler.message || letzterFehler.name)) || letzterFehler) + ')')
+    e.geaendert = geaendert
+    throw e
   }
   return geaendert
 }

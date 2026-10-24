@@ -121,15 +121,20 @@ async function runSync() {
 
   // 2) Cloud-Stand holen. Nur eine vollständig geladene Tabelle wird abgeglichen.
   let geaendert = false
+  // Abgleich je Tabelle getrennt: scheitert eine (z. B. Gerätespeicher voll), laufen die anderen trotzdem
+  const abgleichen = async (merge, liste, label) => {
+    try { if (await merge(liste)) geaendert = true }
+    catch (e) { if (e && e.geaendert) geaendert = true; fehler.push(label + ': ' + errText(e)) }
+  }
   const projs = await fetchAll('bau_projekte')
   if (projs.error) fehler.push('Projekte laden: ' + errText(projs.error))
-  else if (await mergeProjekteFromCloud(projs.data.map(projFromRow))) geaendert = true
+  else await abgleichen(mergeProjekteFromCloud, projs.data.map(projFromRow), 'Projekte speichern')
   const eints = await fetchAll('bau_eintraege')
   if (eints.error) fehler.push('Einträge laden: ' + errText(eints.error))
-  else if (await mergeEintraegeFromCloud(eints.data.map(eintFromRow))) geaendert = true
+  else await abgleichen(mergeEintraegeFromCloud, eints.data.map(eintFromRow), 'Einträge speichern')
   const rechs = await fetchAll('bau_rechnungen')
   if (rechs.error) fehler.push('Abrechnungen laden: ' + errText(rechs.error))
-  else if (await mergeRechnungenFromCloud(rechs.data.map(rechFromRow))) geaendert = true
+  else await abgleichen(mergeRechnungenFromCloud, rechs.data.map(rechFromRow), 'Abrechnungen speichern')
 
   if (geaendert && typeof window !== 'undefined') window.dispatchEvent(new Event(SYNC_EVENT))
   return { fehler: [...new Set(fehler)], geaendert }
