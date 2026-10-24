@@ -294,10 +294,27 @@ export function verfolger(uebersicht) {
     let m = null
     if (z.lr) {
       const F = streifen(q, z.lr, z.f)
-      // erst nahe der erwarteten Lage suchen (passt, wenn ähnlich gut wie bisher). Die Vorhersage über das Tempo ist
-      // begrenzt, damit sie bei gleich aussehenden Textzeilen nicht davonläuft; die Gegenproben unten fangen Fehler ab.
       let ok = false
-      if (z.y != null && z.unsicher < 6) {
+      z.perBewegung = false
+      // 1) Bewegung seit dem letzten Bild im Kamerabild selbst messen (volle Schärfe, kleine Schritte: eindeutig,
+      //    auch wenn viele Artikel gleich aussehen). Die Übersicht korrigiert danach nur noch langsames Abdriften.
+      if (z.y != null && z.unsicher === 0 && z.gAlt && z.gAlt.h === g.h && z.hO) {
+        const v = verschiebung(z.gAlt, g, 0, z.vPix || 0, 3, 14)
+        if (v && !v.rand && v.eindeutig && v.fehler < (z.refPix || Infinity) * 1.5) {
+          z.refPix = z.refPix ? z.refPix * 0.8 + v.fehler * 0.2 : v.fehler
+          const vor = z.y + v.dy * z.hO / g.h
+          // passt die Übersicht dort nicht (bestes Ergebnis am Rand), war die Bewegung falsch gemessen (Wackler)
+          const d = einpassen(O, F, vor - 4, vor + 4, 2, [0.1, 0.9])
+          if (d && !d.rand && d.fehler < z.refFehler * 1.5) {
+            z.vPix = v.dy
+            m = { y: vor * 0.7 + d.y * 0.3, fehler: d.fehler }
+            ok = true; z.perBewegung = true
+          }
+        }
+      }
+      // 2) sonst in der Übersicht nahe der erwarteten Lage suchen (passt, wenn ähnlich gut wie bisher). Die Vorhersage
+      //    über das Tempo ist begrenzt, damit sie bei gleich aussehenden Textzeilen nicht davonläuft.
+      if (!ok && z.y != null && z.unsicher < 6) {
         const vor = z.y + Math.max(-12, Math.min(12, z.v))
         m = einpassen(O, F, vor - 20, vor + 20, 2, [0.1, 0.9])
         ok = m && !m.rand && (m.eindeutig || m.fehler < z.refFehler * 1.2)
@@ -306,10 +323,18 @@ export function verfolger(uebersicht) {
       // vergleichen, die ist unempfindlich gegen einen noch ungenauen Maßstab; danach den Maßstab bestimmen.
       if (t - z.letzteSuche > (ok ? 1000 : 350)) {
         z.letzteSuche = t
-        const g2 = einpassen(O, F, -F.h * 0.6, HO - F.h * 0.4, 1, BAND)
+        let g2 = einpassen(O, F, -F.h * 0.6, HO - F.h * 0.4, 1, BAND)
         // im ganzen Beleg strenger: der Treffer muss sich klar vom Rest abheben
         if (g2 && g2.fehler > g2.mittel * 0.78) g2.eindeutig = false
-        if (g2 && g2.eindeutig && (!ok || (Math.abs(g2.y - m.y) > 10 && g2.fehler < z.refBand * 0.85))) {
+        // Beim ersten Finden: man beginnt oben am Beleg. Passt es oben fast genauso gut, gilt oben –
+        // weiter unten sieht bei langen Bons vieles gleich aus.
+        // Danach gilt dasselbe für die zuletzt bekannte Lage: lieber in der Nähe weitermachen als springen.
+        if (g2 && !ok) {
+          const nahe = z.y == null ? 0 : z.y, r = F.h * 0.5
+          const o = einpassen(O, F, Math.max(-F.h * 0.6, nahe - r), Math.min(HO - F.h * 0.4, nahe + r), 1, BAND)
+          if (o && !o.rand && o.fehler <= g2.fehler * 1.15) g2 = { ...o, eindeutig: true }
+        }
+        if (g2 && g2.eindeutig && (!ok || (!z.perBewegung && Math.abs(g2.y - m.y) > 10 && g2.fehler < z.refBand * 0.85))) {
           const sk = skalieren(q, g2.y, z.f, 0.06, 8)
           if (!ok || sk.r.fehler < m.fehler * 0.9) { m = sk.r; z.f = sk.f; ok = true; z.sprung = t }
         }
@@ -319,7 +344,8 @@ export function verfolger(uebersicht) {
         z.refFehler = z.refFehler ? z.refFehler * 0.8 + m.fehler * 0.2 : m.fehler
         z.v = z.y != null && z.unsicher === 0 ? (z.v + (m.y - z.y)) / 2 : 0
         z.y = m.y; z.hO = streifenHoehe(q, z.lr, z.f); z.unsicher = 0
-      } else z.unsicher++
+      } else { z.unsicher++; z.vPix = 0 }
+      z.gAlt = g
     } else z.unsicher++
     let neu = false
     // erst aufnehmen, wenn die Lage nach einem Sprung ein paar Bilder lang bestätigt ist
@@ -331,14 +357,12 @@ export function verfolger(uebersicht) {
       // eine Lücke, die dieses Bild ganz schließt (oben und unten schon erfasst)
       const schliesst = frei >= 3 && z.abschnitte.length > 0 && (a === 0 || bedeckt[a - 1] || bedeckt[a]) && (e === HO || bedeckt[e] || bedeckt[e - 1]) && s >= z.bestScharf * 0.8
       if ((anteil >= 0.35 && (s >= z.bestScharf * 0.75 || anteil >= 0.55)) || (!z.abschnitte.length && anteil > 0.2) || schliesst) {
-        // Gegenprobe im ganzen Beleg: nur aufnehmen, wenn die Lage eindeutig dort ist (sonst neu suchen)
+        // Gegenprobe im ganzen Beleg: nur aufnehmen, wenn die Lage eindeutig dort ist
         const probe = einpassen(O, streifen(q, z.lr, z.f), -z.hO * 0.6, HO - z.hO * 0.4, 1, BAND)
-        // weicht sie ab und ist dabei sehr klar, gilt die Gegenprobe (die Verfolgung hinkt bei schnellem Ziehen hinterher)
         if (!probe || !probe.eindeutig) return zustandMelden(g, s, p, false)
-        if (Math.abs(probe.y - z.y) > 10) {
-          if (probe.fehler > probe.mittel * 0.5) return zustandMelden(g, s, p, false)
-          z.y = probe.y
-        }
+        // weicht sie ab, lieber nicht aufnehmen: bei gleich aussehenden Artikeln irrt eher die Gegenprobe in der kleinen
+        // Übersicht als die Verfolgung von Bild zu Bild (ein falscher Abschnitt verdoppelt oder verschluckt Zeilen)
+        if (Math.abs(probe.y - z.y) > 10) return zustandMelden(g, s, p, false)
         // Maßstab und seitliche Lage genauer bestimmen
         const best = skalieren(q, z.y, z.f, 0.03, 5, 0.01)
         const b = (z.lr.rechts - z.lr.links) * best.f
