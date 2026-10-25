@@ -399,3 +399,104 @@ export function buildAbrechnungsUebersicht(projekt, rechnungen, s) {
   return doc
 }
 export const uebersichtFilename = (projekt) => 'Abrechnungsuebersicht_' + String(projekt.name || 'Projekt').replace(/[^\w\-]+/g, '_') + '.pdf'
+
+// Kunden-Bericht: Bautagebuch nach Tagen, Fotos mit Beschreibung und der Stand der Abschläge – ohne interne Kosten.
+// Zum Teilen per WhatsApp oder Mail.
+export function buildKundenbericht(projekt, eintraege, rechnungen, s, opts = {}) {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  const M = 48, R = 547, B = R - M
+  let y = 56
+  const need = (h) => { if (y + h > 790) { doc.addPage(); y = 56 } }
+  const farbe = (c) => doc.setTextColor(c[0], c[1], c[2])
+  const fuell = (c) => doc.setFillColor(c[0], c[1], c[2])
+  const abschnitt = (titel) => {
+    need(40); y += 8
+    fuell(C.amber); doc.rect(M, y - 10, 3, 13, 'F')
+    doc.setFont('helvetica', 'bold').setFontSize(13); farbe(C.text); doc.text(titel, M + 9, y)
+    y += 18
+  }
+  fuell(C.amber); doc.rect(0, 0, 595.28, 6, 'F')
+  fuell(C.ember); doc.rect(0, 6, 595.28, 1.5, 'F')
+  if (s.company) { doc.setFont('helvetica', 'bold').setFontSize(16); farbe(C.text); doc.text(s.company, M, y); y += 15 }
+  doc.setFont('helvetica', 'normal').setFontSize(9); farbe(C.grau)
+  ;[s.owner, s.street, [s.zip, s.city].filter(Boolean).join(' '), s.phone, s.email].filter(Boolean).forEach((t) => { doc.text(String(t), M, y); y += 11 })
+  y += 14
+  doc.setFont('helvetica', 'bold').setFontSize(20); farbe(C.text); doc.text('Baustellenbericht', M, y); y += 20
+  doc.setFont('helvetica', 'normal').setFontSize(10.5)
+  doc.text('Projekt: ' + (projekt.name || ''), M, y); y += 14
+  if (projekt.customer) { doc.text('Für: ' + projekt.customer + (projekt.address ? ', ' + projekt.address : ''), M, y); y += 14 }
+  farbe(C.grau); doc.text('Stand: ' + dmy(new Date().toISOString()), M, y); y += 10
+
+  // Bautagebuch nach Tagen (neueste zuerst)
+  const tage = new Map()
+  for (const e of eintraege.filter((x) => x.type === 'tagebuch' && x.text)) {
+    const k = new Date(e.createdAt).toLocaleDateString('sv-SE')
+    if (!tage.has(k)) tage.set(k, [])
+    tage.get(k).push(e)
+  }
+  const tageListe = [...tage.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+  if (tageListe.length) {
+    abschnitt('Bautagebuch')
+    for (const [tag, liste] of tageListe) {
+      need(30)
+      doc.setFont('helvetica', 'bold').setFontSize(10.5); farbe(C.text); doc.text(tagLang(tag + 'T12:00:00'), M, y); y += 14
+      doc.setFont('helvetica', 'normal').setFontSize(10)
+      for (const e of liste) {
+        for (const zeile of doc.splitTextToSize(String(e.text), B)) { need(13); farbe(/^Wetter:/.test(zeile) ? C.grau : C.text); doc.text(zeile, M, y); y += 13 }
+        y += 4
+      }
+      y += 6
+    }
+  }
+
+  // Fotos, zwei je Zeile
+  const fotos = eintraege.filter((x) => x.type === 'foto' && x.dataUrl).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, opts.maxFotos || 40)
+  if (fotos.length) {
+    abschnitt('Fotos')
+    const w = (B - 14) / 2
+    for (let i = 0; i < fotos.length; i += 2) {
+      const reihe = fotos.slice(i, i + 2)
+      const hoehen = reihe.map((f) => { try { const p = doc.getImageProperties(f.dataUrl); return w * p.height / p.width } catch { return w * 0.75 } })
+      const h = Math.min(260, Math.max(...hoehen))
+      need(h + 30)
+      reihe.forEach((f, j) => {
+        const x = M + j * (w + 14)
+        try {
+          const p = doc.getImageProperties(f.dataUrl)
+          const f2 = Math.min(w / p.width, h / p.height)
+          doc.addImage(f.dataUrl, 'JPEG', x, y, p.width * f2, p.height * f2, undefined, 'FAST')
+        } catch { /* Bild nicht lesbar */ }
+        doc.setFont('helvetica', 'normal').setFontSize(8.5); farbe(C.grau)
+        doc.text(doc.splitTextToSize(dmy(f.createdAt) + (f.note ? ' · ' + f.note : ''), w).slice(0, 2), x, y + h + 11)
+      })
+      y += h + 30
+    }
+  }
+
+  // Abschläge
+  if (rechnungen && rechnungen.length) {
+    abschnitt('Abschläge')
+    doc.setFont('helvetica', 'bold').setFontSize(9); farbe(C.text)
+    doc.text('Abschlag', M, y); doc.text('Zeitraum', M + 70, y); doc.text('Betrag', M + 260, y); doc.text('Bezahlt', M + 350, y); doc.text('Stand', R, y, { align: 'right' })
+    y += 14; doc.setFont('helvetica', 'normal')
+    for (const r of rechnungen.slice().sort((a, b) => (Number(a.nr) || 0) - (Number(b.nr) || 0))) {
+      need(15)
+      const gesamt = Number(r.gesamtbetrag ?? r.betrag) || 0, bezahlt = Number(r.bezahlterBetrag) || 0
+      const saldo = r.saldo != null ? Number(r.saldo) : gesamt - bezahlt
+      doc.text(String(r.nr ?? '–'), M, y)
+      doc.text((r.von ? dmy(r.von) : 'Beginn') + ' – ' + (r.bis ? dmy(r.bis) : 'offen'), M + 70, y)
+      doc.text(eur(Number(r.betrag) || 0), M + 260, y)
+      doc.text(eur(bezahlt), M + 350, y)
+      doc.text(saldo > 0.005 ? 'offen ' + eur(saldo) : saldo < -0.005 ? 'Guthaben ' + eur(-saldo) : 'bezahlt', R, y, { align: 'right' })
+      y += 15
+    }
+  }
+
+  const seiten = doc.getNumberOfPages()
+  for (let i = 1; i <= seiten; i++) {
+    doc.setPage(i); doc.setFontSize(7); farbe(C.hell)
+    doc.text('Baustellenbericht · ' + (projekt.name || '') + ' · Seite ' + i + '/' + seiten, M, 812)
+  }
+  return doc
+}
+export const berichtFilename = (projekt) => 'Baustellenbericht_' + String(projekt.name || 'Projekt').replace(/[^\w\-]+/g, '_') + '.pdf'

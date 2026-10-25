@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
 import { useRole } from '../lib/role'
-import { LayoutGrid, BarChart3, Settings, HardHat } from 'lucide-react'
+import { LayoutGrid, BarChart3, Settings, HardHat, Sun } from 'lucide-react'
 
 const items = [
-  { to: '/', label: 'Projekte', Icon: LayoutGrid, end: true },
+  { to: '/', label: 'Heute', Icon: Sun, end: true },
+  { to: '/projekte', label: 'Projekte', Icon: LayoutGrid },
   { to: '/auswertung', label: 'Auswertung', Icon: BarChart3, ownerOnly: true },
   { to: '/einstellungen', label: 'Einstellungen', Icon: Settings },
 ]

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Play, Check, Flashlight, Volume2, VolumeX, Camera, HelpCircle } from 'lucide-react'
+import { X, Play, Check, Flashlight, Volume2, VolumeX, Camera, HelpCircle, RotateCcw } from 'lucide-react'
 import { verfolger, begleiter, grau, schaerfe } from '../lib/videoscan'
 import VideoAnleitung from './VideoAnleitung'
+import { melden, frage, toast } from '../ui/Hinweise'
 
 const FARBE = { gut: 'bg-emerald-500', achtung: 'bg-amber', stopp: 'bg-ember' }
 
@@ -158,9 +159,19 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
     setLaeuft(true)
   }
 
+  // Scan verworfen (z. B. Abschnitte durcheinander): mit derselben Übersicht von vorn beginnen
+  const vonVorn = () => {
+    const z = zustand.current
+    z.laeuft = false
+    spur.current = verfolger(uebersicht)
+    setLaeuft(false)
+    setAnzeige((a) => ({ ...a, abschnitte: 0, abdeckung: 0, bereiche: [] }))
+    if (navigator.vibrate) navigator.vibrate(30)
+  }
+
   const fertig = () => {
     const z = zustand.current; if (!z.laeuft || z.stop) return
-    if (!spur.current.anzahl()) { alert('Noch kein Abschnitt aufgenommen. Bitte das Handy über den Beleg führen.'); return }
+    if (!spur.current.anzahl()) { melden('Noch kein Abschnitt aufgenommen. Bitte das Handy über den Beleg führen.'); return }
     z.stop = true
     if (window.speechSynthesis) window.speechSynthesis.cancel()
     if (navigator.vibrate) navigator.vibrate([40, 60, 40])
@@ -173,7 +184,7 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
         onFertig(bild, spur.current.anzahl(), spur.current.kiAbschnitte(10))
       } catch (err) {
         setBusy('')
-        alert('Zusammensetzen fehlgeschlagen: ' + (err && err.message ? err.message : err))
+        melden('Zusammensetzen fehlgeschlagen: ' + (err && err.message ? err.message : err))
         onAbbrechen()
       }
     }, 30)
@@ -245,7 +256,10 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
             <button onClick={start} disabled={!!fehler} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Play className="w-5 h-5" /> Start</button>
           </>
         ) : (
-          <button onClick={fertig} disabled={!!busy} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Check className="w-5 h-5" /> Fertig{anzeige.abdeckung < 0.95 ? ' (Lücken nimmt die App aus dem Übersichtsfoto)' : ''}</button>
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={vonVorn} disabled={!!busy} className="rounded-2xl py-3 bg-white/10 text-white text-sm inline-flex items-center justify-center gap-1.5 disabled:opacity-50"><RotateCcw className="w-4 h-4" /> Von vorn</button>
+            <button onClick={fertig} disabled={!!busy} className="col-span-2 rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Check className="w-5 h-5" /> Fertig</button>
+          </div>
         )}
       </div>
       {hilfe && <VideoAnleitung onFertig={() => setHilfe(false)} />}

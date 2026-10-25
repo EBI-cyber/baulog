@@ -7,7 +7,9 @@ import { RoleContext } from './lib/role'
 import Nav from './components/Nav'
 import DailyReminder from './components/DailyReminder'
 import SyncBadge from './components/SyncBadge'
+import Hinweise from './ui/Hinweise'
 import Projekte from './screens/Projekte'
+import Heute from './screens/Heute'
 import ProjektDetail from './screens/ProjektDetail'
 import Dashboard from './screens/Dashboard'
 import Einstellungen from './screens/Einstellungen'
@@ -69,7 +71,8 @@ function Shell() {
     <RoleContext.Provider value={role}>
       <Layout>
         <Routes>
-          <Route path="/" element={<Projekte />} />
+          <Route path="/" element={<Heute />} />
+          <Route path="/projekte" element={<Projekte />} />
           <Route path="/projekt/:id" element={<ProjektDetail />} />
           <Route path="/auswertung" element={<Dashboard />} />
           <Route path="/einstellungen" element={<Einstellungen />} />
@@ -86,6 +89,7 @@ export default function App() {
     <AuthProvider>
       <HashRouter>
         <Shell />
+        <Hinweise />
       </HashRouter>
     </AuthProvider>
   )

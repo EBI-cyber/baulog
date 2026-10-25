@@ -4,6 +4,7 @@ import IconChip from '../ui/IconChip'
 import { stand, dateiname, zaehlen, pruefen, sicherungAnlegen, listeSicherungen, sicherungLesen, zurueckspielen } from '../lib/backup'
 import { syncAll } from '../lib/cloud'
 import { shareFile } from '../lib/share'
+import { melden, frage, toast } from '../ui/Hinweise'
 
 const zeit = (iso) => new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 const inhalt = (a) => a.projekte + ' Projekte · ' + a.eintraege + ' Einträge · ' + a.rechnungen + ' Abschläge'
@@ -23,23 +24,23 @@ export default function Datensicherung() {
       await sicherungAnlegen('Sicherung als Datei')
       await shareFile(new Blob([JSON.stringify(d)], { type: 'application/json' }), dateiname(d))
       await laden()
-    } catch (e) { alert('Sicherung fehlgeschlagen: ' + (e && e.message ? e.message : e)) }
+    } catch (e) { melden('Sicherung fehlgeschlagen: ' + (e && e.message ? e.message : e)) }
     setBusy('')
   }
 
   const zurueck = async (d, woher) => {
     const a = zaehlen(d)
-    if (!confirm('Stand vom ' + zeit(d.createdAt) + ' zurückspielen?\n\n' + inhalt(a) + ' (' + woher + ')\n\nDiese Datensätze ersetzen den aktuellen Stand, auch in der Cloud. Neuere Einträge bleiben erhalten. Der aktuelle Stand wird vorher automatisch gesichert.')) return
+    if (!await frage('Stand vom ' + zeit(d.createdAt) + ' zurückspielen?\n\n' + inhalt(a) + ' (' + woher + ')\n\nDiese Datensätze ersetzen den aktuellen Stand, auch in der Cloud. Neuere Einträge bleiben erhalten. Der aktuelle Stand wird vorher automatisch gesichert.')) return
     setBusy('zurueck')
-    try { await zurueckspielen(d); await syncAll().catch(() => {}); await laden(); alert('Stand wurde zurückgespielt.') }
-    catch (e) { alert('Zurückspielen fehlgeschlagen: ' + (e && e.message ? e.message : e)) }
+    try { await zurueckspielen(d); await syncAll().catch(() => {}); await laden(); melden('Stand wurde zurückgespielt.') }
+    catch (e) { melden('Zurückspielen fehlgeschlagen: ' + (e && e.message ? e.message : e)) }
     setBusy('')
   }
 
   const ausDatei = async (ev) => {
     const f = ev.target.files && ev.target.files[0]; ev.target.value = ''
     if (!f) return
-    try { await zurueck(pruefen(JSON.parse(await f.text())), 'aus Datei') } catch (e) { alert(e && e.message ? e.message : 'Datei nicht lesbar.') }
+    try { await zurueck(pruefen(JSON.parse(await f.text())), 'aus Datei') } catch (e) { melden(e && e.message ? e.message : 'Datei nicht lesbar.') }
   }
 
   return (

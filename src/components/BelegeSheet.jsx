@@ -5,6 +5,7 @@ import Vollbild from './Vollbild'
 import BelegScanner from './BelegScanner'
 import { privatPruefen, positionFinden } from '../lib/ai'
 import { listeSicherungen, sicherungLesen } from '../lib/backup'
+import { melden, frage, toast } from '../ui/Hinweise'
 
 // Belegnotiz ohne Datum vergleichen (das Datum kann nachträglich geändert worden sein)
 const ohneDatum = (n) => String(n || '').replace(/\s*vom \d{1,2}\.\d{1,2}\.\d{4}/, '').trim()
@@ -89,7 +90,7 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
         }
       }
       setGeloeschte([...gefunden.values()])
-    } catch (err) { alert(err && err.message ? err.message : String(err)) }
+    } catch (err) { melden(err && err.message ? err.message : String(err)) }
     setSuche('')
   }
   const [datumEdit, setDatumEdit] = useState('') // key des Belegs, dessen Datum gerade geändert wird
@@ -98,7 +99,7 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
   const belege = belegeAus(eintraege)
   // Position auf dem Belegbild markieren lassen und das Bild groß zeigen
   const aufBelegZeigen = async (b, e) => {
-    if (!b || !b.bild) { alert('Zu dieser Position gibt es kein Belegbild.'); return }
+    if (!b || !b.bild) { melden('Zu dieser Position gibt es kein Belegbild.'); return }
     setSuche(String(e.id))
     let markierung = null
     try { markierung = await positionFinden(b.bild, (e.label || '').replace(/^[^:]*:\s*/, '').replace(/\s*\((Verschleißanteil|privat, nicht berechnet).*$/, '')) } catch { /* ohne Markierung zeigen */ }
@@ -109,6 +110,7 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
   const summe = belege.reduce((a, b) => a + b.betrag, 0)
   const doppelte = belege.filter((b) => b.doppelt).length
   const ohneBeleg = eintraege.filter((e) => e.type === 'material' && !(e.note && /^Beleg/.test(e.note)))
+  const ohnePreis = ohneBeleg.filter((e) => !(Number(e.unitCost) > 0) && !/privat, nicht berechnet/.test(e.label || ''))
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
@@ -134,7 +136,7 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                   // bereits als Verschleiß abgerechnete Positionen nicht erneut melden
                   setVerdacht(v.map((x) => ({ e: eintraege.find((e) => String(e.id) === String(x.id)), grund: x.grund, art: x.art === 'verschleiss' ? 'verschleiss' : 'privat' }))
                     .filter((x) => x.e && !/Verschleißanteil|\(privat, nicht berechnet/.test(x.e.label || '')))
-                } catch (err) { alert(err && err.message ? err.message : String(err)) }
+                } catch (err) { melden(err && err.message ? err.message : String(err)) }
                 setBusy(false)
               }} className="w-full rounded-xl py-2 text-sm font-semibold bg-white/10 inline-flex items-center justify-center gap-2 disabled:opacity-50">
                 <Sparkles className="w-4 h-4 text-amber" />{busy ? 'KI prüft …' : 'Auf Privates und Verschleißteile prüfen'}
@@ -210,12 +212,12 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                 try {
                   const r = await bildAusSicherung(b)
                   if (r) { await onUpdate(b.eintraege[0], r); setGross(r.dataUrl) }
-                  else if (confirm('Für diesen Beleg ist in den Sicherungen dieses Geräts kein Bild zu finden.\n\nJetzt nur das Bild neu fotografieren? Positionen und Beträge bleiben unverändert.')) setNachscan(b)
-                } catch (err) { alert(err && err.message ? err.message : String(err)) }
+                  else if (await frage('Für diesen Beleg ist in den Sicherungen dieses Geräts kein Bild zu finden.\n\nJetzt nur das Bild neu fotografieren? Positionen und Beträge bleiben unverändert.')) setNachscan(b)
+                } catch (err) { melden(err && err.message ? err.message : String(err)) }
                 setSuche('')
               }} className="shrink-0">
                 {b.bild ? <img src={b.bild} alt="" className="w-14 h-16 rounded-lg object-cover bg-white" />
-                  : <div className="w-14 h-16 rounded-lg bg-white/10 text-[10px] leading-tight text-amber flex items-center justify-center text-center p-1">{suche === 'bild:' + b.key ? 'suche …' : 'Bild holen'}</div>}
+                  : <div className="w-14 h-16 rounded-lg bg-white/10 text-xs leading-tight text-amber flex items-center justify-center text-center p-1">{suche === 'bild:' + b.key ? 'suche …' : 'Bild holen'}</div>}
               </button>
               <div className="flex-1 min-w-0">
                 {datumEdit === b.key ? (
@@ -243,12 +245,29 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                 {b.datumPruefen && <div className="text-amber text-xs font-semibold">Datum prüfen – Jahr weicht ab (Datum antippen zum Ändern)</div>}
               </div>
               <div className="font-bold text-sm shrink-0">{eur(b.betrag)}</div>
-              <button onClick={() => setLoeschFrage({ titel: 'Beleg ' + (b.lieferant || '') + ' vom ' + tag(b.datum) + ' löschen?', text: 'Alle ' + b.eintraege.length + ' Positionen (' + eur(b.betrag) + ') werden gelöscht. Vorher wird automatisch gesichert.', liste: b.eintraege })}
+              <button onClick={() => onDelete(b.eintraege)}
                 title="Beleg löschen" className="text-white/60 hover:text-ember p-2 -m-1 shrink-0"><Trash2 className="w-5 h-5" /></button>
             </div>
           ))}
         </div>
         {ohneBeleg.length > 0 && <div className="text-white/60 text-xs">Dazu {ohneBeleg.length} Material-Einträge ohne Beleg (von Hand erfasst).</div>}
+        {ohnePreis.length > 0 && (
+          // von Hand erfasstes Material ohne Preis: fehlt sonst unbemerkt in Selbstkosten und Abrechnung
+          <div className="rounded-xl p-3 border border-amber/40 bg-amber/10 space-y-2">
+            <div className="text-amber text-sm font-semibold flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Preis fehlt bei {ohnePreis.length} {ohnePreis.length === 1 ? 'Material' : 'Materialien'}</div>
+            {ohnePreis.map((e) => (
+              <form key={e.id} className="flex items-center gap-2 text-sm" onSubmit={async (ev) => {
+                ev.preventDefault()
+                const v = parseFloat(String(new FormData(ev.currentTarget).get('preis') || '').replace(/\./g, '').replace(',', '.'))
+                if (v > 0) await onUpdate(e, { unitCost: v })
+              }}>
+                <div className="flex-1 min-w-0"><div className="truncate">{e.label}</div><div className="text-white/60 text-xs">{Number(e.qty) || 1} × Einzelpreis</div></div>
+                <input name="preis" inputMode="decimal" placeholder="€" className="w-20 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-right" />
+                <button className="rounded-lg px-3 py-1.5 btn-grad font-semibold text-xs">OK</button>
+              </form>
+            ))}
+          </div>
+        )}
         {belege.length > 0 && (
           <button onClick={() => {
             const alle = belege.flatMap((b) => b.eintraege)
@@ -312,7 +331,7 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                 <button onClick={() => { setOffen(''); setDatumEdit(b.key) }} className="rounded-2xl py-2 text-sm bg-white/10 inline-flex items-center justify-center gap-2"><CalendarDays className="w-4 h-4" /> Datum ändern</button>
                 <button onClick={() => { setOffen(''); setNachscan(b) }} className="rounded-2xl py-2 text-sm bg-white/10 inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> Bild neu fotografieren</button>
               </div>
-              <button onClick={() => { setOffen(''); setLoeschFrage({ titel: 'Beleg ' + (b.lieferant || '') + ' vom ' + tag(b.datum) + ' löschen?', text: 'Alle ' + b.eintraege.length + ' Positionen (' + eur(b.betrag) + ') werden gelöscht. Vorher wird automatisch gesichert.', liste: b.eintraege }) }}
+              <button onClick={() => { setOffen(''); onDelete(b.eintraege) }}
                 className="w-full rounded-2xl py-2 text-sm font-semibold border border-ember/40 text-ember inline-flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Beleg löschen</button>
               <button onClick={() => setOffen('')} className="w-full rounded-2xl py-2 text-white/70 text-sm">Zurück</button>
             </div>

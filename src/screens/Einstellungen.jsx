@@ -7,6 +7,7 @@ import { useRole } from '../lib/role'
 import IconChip from '../ui/IconChip'
 import Datensicherung from '../components/Datensicherung'
 import Zugangsdaten from '../components/Zugangsdaten'
+import { melden, frage, toast } from '../ui/Hinweise'
 
 function Section({ icon, title, hint, children }) {
   return (
@@ -38,7 +39,7 @@ export default function Einstellungen() {
   const updMasch = (i, k, v) => setS((p) => ({ ...p, maschinen: p.maschinen.map((m, idx) => (idx === i ? { ...m, [k]: v } : m)) }))
   const addMasch = () => setS((p) => ({ ...p, maschinen: [...(p.maschinen || []), { name: '', satz: 0 }] }))
   const delMasch = (i) => setS((p) => ({ ...p, maschinen: p.maschinen.filter((_, idx) => idx !== i) }))
-  const ladeDin = () => { const r = mergeDinKatalog(s); setS((p) => ({ ...p, leistungskatalog: r.leistungskatalog, gewerke: r.gewerke })); alert(r.added + ' DIN-Positionen ergänzt — Speichern nicht vergessen.') }
+  const ladeDin = () => { const r = mergeDinKatalog(s); setS((p) => ({ ...p, leistungskatalog: r.leistungskatalog, gewerke: r.gewerke })); melden(r.added + ' DIN-Positionen ergänzt — Speichern nicht vergessen.') }
   const save = () => {
     const clean = { ...s, gewerke: s.gewerke.filter((g) => g.trim()) }
     saveSettings(clean); setS(clean); setMsg(true); setTimeout(() => setMsg(false), 1500)
@@ -57,7 +58,7 @@ export default function Einstellungen() {
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
-          <button onClick={async () => { const r = await syncAll(); if (r.fehler && r.fehler.length) alert('Nicht alles konnte in die Cloud übertragen werden:\n\n' + r.fehler.slice(0, 5).join('\n')) }} className="text-amber text-sm px-2.5 py-1.5 rounded-xl border border-white/20 inline-flex items-center gap-1.5"><RefreshCw className="w-4 h-4" /><span className="hidden sm:inline">Sync</span></button>
+          <button onClick={async () => { const r = await syncAll(); if (r.fehler && r.fehler.length) melden('Nicht alles konnte in die Cloud übertragen werden:\n\n' + r.fehler.slice(0, 5).join('\n')) }} className="text-amber text-sm px-2.5 py-1.5 rounded-xl border border-white/20 inline-flex items-center gap-1.5"><RefreshCw className="w-4 h-4" /><span className="hidden sm:inline">Sync</span></button>
           <button onClick={signOut} className="text-white/80 text-sm px-2.5 py-1.5 rounded-xl border border-white/20 inline-flex items-center gap-1.5"><LogOut className="w-4 h-4" /><span className="hidden sm:inline">Abmelden</span></button>
         </div>
       </div>
