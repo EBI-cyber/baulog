@@ -67,6 +67,13 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
   const [suche, setSuche] = useState('')
   const [nachscan, setNachscan] = useState(null) // Beleg, dessen Bild neu fotografiert wird
   const [offen, setOffen] = useState('') // key des Belegs, dessen Positionen gerade angezeigt werden
+  // Löschabfrage in der App statt confirm(): Browser können native Abfragen unterdrücken, dann passierte beim Klick nichts
+  const [loeschFrage, setLoeschFrage] = useState(null) // { titel, text, liste, busy, fehler }
+  const loeschen = async () => {
+    setLoeschFrage((f) => ({ ...f, busy: true, fehler: '' }))
+    try { await onDelete(loeschFrage.liste); setLoeschFrage(null) }
+    catch (err) { setLoeschFrage((f) => ({ ...f, busy: false, fehler: 'Löschen fehlgeschlagen: ' + (err && err.message ? err.message : String(err)) })) }
+  }
   const [geloeschte, setGeloeschte] = useState(null) // gelöschte Material-Positionen aus den Sicherungen
 
   // Material-Positionen dieses Projekts, die in einer Sicherung stehen, aber heute fehlen
@@ -236,8 +243,8 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                 {b.datumPruefen && <div className="text-amber text-xs font-semibold">Datum prüfen – Jahr weicht ab (Datum antippen zum Ändern)</div>}
               </div>
               <div className="font-bold text-sm shrink-0">{eur(b.betrag)}</div>
-              <button onClick={() => { if (confirm('Beleg ' + (b.lieferant || '') + ' vom ' + tag(b.datum) + ' mit allen ' + b.eintraege.length + ' Positionen löschen?\n\nVorher wird automatisch gesichert.')) onDelete(b.eintraege) }}
-                className="text-white/60 hover:text-ember p-1 shrink-0"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={() => setLoeschFrage({ titel: 'Beleg ' + (b.lieferant || '') + ' vom ' + tag(b.datum) + ' löschen?', text: 'Alle ' + b.eintraege.length + ' Positionen (' + eur(b.betrag) + ') werden gelöscht. Vorher wird automatisch gesichert.', liste: b.eintraege })}
+                title="Beleg löschen" className="text-white/60 hover:text-ember p-2 -m-1 shrink-0"><Trash2 className="w-5 h-5" /></button>
             </div>
           ))}
         </div>
@@ -245,15 +252,26 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
         {belege.length > 0 && (
           <button onClick={() => {
             const alle = belege.flatMap((b) => b.eintraege)
-            if (!confirm('Alle ' + belege.length + ' Belege mit zusammen ' + alle.length + ' Positionen (' + eur(summe) + ') löschen?\n\nVorher wird automatisch gesichert. Über „Gelöschte Positionen wiederfinden“ lassen sie sich zurückholen.')) return
-            if (!confirm('Wirklich ALLE Belege dieses Projekts löschen?')) return
-            onDelete(alle)
+            setLoeschFrage({ titel: 'Wirklich ALLE ' + belege.length + ' Belege löschen?', text: 'Zusammen ' + alle.length + ' Positionen (' + eur(summe) + '). Vorher wird automatisch gesichert. Über „Gelöschte Positionen wiederfinden“ lassen sie sich zurückholen.', liste: alle })
           }} className="w-full rounded-2xl py-2 text-sm font-semibold border border-ember/40 text-ember inline-flex items-center justify-center gap-2">
             <Trash2 className="w-4 h-4" /> Alle Belege löschen
           </button>
         )}
         <button onClick={onClose} className="w-full rounded-2xl py-2 text-white/70 text-sm">Schließen</button>
       </div>
+      {loeschFrage && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={(e) => { e.stopPropagation(); if (!loeschFrage.busy) setLoeschFrage(null) }}>
+          <div className="glass w-full max-w-sm rounded-3xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="font-bold flex items-center gap-2"><Trash2 className="w-5 h-5 text-ember" /> {loeschFrage.titel}</div>
+            <div className="text-white/75 text-sm">{loeschFrage.text}</div>
+            {loeschFrage.fehler && <div className="text-ember text-sm">{loeschFrage.fehler}</div>}
+            <div className="grid grid-cols-2 gap-2">
+              <button disabled={loeschFrage.busy} onClick={() => setLoeschFrage(null)} className="rounded-2xl py-2.5 bg-white/10 text-sm disabled:opacity-50">Abbrechen</button>
+              <button disabled={loeschFrage.busy} onClick={loeschen} className="rounded-2xl py-2.5 bg-ember text-white font-semibold text-sm disabled:opacity-50">{loeschFrage.busy ? 'Sichere und lösche …' : 'Ja, löschen'}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {offenerBeleg && (() => {
         const b = offenerBeleg
         const pos = [...b.eintraege].sort((x, y) => Number(istDifferenz(x)) - Number(istDifferenz(y)))
@@ -294,6 +312,8 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                 <button onClick={() => { setOffen(''); setDatumEdit(b.key) }} className="rounded-2xl py-2 text-sm bg-white/10 inline-flex items-center justify-center gap-2"><CalendarDays className="w-4 h-4" /> Datum ändern</button>
                 <button onClick={() => { setOffen(''); setNachscan(b) }} className="rounded-2xl py-2 text-sm bg-white/10 inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> Bild neu fotografieren</button>
               </div>
+              <button onClick={() => { setOffen(''); setLoeschFrage({ titel: 'Beleg ' + (b.lieferant || '') + ' vom ' + tag(b.datum) + ' löschen?', text: 'Alle ' + b.eintraege.length + ' Positionen (' + eur(b.betrag) + ') werden gelöscht. Vorher wird automatisch gesichert.', liste: b.eintraege }) }}
+                className="w-full rounded-2xl py-2 text-sm font-semibold border border-ember/40 text-ember inline-flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Beleg löschen</button>
               <button onClick={() => setOffen('')} className="w-full rounded-2xl py-2 text-white/70 text-sm">Zurück</button>
             </div>
           </div>
