@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Play, Check, Flashlight, Volume2, VolumeX, Camera } from 'lucide-react'
+import { X, Play, Check, Flashlight, Volume2, VolumeX, Camera, HelpCircle } from 'lucide-react'
 import { verfolger, begleiter, grau, schaerfe } from '../lib/videoscan'
+import VideoAnleitung from './VideoAnleitung'
 
 const FARBE = { gut: 'bg-emerald-500', achtung: 'bg-amber', stopp: 'bg-ember' }
 
@@ -35,6 +36,7 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
   const [licht, setLicht] = useState(null) // null = Taschenlampe nicht verfügbar
   const [ton, setTon] = useState(true)
   const [busy, setBusy] = useState('')
+  const [hilfe, setHilfe] = useState(false)
   const tonRef = useRef(true)
   tonRef.current = ton
 
@@ -187,8 +189,9 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
   return createPortal(
     <div className="fixed inset-0 z-[100] bg-black flex flex-col">
       <div className="flex items-center justify-between p-3 text-white">
-        <div className="font-semibold">{foto ? 'Langer Beleg – Übersichtsfoto' : 'Langer Beleg – Video-Scan'}</div>
+        <div className="font-semibold">{foto ? 'Beleg fotografieren' : 'Video-Scan'}</div>
         <div className="flex items-center gap-2">
+          {!foto && <button onClick={() => setHilfe(true)} className="p-2 rounded-full bg-white/10" title="Anleitung"><HelpCircle className="w-5 h-5" /></button>}
           <button onClick={() => setTon(!ton)} className="p-2 rounded-full bg-white/10" title={ton ? 'Sprachhinweise aus' : 'Sprachhinweise an'}>{ton ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}</button>
           {licht !== null && <button onClick={lampe} className={'p-2 rounded-full ' + (licht ? 'bg-amber text-black' : 'bg-white/10')} title="Licht"><Flashlight className="w-5 h-5" /></button>}
           <button onClick={onAbbrechen} className="p-2 rounded-full bg-white/10" title="Abbrechen"><X className="w-5 h-5" /></button>
@@ -233,18 +236,19 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
       <div className="p-3 space-y-2">
         {foto ? (
           <>
-            <div className="text-white/75 text-xs">Schritt 1 von 2: Beleg flach auf einen dunkleren Untergrund legen und so weit vom Beleg weggehen, dass er ganz ins Bild passt. Handy waagerecht halten und auslösen.</div>
-            <button onClick={ausloesen} disabled={!!fehler} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Camera className="w-5 h-5" /> Übersichtsfoto aufnehmen</button>
+            <div className="text-white/75 text-xs">Beleg flach auf einen dunklen Untergrund legen. Handy waagerecht halten, so nah wie möglich, aber so, dass der ganze Beleg ins Bild passt. Dann auslösen.</div>
+            <button onClick={ausloesen} disabled={!!fehler} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Camera className="w-5 h-5" /> Foto aufnehmen</button>
           </>
         ) : !laeuft ? (
           <>
-            <div className="text-white/75 text-xs">Schritt 2 von 2: Handy waagerecht über den Beleg halten, sodass er gut zwei Drittel der Bildbreite füllt. Der orange Rahmen in der Leiste rechts zeigt, welche Stelle die App gerade erkennt. Auf Start tippen und das Handy ruhig über den Beleg führen, bis die Leiste ganz grün ist. Lücken füllst du einfach durch Zurückfahren.</div>
+            <div className="text-white/75 text-xs">Handy waagerecht über den Beleg halten, sodass er gut zwei Drittel der Bildbreite füllt. Der orange Rahmen in der Leiste rechts zeigt, welche Stelle die App gerade erkennt. Auf Start tippen und das Handy ruhig über den Beleg führen, bis über das Ende des Belegs hinaus, bis die Leiste ganz grün ist. Lücken füllst du einfach durch Zurückfahren.</div>
             <button onClick={start} disabled={!!fehler} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Play className="w-5 h-5" /> Start</button>
           </>
         ) : (
           <button onClick={fertig} disabled={!!busy} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><Check className="w-5 h-5" /> Fertig{anzeige.abdeckung < 0.95 ? ' (Lücken nimmt die App aus dem Übersichtsfoto)' : ''}</button>
         )}
       </div>
+      {hilfe && <VideoAnleitung onFertig={() => setHilfe(false)} />}
     </div>,
     document.body,
   )
