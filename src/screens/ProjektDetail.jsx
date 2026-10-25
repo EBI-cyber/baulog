@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   getProjekt, listEintraege, addEintrag, updateEintrag, deleteEintrag,
   listRechnungen, createRechnung, updateRechnung, deleteRechnung, eintraegeZuordnen,
@@ -10,7 +10,7 @@ import { euro, hrs, hms, dmy, dmyhm, hm, clock, dinMaschinenText } from '../lib/
 import CameraCapture from '../components/CameraCapture'
 import VoiceInput from '../components/VoiceInput'
 import { dinText, korrekturText, parseNachtrag, parseSetup, parseAbschluss, leistungenAusTagebuch } from '../lib/ai'
-import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename } from '../lib/pdf'
+import { buildLeistungsnachweis, nachweisFilename, buildAbrechnungsUebersicht, uebersichtFilename, buildKundenbericht, berichtFilename } from '../lib/pdf'
 import { sharePdf, previewPdf } from '../lib/share'
 import { parseBetrag, ketteNeu, pruefeNachweis, abweichungen, offeneEintraege, eintraegeVon, leistungszeitraum, zuordnungVorschlag, verdaechtigeEintraege, uhrzeitenVorschlag } from '../lib/abrechnung'
 import { sicherungAnlegen } from '../lib/backup'
@@ -23,10 +23,13 @@ import BelegScanner from '../components/BelegScanner'
 import Vollbild from '../components/Vollbild'
 import BelegeSheet, { belegeAus } from '../components/BelegeSheet'
 import { useCloudRefresh } from '../lib/useCloudRefresh'
+import { standortVon, standortSpeichern, aktuellePosition, wetterText, ortAusName } from '../lib/baustelle'
+import FotoMarkieren from '../components/FotoMarkieren'
+import MaterialSprache from '../components/MaterialSprache'
 import { melden, frage, toast } from '../ui/Hinweise'
 import {
   ChevronLeft, ChevronRight, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
-  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check, Pencil, History,
+  Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check, Pencil, History, Share2,
 } from 'lucide-react'
 
 async function sendInvite(projektName, email) {
@@ -222,7 +225,7 @@ function MaschineCombo({ s, value, onChange, inp, wrapClass = '' }) {
   )
 }
 
-function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEntry, projektName }) {
+function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEntry, projektName, projektToken }) {
   const gewerkeOpts = gewerkeList && gewerkeList.length ? gewerkeList : s.gewerke
   const [gewerk, setGewerk] = useState((editEntry && editEntry.gewerk) || defaultGewerk)
   const leistungen = leistungenFor(s, gewerk)
@@ -249,6 +252,18 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
   const [dinNote, setDinNote] = useState('')
   const [addDinNote, setAddDinNote] = useState(!editEntry)
   const [dinNoteTouched, setDinNoteTouched] = useState(false)
+  // Wetter fürs Bautagebuch: am gemerkten Standort der Baustelle, sonst am aktuellen Standort
+  const [wetter, setWetter] = useState('')
+  const [mitWetter, setMitWetter] = useState(true)
+  useEffect(() => {
+    if (type !== 'tagebuch' || editEntry) return
+    let aktiv = true
+    const ort = projektToken && standortVon(projektToken)
+    // ohne gemerkten Standort: aktueller Standort, sonst der Firmenort aus den Einstellungen
+    ;(ort ? Promise.resolve(ort) : aktuellePosition(600000).catch(() => ortAusName(s.city || s.zip))).then(wetterText).then((w) => { if (aktiv) setWetter(w) }).catch(() => {})
+    return () => { aktiv = false }
+  }, [type, editEntry, projektToken])
+  const [markieren, setMarkieren] = useState(false)
 
   function changeGewerk(g) {
     setGewerk(g)
@@ -296,7 +311,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
       onSave(entries)
     }
     else if (type === 'foto') { if (!dataUrl) return; onSave(withId({ type: 'foto', gewerk, leistung, dataUrl, note: note.trim() })) }
-    else if (type === 'tagebuch') { if (!text.trim()) return; onSave(withId({ type: 'tagebuch', gewerk, text: text.trim() })) }
+    else if (type === 'tagebuch') { if (!text.trim()) return; onSave(withId({ type: 'tagebuch', gewerk, text: text.trim() + (wetter && mitWetter && !editEntry && !text.includes('Wetter:') ? '\n\n' + wetter : '') })) }
   }
   const title = (editEntry ? 'Bearbeiten: ' : '') + { zeit: 'Zeit erfassen', menge: 'Menge / Leistung', material: 'Material / Kosten', maschine: 'Maschine / Werkzeug', foto: 'Foto aufnehmen', tagebuch: 'Tagebuch-Eintrag' }[type]
   const TitleIcon = { zeit: Clock, menge: Ruler, material: Package, maschine: Wrench, foto: Camera, tagebuch: NotebookPen }[type] || Clock
@@ -377,6 +392,8 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
         )}
         {type === 'material' && !scan && !korrigiere && (editEntry || manuell) && (
           <>
+            {!editEntry && <MaterialSprache gewerk={gewerk} onSpeichern={(liste) => onSave(liste.map((p) => ({ type: 'material', gewerk, leistung: '', label: p.label, qty: p.qty, unitCost: p.unitCost, dataUrl: '', belegRoh: null })))} />}
+            {!editEntry && <div className="text-white/50 text-xs text-center">oder von Hand:</div>}
             {!dataUrl ? (
               <button onClick={() => setScan(true)} className="w-full rounded-2xl py-2.5 font-semibold bg-white/10 border border-amber/40 text-amber inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> Beleg scannen</button>
             ) : (
@@ -422,6 +439,8 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
         {type === 'foto' && (
           <>
             {dataUrl ? <img src={dataUrl} alt="" className="w-full rounded-xl" /> : <CameraCapture onCapture={setDataUrl} />}
+            {dataUrl && <button onClick={() => setMarkieren(true)} className="w-full rounded-xl py-2.5 text-sm font-semibold bg-white/10 border border-amber/40 text-amber inline-flex items-center justify-center gap-2"><Pencil className="w-4 h-4" /> Pfeile und Notizen einzeichnen</button>}
+            {markieren && <FotoMarkieren src={dataUrl} onFertig={(url) => { setDataUrl(url); setMarkieren(false) }} onAbbrechen={() => setMarkieren(false)} />}
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Beschreibung (optional)" className={inp} />
           </>
         )}
@@ -441,6 +460,12 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
               </button>
             </div>
             <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Diktieren per Mikro oder tippen, dann optional korrigieren oder nach DIN formulieren…" rows={5} className={inp} />
+            {wetter && (
+              <label className="flex items-center gap-2 text-sm rounded-xl px-3 py-2 bg-white/5 border border-white/15">
+                <input type="checkbox" checked={mitWetter} onChange={(e) => setMitWetter(e.target.checked)} className="w-4 h-4 accent-[#f59e0b]" />
+                <span className="flex-1">{wetter}</span>
+              </label>
+            )}
             <div className="text-white/60 text-xs">„Text überarbeiten" korrigiert Fehler und glättet Satzbau/Formulierung, behält aber deine Worte & Reihenfolge weitgehend bei. „Nach DIN" formuliert komplett im VOB-Stil um.</div>
           </>
         )}
@@ -1019,6 +1044,9 @@ export default function ProjektDetail() {
   const [timer, setTimer] = useState(null)
   const [now, setNow] = useState(Date.now())
   const [sheet, setSheet] = useState(null)
+  const [standortDa, setStandortDa] = useState(false)
+  // Schnellaktion von der Startseite: /projekt/1?neu=foto öffnet gleich das passende Fenster
+  const [suchParam, setSuchParam] = useSearchParams()
   const [editingEntry, setEditingEntry] = useState(null)
   const [nachtrag, setNachtrag] = useState(false)
   const [gewerk, setGewerk] = useState(s.gewerke[0])
@@ -1057,7 +1085,15 @@ export default function ProjektDetail() {
     setZuordnungHinweis('Abschlag ' + zuordnungen.map((z) => z.r.nr).join(', ') + ' wurde automatisch den passenden Einträgen zugeordnet. Der Zeitraum ergibt sich aus dem ersten und letzten Arbeitstag.')
     setEintraege(await listEintraege(id)); setRechnungen(await listRechnungen(id))
   }
-  useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); if (t) setTimer(JSON.parse(t)) }, [id])
+  useEffect(() => { load(); const t = localStorage.getItem(TIMERKEY(id)); setTimer(t ? JSON.parse(t) : null) }, [id])
+  useEffect(() => { if (projekt) setStandortDa(Boolean(standortVon(projekt.token))) }, [projekt])
+  useEffect(() => {
+    const neu = suchParam.get('neu')
+    if (!neu || !projekt) return
+    if (neu === 'belege') setBelegeOffen(true)
+    else if (['foto', 'tagebuch', 'material', 'zeit', 'menge', 'maschine'].includes(neu)) setSheet(neu)
+    setSuchParam({}, { replace: true })
+  }, [suchParam, projekt]) // eslint-disable-line react-hooks/exhaustive-deps
   useCloudRefresh(load)
   useEffect(() => { if (!timer || isPaused(timer)) return; const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [timer])
   // Nachweis-Dialog öffnen: Zeitraum an letzten Abschnitt anschließen, damit sich Abrechnungen nicht überschneiden
@@ -1207,6 +1243,12 @@ export default function ProjektDetail() {
     await load()
   }
   // Löschen ohne Nachfrage, dafür unten kurz „Rückgängig“
+  // Baustellenbericht (Bautagebuch, Fotos, Abschläge, ohne interne Kosten) für den Kunden teilen
+  async function kundenbericht() {
+    toast('Bericht wird erstellt …', { dauer: 2500 })
+    try { await sharePdf(buildKundenbericht(projekt, eintraege, rechnungen, s), berichtFilename(projekt)) }
+    catch (err) { melden('Bericht konnte nicht erstellt werden: ' + (err && err.message ? err.message : err)) }
+  }
   async function remove(eid) {
     const e = eintraege.find((x) => x.id === eid)
     await deleteEintrag(eid); await load()
@@ -1217,7 +1259,7 @@ export default function ProjektDetail() {
   return (
     <div className="px-5 md:px-8 pt-8 md:pt-10">
       <header className="flex items-center gap-3 mb-5">
-        <button onClick={() => nav('/')} className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"><ChevronLeft className="w-5 h-5" /></button>
+        <button onClick={() => (window.history.length > 1 ? nav(-1) : nav('/projekte'))} className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"><ChevronLeft className="w-5 h-5" /></button>
         <div className="min-w-0 flex-1">
           <div className="font-bold text-xl md:text-2xl leading-tight line-clamp-2 sm:truncate">{projekt.name}</div>
           <div className="text-white/70 text-xs md:text-sm truncate">{[projekt.customer, projekt.address].filter(Boolean).join(' · ')}</div>
@@ -1228,13 +1270,14 @@ export default function ProjektDetail() {
             <button onClick={() => setTeam(true)} title="Team" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Users className="w-5 h-5" /></button>
             <button onClick={() => setRechnungenOpen(true)} title="Abschläge & Zahlungen" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Receipt className="w-5 h-5" /></button>
             <button onClick={() => setNachweis(true)} title="Leistungsnachweis" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><FileText className="w-5 h-5" /></button>
+            <button onClick={kundenbericht} title="Bericht für den Kunden teilen" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Share2 className="w-5 h-5" /></button>
           </div>
         )}
       </header>
       {/* Handy: Knöpfe mit Beschriftung in eigener Zeile, damit der Projektname Platz hat und klar ist, was sie tun */}
       {!isWorker && (
-        <div className="grid grid-cols-4 gap-2 -mt-2 mb-5 sm:hidden">
-          {[[Pencil, 'Bearbeiten', () => setBearbeiten(true)], [Users, 'Team', () => setTeam(true)], [Receipt, 'Abschläge', () => setRechnungenOpen(true)], [FileText, 'Nachweis', () => setNachweis(true)]].map(([Icon, text, fn]) => (
+        <div className="grid grid-cols-5 gap-1.5 -mt-2 mb-5 sm:hidden">
+          {[[Pencil, 'Bearbeiten', () => setBearbeiten(true)], [Users, 'Team', () => setTeam(true)], [Receipt, 'Abschläge', () => setRechnungenOpen(true)], [FileText, 'Nachweis', () => setNachweis(true)], [Share2, 'Bericht', kundenbericht]].map(([Icon, text, fn]) => (
             <button key={text} onClick={fn} className="glass card-hover rounded-2xl py-2 flex flex-col items-center gap-1 text-xs text-white/80"><Icon className="w-5 h-5" />{text}</button>
           ))}
         </div>
@@ -1327,6 +1370,13 @@ export default function ProjektDetail() {
                 </>}
                 {!isWorker && <div className="text-white/60 text-xs mb-2">Was du gemacht hast, schreibst du ins Bautagebuch. Gewerk und Leistung ermittelt die KI daraus beim Leistungsnachweis.</div>}
                 <button onClick={startTimer} className="w-full rounded-2xl py-5 font-bold text-xl btn-grad shadow-glow active:scale-[0.98] transition inline-flex items-center justify-center gap-2"><Play className="w-6 h-6" strokeWidth={2.3} /> Start</button>
+                {/* Standort merken: die Startseite schlägt dann den Timer vor, sobald man hier ankommt, und das Bautagebuch bekommt das Wetter von hier */}
+                <button onClick={async () => {
+                  try { const pos = await aktuellePosition(0); standortSpeichern(projekt.token, pos); setStandortDa(true); toast('Standort der Baustelle gemerkt') }
+                  catch (err) { melden(err.message) }
+                }} className="w-full mt-2 text-xs text-white/60 py-1">
+                  {standortDa ? '📍 Standort gemerkt – Timer-Vorschlag beim Ankommen · neu setzen' : '📍 Standort dieser Baustelle merken (Timer-Vorschlag beim Ankommen)'}
+                </button>
               </>
             )}
           </div>
@@ -1382,7 +1432,7 @@ export default function ProjektDetail() {
       </div>
 
       {sheet && (
-        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} editEntry={editingEntry} projektName={projekt.name}
+        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} editEntry={editingEntry} projektName={projekt.name} projektToken={projekt.token}
           onClose={() => { setSheet(null); setEditingEntry(null) }}
           onSave={async (data, opt) => {
             const arr = Array.isArray(data) ? data : [data]
