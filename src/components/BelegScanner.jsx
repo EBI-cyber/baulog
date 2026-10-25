@@ -59,7 +59,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const autoZuschnitt = useRef(false)
   const kiBilder = useRef(null) // Stücke des zugeschnittenen Belegs für die KI
   const videoStuecke = useRef(null) // einzelne scharfe Abschnitte aus dem Video-Scan für die KI
-  const galerie = useRef(null), bild = useRef(null), svg = useRef(null)
+  const galerie = useRef(null), handyKamera = useRef(null), bild = useRef(null), svg = useRef(null)
   // Ziehen ohne React-Neuzeichnen: Positionen in einer Ref, SVG direkt aktualisieren
   const live = useRef(null), griff = useRef(null), lupe = useRef(null)
   // Lupe wie bei OneDrive: zeigt die Umgebung des gezogenen Punkts vergrößert mit Fadenkreuz
@@ -280,10 +280,12 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const positionen = alle.filter((p) => !p.privat).map((p) => ({ ...p, anteil: p.verschleiss ? Math.max(0, Math.min(100, parseBetrag(p.anteil) || 0)) : 100 }))
     const privat = alle.filter((p) => p.privat).reduce((a, p) => a + p.gesamt, 0)
     // Originalfoto (komprimiert) und Ecken mitgeben, damit der Zuschnitt später korrigierbar bleibt
-    const roh = { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
+    // Bild und Rohfoto zusammen klein genug für den Cloud-Upload halten (sonst bleibt der Eintrag auf dem Handy hängen)
+    let rohBild = quelle.toDataURL('image/jpeg', 0.6)
+    if (rohBild.length > 300000) rohBild = quelle.toDataURL('image/jpeg', 0.4)
+    const roh = { bild: rohBild, ecken }
     const privatPositionen = alle.filter((p) => p.privat)
-    // Größe für den Cloud-Upload begrenzen
-    const bildUrl = await ablagefassung(ergebnis)
+    const bildUrl = await ablagefassung(ergebnis, 800000, modus === 'dokument')
     onFertig({ dataUrl: bildUrl, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, privat, privatPositionen, roh }, { weiter })
   }
 
@@ -292,6 +294,9 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       <div className="space-y-2">
         <div className="text-white/75 text-xs">Beleg flach auf einen dunklen Untergrund legen und den ganzen Beleg fotografieren. Die App prüft, ob die Schrift scharf genug ist – bei langen Belegen führt sie dich danach durch einen Video-Scan.</div>
         <button onClick={() => setFotoKamera(true)} disabled={!!busy} className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> Beleg fotografieren</button>
+        {/* Kamera des Handys selbst: volle Sensorauflösung (deutlich schärfer bei langen Belegen), aber ohne Taschenlampe und Hinweise */}
+        <button onClick={() => handyKamera.current.click()} disabled={!!busy} className="w-full rounded-2xl py-2.5 text-sm font-semibold bg-white/10 border border-white/20 inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> iPhone-Kamera-App öffnen (volle Auflösung)</button>
+        <input ref={handyKamera} type="file" accept="image/*" capture="environment" className="hidden" onChange={laden} />
         <button onClick={() => galerie.current.click()} disabled={!!busy} className="w-full text-white/60 text-xs py-1 inline-flex items-center justify-center gap-1.5"><ImagePlus className="w-3.5 h-3.5" /> Vorhandenes Bild wählen</button>
         <input ref={galerie} type="file" accept="image/*" className="hidden" onChange={laden} />
         {busy && <div className="text-amber text-sm">{busy}</div>}
@@ -403,8 +408,12 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
                     {gewerke.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
                   <input value={p.gesamt} onChange={(e) => setPos(i, { gesamt: e.target.value })} inputMode="decimal" className="w-20 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-right" />
-                  <button onClick={() => setPos(i, { privat: !p.privat, verschleiss: false })} className={'text-xs px-2 py-1 rounded-lg border ' + (p.privat ? 'border-ember/60 text-ember' : 'border-white/20 text-white/60')}>privat</button>
-                  <button onClick={() => setPos(i, { verschleiss: !p.verschleiss, privat: false, anteil: p.anteil || String(verschleissProzent) })} className={'text-xs px-2 py-1 rounded-lg border ' + (p.verschleiss ? 'border-amber/60 text-amber' : 'border-white/20 text-white/60')}>Verschleiß</button>
+                  {/* eindeutige Wahl: Baustelle (voll berechnet), Verschleiß (Anteil) oder privat (nicht berechnet) */}
+                  <div className="flex rounded-lg overflow-hidden border border-white/20 text-xs">
+                    <button onClick={() => setPos(i, { privat: false, verschleiss: false })} className={'px-2 py-1 ' + (!p.privat && !p.verschleiss ? 'bg-emerald-500/25 text-emerald-300 font-semibold' : 'text-white/60')}>Baustelle</button>
+                    <button onClick={() => setPos(i, { verschleiss: true, privat: false, anteil: p.anteil || String(verschleissProzent) })} className={'px-2 py-1 border-l border-white/20 ' + (p.verschleiss ? 'bg-amber/20 text-amber font-semibold' : 'text-white/60')}>Verschleiß</button>
+                    <button onClick={() => setPos(i, { privat: true, verschleiss: false })} className={'px-2 py-1 border-l border-white/20 ' + (p.privat ? 'bg-ember/20 text-ember font-semibold' : 'text-white/60')}>privat</button>
+                  </div>
                   <button title="Auf dem Beleg zeigen" disabled={suchePos >= 0} onClick={async () => {
                     setSuchePos(i)
                     let markierung = null

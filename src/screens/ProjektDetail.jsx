@@ -359,8 +359,10 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
             const fmt = (n) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
             const notiz = 'Beleg' + (b.lieferant ? ' ' + b.lieferant : '') + (b.datum ? ' vom ' + new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : '') +
               ' · ' + fmt(b.betrag) + (b.privat > 0 ? ' (davon privat ' + fmt(b.privat) + ', nicht verrechnet)' : '')
-            const pos = b.positionen.length ? b.positionen : [{ bezeichnung: b.lieferant || 'Materialbeleg', menge: 1, gesamt: b.betrag - (b.privat || 0), gewerk }]
-            if (pos.reduce((a, p) => a + p.gesamt, 0) <= 0) { melden('Alle Positionen sind als privat markiert, es gibt nichts zu verrechnen.'); return }
+            // rein privater Beleg: trotzdem ablegen (nur als Dokumentation, nichts wird berechnet)
+            const nurPrivat = !b.positionen.length && (b.privatPositionen || []).length > 0 && b.betrag - (b.privat || 0) <= 0.01
+            const pos = b.positionen.length || nurPrivat ? [...b.positionen] : [{ bezeichnung: b.lieferant || 'Materialbeleg', menge: 1, gesamt: b.betrag - (b.privat || 0), gewerk }]
+            if (!nurPrivat && pos.reduce((a, p) => a + p.gesamt, 0) <= 0) { melden('Der Beleg hat keinen Betrag, es gibt nichts zu verrechnen.'); return }
             const summe = pos.reduce((a, p) => a + p.gesamt, 0)
             // Privatanteil gehört nicht zur Baustelle: Differenz nur gegen den Baustellenanteil rechnen
             const baustelle = b.betrag - (b.privat || 0)
@@ -369,7 +371,7 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
             for (const p of (b.privatPositionen || [])) pos.push({ ...p, privatDoku: true })
             // je Position eine Millisekunde später: so bleibt die Reihenfolge wie auf dem Beleg erhalten
             const zeitpunkt = (i) => new Date(Date.parse(createdAt) + i).toISOString()
-            onSave(pos.map((p, i) => {
+            const liste = pos.map((p, i) => {
               if (p.privatDoku) return {
                 type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt: zeitpunkt(i), note: notiz, qty: 1, unitCost: 0, dataUrl: '', belegRoh: null,
                 label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung + ' (privat, nicht berechnet: ' + fmt(p.gesamt) + ')',
@@ -381,8 +383,11 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
               type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt: zeitpunkt(i), note: notiz,
               label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung + (anteil < 100 ? ' (Verschleißanteil ' + anteil + ' % von ' + fmt(p.gesamt) + ')' : ''),
               qty: p.menge > 0 ? p.menge : 1, unitCost: Math.round((berechnet / (p.menge > 0 ? p.menge : 1)) * 10000) / 10000,
-              dataUrl: i === 0 ? b.dataUrl : '', belegRoh: i === 0 ? b.roh : null,
-            } }), { weiter: opt && opt.weiter })
+              dataUrl: '', belegRoh: null,
+            } })
+            // der erste Eintrag trägt das Belegbild (auch wenn er privat ist)
+            liste[0] = { ...liste[0], dataUrl: b.dataUrl, belegRoh: b.roh }
+            onSave(liste, { weiter: opt && opt.weiter })
             // Serienscan: Scanner für den nächsten Beleg frisch starten
             if (opt && opt.weiter) setScanNr((n) => n + 1)
           }} />

@@ -62,14 +62,24 @@ export function homographie(src, dst) {
 const abstand = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
 
 // Bild für die Ablage (Cloud-Sync) klein halten: lange Belege auf max. 1000 px Breite,
-// Qualität so weit senken, bis die Daten-URL unter maxZeichen liegt
-export async function ablagefassung(dataUrl, maxZeichen = 900000) {
+// Qualität so weit senken, bis die Daten-URL unter maxZeichen liegt.
+// dokument: Schwarz-Weiß-Fassung zuerst als PNG mit 4 Graustufen versuchen – gestochen scharf, ohne JPEG-Schlieren
+export async function ablagefassung(dataUrl, maxZeichen = 900000, dokument = false) {
   if (!dataUrl || dataUrl.length <= maxZeichen) return dataUrl
   const img = await ladeBild(dataUrl)
   const f = Math.min(1, 1000 / img.width)
   const c = document.createElement('canvas')
   c.width = Math.round(img.width * f); c.height = Math.round(img.height * f)
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+  const ctx = c.getContext('2d')
+  ctx.drawImage(img, 0, 0, c.width, c.height)
+  if (dokument) {
+    const d = ctx.getImageData(0, 0, c.width, c.height), p = d.data
+    for (let i = 0; i < p.length; i += 4) { const g = Math.round((p[i] * 0.3 + p[i + 1] * 0.59 + p[i + 2] * 0.11) / 85) * 85; p[i] = p[i + 1] = p[i + 2] = g }
+    const s = document.createElement('canvas'); s.width = c.width; s.height = c.height
+    s.getContext('2d').putImageData(d, 0, 0)
+    const png = s.toDataURL('image/png')
+    if (png.length <= maxZeichen) return png
+  }
   let url = ''
   for (const q of [0.8, 0.7, 0.6, 0.5, 0.4]) { url = c.toDataURL('image/jpeg', q); if (url.length <= maxZeichen) break }
   return url
