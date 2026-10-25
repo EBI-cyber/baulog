@@ -27,6 +27,24 @@ const zeile = (e) => (Number(e.qty) || 0) * (Number(e.unitCost) || 0)
 const istDifferenz = (e) => /Differenz laut Beleg/.test(e.label || '')
 // Positionen in Belegreihenfolge: Baustellen-Positionen, dann private, zuletzt die Differenzzeile
 const rang = (e) => (istDifferenz(e) ? 2 : /privat, nicht berechnet/.test(e.label || '') ? 1 : 0)
+// Art einer gespeicherten Position und ihr voller Betrag laut Beleg (steht bei privat/Verschleiß in der Bezeichnung)
+const betragAus = (s) => Number(String(s).replace(/\./g, '').replace(',', '.')) || 0
+function artVon(e) {
+  const l = e.label || ''
+  const p = l.match(/\s*\(privat, nicht berechnet: ([\d.,]+) €\)$/)
+  if (p) return { art: 'privat', voll: betragAus(p[1]), basis: l.slice(0, p.index) }
+  const v = l.match(/\s*\(Verschleißanteil [\d.,]+ % von ([\d.,]+) €\)$/)
+  if (v) return { art: 'verschleiss', voll: betragAus(v[1]), basis: l.slice(0, v.index) }
+  return { art: 'baustelle', voll: (Number(e.qty) || 1) * (Number(e.unitCost) || 0), basis: l }
+}
+// Position nachträglich umstellen: Baustelle = voll berechnet, Verschleiß = Anteil, privat = 0 € mit Vermerk
+function artPatch(e, art, prozent) {
+  const { voll, basis } = artVon(e), menge = Number(e.qty) > 0 ? Number(e.qty) : 1
+  const rund = (n) => Math.round(n * 10000) / 10000
+  if (art === 'privat') return { unitCost: 0, label: basis + ' (privat, nicht berechnet: ' + eur(voll) + ')' }
+  if (art === 'verschleiss') return { unitCost: rund(voll * prozent / 100 / menge), label: basis + ' (Verschleißanteil ' + prozent + ' % von ' + eur(voll) + ')' }
+  return { unitCost: rund(voll / menge), label: basis }
+}
 const belegfolge = (x, y) => rang(x) - rang(y) || String(x.createdAt).localeCompare(String(y.createdAt)) || Number(x.id) - Number(y.id)
 
 // Gescannte Belege eines Projekts zusammenfassen: Einträge mit gleicher Belegnotiz und gleichem Datum gehören zu einem Beleg
@@ -365,16 +383,30 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
               )}
               <div className="text-white/60 text-xs">Position antippen, um sie auf dem Beleg zu zeigen.</div>
               <div className="space-y-1">
-                {pos.map((e) => (
-                  <button key={e.id} onClick={() => (istDifferenz(e) ? (b.bild && setGross(b.bild)) : aufBelegZeigen(b, e))}
-                    className={'w-full flex items-center gap-2 text-left text-sm rounded-xl px-2.5 py-2 ' + (istDifferenz(e) ? 'bg-ember/15 text-ember border border-ember/40' : 'bg-white/5')}>
-                    <div className="flex-1 min-w-0">
-                      <div className="truncate">{suche === String(e.id) ? 'Suche auf dem Beleg …' : (e.label || '').replace(/^[^:]*:\s*/, '')}</div>
-                      <div className="text-white/60 text-xs">{Number(e.qty) || 1} × {eur(e.unitCost)}{e.gewerk ? ' · ' + e.gewerk : ''}</div>
+                {pos.map((e) => {
+                  const art = istDifferenz(e) ? null : artVon(e).art
+                  return (
+                    <div key={e.id} className={'rounded-xl ' + (istDifferenz(e) ? 'bg-ember/15 text-ember border border-ember/40' : 'bg-white/5')}>
+                      <button onClick={() => (istDifferenz(e) ? (b.bild && setGross(b.bild)) : aufBelegZeigen(b, e))}
+                        className="w-full flex items-center gap-2 text-left text-sm px-2.5 pt-2 pb-1.5">
+                        <div className="flex-1 min-w-0">
+                          <div className="truncate">{suche === String(e.id) ? 'Suche auf dem Beleg …' : (e.label || '').replace(/^[^:]*:\s*/, '')}</div>
+                          <div className="text-white/60 text-xs">{Number(e.qty) || 1} × {eur(e.unitCost)}{e.gewerk ? ' · ' + e.gewerk : ''}</div>
+                        </div>
+                        <div className="font-semibold shrink-0">{eur(zeile(e))}</div>
+                      </button>
+                      {art && (
+                        // nachträglich umstellen, falls die KI eine Position falsch eingeordnet hat
+                        <div className="flex rounded-lg overflow-hidden border border-white/20 text-xs mx-2.5 mb-2 w-fit">
+                          {[['baustelle', 'Baustelle', 'bg-emerald-500/25 text-emerald-300'], ['verschleiss', 'Verschleiß', 'bg-amber/20 text-amber'], ['privat', 'privat', 'bg-ember/20 text-ember']].map(([k, t, aktiv], j) => (
+                            <button key={k} disabled={art === k} onClick={() => onUpdate(e, artPatch(e, k, verschleissProzent))}
+                              className={'px-2.5 py-1 ' + (j ? 'border-l border-white/20 ' : '') + (art === k ? aktiv + ' font-semibold' : 'text-white/60')}>{t}</button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="font-semibold shrink-0">{eur(zeile(e))}</div>
-                  </button>
-                ))}
+                  )
+                })}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => { setOffen(''); setDatumEdit(b.key) }} className="rounded-2xl py-2 text-sm bg-white/10 inline-flex items-center justify-center gap-2"><CalendarDays className="w-4 h-4" /> Datum ändern</button>
