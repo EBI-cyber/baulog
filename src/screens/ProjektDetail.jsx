@@ -75,14 +75,16 @@ function toLocalInput(iso) {
   return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
 }
 
+// Kennzahl-Kachel: Symbol und Beschriftung oben, die Zahl darunter über die volle Breite. Die Schriftgröße wächst
+// mit der Bildschirmbreite (clamp), damit Beträge wie „3.986,23 €“ auch auf schmalen Handys ganz sichtbar bleiben.
 function StatTile({ icon, label, value, grad, big }) {
   return (
-    <div className="glass rounded-3xl p-4 flex items-center gap-3 min-w-0">
-      <IconChip icon={icon} size={big ? 'w-11 h-11' : 'w-9 h-9'} iconClass={big ? 'w-5 h-5' : 'w-[18px] h-[18px]'} />
-      <div className="min-w-0">
-        <div className="text-white/70 text-xs truncate">{label}</div>
-        <div className={(big ? 'text-2xl' : 'text-base') + ' font-bold truncate ' + (grad ? 'grad-text' : '')}>{value}</div>
+    <div className={'glass rounded-3xl min-w-0 ' + (big ? 'p-3.5 sm:p-4' : 'p-2.5 sm:p-3.5')}>
+      <div className="flex items-center gap-2 min-w-0">
+        <IconChip icon={icon} size={big ? 'w-8 h-8 sm:w-10 sm:h-10' : 'w-7 h-7 sm:w-8 sm:h-8'} iconClass={big ? 'w-4 h-4 sm:w-5 sm:h-5' : 'w-3.5 h-3.5 sm:w-4 sm:h-4'} />
+        <div className="text-white/70 text-[11px] sm:text-xs truncate">{label}</div>
       </div>
+      <div className={'mt-1.5 font-bold whitespace-nowrap tabular-nums leading-tight ' + (big ? 'text-[clamp(1.1rem,5.6vw,1.6rem)]' : 'text-[clamp(0.78rem,3.7vw,1.05rem)]') + (grad ? ' grad-text' : '')}>{value}</div>
     </div>
   )
 }
@@ -1206,11 +1208,11 @@ export default function ProjektDetail() {
       <header className="flex items-center gap-3 mb-5">
         <button onClick={() => nav('/')} className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"><ChevronLeft className="w-5 h-5" /></button>
         <div className="min-w-0 flex-1">
-          <div className="font-bold text-xl md:text-2xl truncate">{projekt.name}</div>
+          <div className="font-bold text-xl md:text-2xl leading-tight line-clamp-2 sm:truncate">{projekt.name}</div>
           <div className="text-white/70 text-xs md:text-sm truncate">{[projekt.customer, projekt.address].filter(Boolean).join(' · ')}</div>
         </div>
         {!isWorker && (
-          <div className="flex gap-2 shrink-0">
+          <div className="hidden sm:flex gap-2 shrink-0">
             <button onClick={() => setBearbeiten(true)} title="Projekt bearbeiten" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Pencil className="w-5 h-5" /></button>
             <button onClick={() => setTeam(true)} title="Team" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Users className="w-5 h-5" /></button>
             <button onClick={() => setRechnungenOpen(true)} title="Abschläge & Zahlungen" className="glass card-hover w-10 h-10 rounded-2xl flex items-center justify-center"><Receipt className="w-5 h-5" /></button>
@@ -1218,6 +1220,14 @@ export default function ProjektDetail() {
           </div>
         )}
       </header>
+      {/* Handy: Knöpfe mit Beschriftung in eigener Zeile, damit der Projektname Platz hat und klar ist, was sie tun */}
+      {!isWorker && (
+        <div className="grid grid-cols-4 gap-2 -mt-2 mb-5 sm:hidden">
+          {[[Pencil, 'Bearbeiten', () => setBearbeiten(true)], [Users, 'Team', () => setTeam(true)], [Receipt, 'Abschläge', () => setRechnungenOpen(true)], [FileText, 'Nachweis', () => setNachweis(true)]].map(([Icon, text, fn]) => (
+            <button key={text} onClick={fn} className="glass card-hover rounded-2xl py-2 flex flex-col items-center gap-1 text-[11px] text-white/80"><Icon className="w-5 h-5" />{text}</button>
+          ))}
+        </div>
+      )}
 
       <div className="lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
         <div className="lg:col-span-5 space-y-3">
