@@ -5,6 +5,7 @@ import { belegLesen } from '../lib/ai'
 import { parseBetrag } from '../lib/abrechnung'
 import Vollbild from './Vollbild'
 import VideoScan from './VideoScan'
+import VideoAnleitung, { anleitungGesehen } from './VideoAnleitung'
 
 const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 
@@ -45,13 +46,15 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const [busy, setBusy] = useState('')
   const [video, setVideo] = useState(false) // Video-Scan für lange Belege offen
   const [fotoKamera, setFotoKamera] = useState(false) // eigene Kamera (mit Taschenlampe) für das Übersichtsfoto
-  const [langModus, setLangModus] = useState(false) // langer Beleg: Schritt 1 = Übersichtsfoto zuschneiden
+  const [videoNoetig, setVideoNoetig] = useState(null) // { pxProZeichen } – Foto zu klein für scharfe Schrift
+  const [anleitung, setAnleitung] = useState(false) // bebilderte Anleitung vor dem ersten Video-Scan
+  const voll = useRef(null) // Foto in voller Auflösung (für die Qualitätsprüfung und das Übersichtsfoto)
   const [uebersicht, setUebersicht] = useState(null) // zugeschnittenes Übersichtsfoto (Canvas) für den Video-Scan
   const [lang, setLang] = useState(false) // Quelle stammt aus dem Video-Scan
   const autoZuschnitt = useRef(false)
   const kiBilder = useRef(null) // Stücke des zugeschnittenen Belegs für die KI
   const videoStuecke = useRef(null) // einzelne scharfe Abschnitte aus dem Video-Scan für die KI
-  const kamera = useRef(null), galerie = useRef(null), bild = useRef(null), svg = useRef(null)
+  const galerie = useRef(null), bild = useRef(null), svg = useRef(null)
   // Ziehen ohne React-Neuzeichnen: Positionen in einer Ref, SVG direkt aktualisieren
   const live = useRef(null), griff = useRef(null), lupe = useRef(null)
   // Lupe wie bei OneDrive: zeigt die Umgebung des gezogenen Punkts vergrößert mit Fadenkreuz
@@ -92,6 +95,13 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     {
       const c = verkleinern(quellbild, 1600)
       const W = c.width, H = c.height
+      {
+        const w0 = quellbild.naturalWidth || quellbild.width, h0 = quellbild.naturalHeight || quellbild.height, f = Math.min(1, 3000 / Math.max(w0, h0))
+        const v = document.createElement('canvas'); v.width = Math.round(w0 * f); v.height = Math.round(h0 * f)
+        v.getContext('2d').drawImage(quellbild, 0, 0, v.width, v.height)
+        voll.current = v
+      }
+      setVideoNoetig(null)
       const gefunden = eckenFinden(c)
       setLang(false); videoStuecke.current = null
       setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85)); setErgebnis(''); setKi(null)
@@ -110,9 +120,25 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     }
   }
 
-  // Langer Beleg, Schritt 1 fertig: Übersichtsfoto zuschneiden, dann Video-Scan (richtet sich an der Übersicht aus)
+  // Ecken im Foto in voller Auflösung
+  const eckenVoll = () => {
+    const f = voll.current ? voll.current.width / quelle.width : 1
+    return ecken.map((p) => ({ x: p.x * f, y: p.y * f }))
+  }
+  // Reicht ein Foto? Entscheidend ist, wie viele Bildpunkte ein Schriftzeichen bekommt. Ein Kassenbon hat etwa
+  // 42 Zeichen je Zeile; unter ~10 Bildpunkten je Zeichen liest die KI unzuverlässig (lange Bons aus der Ferne).
+  const ZEICHEN = 42, MIN_PX = 10
+  const weiter = () => {
+    const e = eckenVoll()
+    const breite = Math.max(Math.hypot(e[1].x - e[0].x, e[1].y - e[0].y), Math.hypot(e[2].x - e[3].x, e[2].y - e[3].y))
+    const pxProZeichen = breite / ZEICHEN
+    if (pxProZeichen >= MIN_PX) zuschneiden()
+    else setVideoNoetig({ pxProZeichen })
+  }
+  // Video-Scan: das zugeschnittene Foto dient als Übersicht, an der sich die Abschnitte ausrichten
   const zumVideo = () => {
-    try { setUebersicht(entzerren(quelle, ecken, 1600)); setVideo(true) }
+    if (!anleitungGesehen()) { setAnleitung(true); return }
+    try { setUebersicht(entzerren(voll.current || quelle, voll.current ? eckenVoll() : ecken, 1600)); setVideo(true) }
     catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)) }
   }
   // Ergebnis des Video-Scans: das lange Bild ist schon passend zum Übersichtsfoto zugeschnitten
@@ -232,18 +258,14 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   if (!quelle) {
     return (
       <div className="space-y-2">
-        <div className="text-white/75 text-xs">Beleg flach auf einen dunkleren Untergrund legen und von oben fotografieren. Die App schneidet zu, die KI liest Lieferant, Datum, Positionen und Preise.</div>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => { setLangModus(true); setFotoKamera(true) }} disabled={!!busy} className="col-span-2 rounded-2xl py-2.5 font-semibold bg-white/10 border border-amber/40 inline-flex items-center justify-center gap-2"><ScrollText className="w-5 h-5 text-amber" /> Langer Beleg (Video-Scan)</button>
-          <button onClick={() => { setLangModus(false); kamera.current.click() }} disabled={!!busy} className="rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> Foto aufnehmen</button>
-          <button onClick={() => { setLangModus(false); galerie.current.click() }} disabled={!!busy} className="rounded-2xl py-3 font-semibold bg-white/10 inline-flex items-center justify-center gap-2"><ImagePlus className="w-5 h-5" /> Bild wählen</button>
-        </div>
-        <input ref={kamera} type="file" accept="image/*" capture="environment" className="hidden" onChange={laden} />
+        <div className="text-white/75 text-xs">Beleg flach auf einen dunklen Untergrund legen und den ganzen Beleg fotografieren. Die App prüft, ob die Schrift scharf genug ist – bei langen Belegen führt sie dich danach durch einen Video-Scan.</div>
+        <button onClick={() => setFotoKamera(true)} disabled={!!busy} className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> Beleg fotografieren</button>
+        <button onClick={() => galerie.current.click()} disabled={!!busy} className="w-full text-white/60 text-xs py-1 inline-flex items-center justify-center gap-1.5"><ImagePlus className="w-3.5 h-3.5" /> Vorhandenes Bild wählen</button>
         <input ref={galerie} type="file" accept="image/*" className="hidden" onChange={laden} />
         {busy && <div className="text-amber text-sm">{busy}</div>}
         {onOhneBeleg && <button onClick={onOhneBeleg} className="w-full text-white/60 text-xs py-1">Ohne Beleg von Hand eintragen</button>}
         {onAbbrechen && <button onClick={onAbbrechen} className="w-full text-white/70 text-sm py-1">Abbrechen</button>}
-        {fotoKamera && <VideoScan onFoto={(c) => { setFotoKamera(false); setBusy('Lade Foto …'); uebernehmen(c).catch((err) => alert(err && err.message ? err.message : String(err))).finally(() => setBusy('')) }} onAbbrechen={() => { setFotoKamera(false); setLangModus(false) }} />}
+        {fotoKamera && <VideoScan onFoto={(c) => { setFotoKamera(false); setBusy('Lade Foto …'); uebernehmen(c).catch((err) => alert(err && err.message ? err.message : String(err))).finally(() => setBusy('')) }} onAbbrechen={() => setFotoKamera(false)} />}
       </div>
     )
   }
@@ -253,7 +275,6 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     <div className="space-y-3">
       {!ergebnis ? (
         <>
-          {langModus && !lang && <div className="text-amber text-sm font-semibold">Langer Beleg – Schritt 1 von 2: Übersichtsfoto genau auf den Beleg zuschneiden. Danach folgt der Video-Scan für die Details.</div>}
           <div className="text-white/75 text-xs">Ecken oder Kantenmitten ziehen. Sie bewegen sich langsamer als der Finger, so triffst du die Kante genau (die Lupe zeigt die Stelle vergrößert). Mit den Kanten rückst du eine ganze Seite ein.</div>
           <div className={'relative select-none touch-none ' + (quelle.height > quelle.width * 1.8 ? 'w-fit mx-auto' : '')} onPointerDown={runter} onPointerMove={bewegen} onPointerUp={hoch} onPointerCancel={hoch}>
             <img ref={bild} src={vorschau} alt="" className={'rounded-xl pointer-events-none ' + (quelle.height > quelle.width * 1.8 ? 'max-h-[65dvh] w-auto max-w-full' : 'w-full')} draggable={false} />
@@ -271,12 +292,22 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
               <div className="absolute top-1/2 left-0 right-0 h-px bg-amber/90" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { if (lang) setVideo(true); else { setQuelle(null); setEcken(null); setKi(null) } }} className="rounded-2xl py-2.5 bg-white/10 inline-flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> {lang ? 'Neu scannen' : 'Neues Foto'}</button>
-            {langModus && !lang
-              ? <button onClick={zumVideo} disabled={!!busy} className="rounded-2xl py-2.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><ScrollText className="w-4 h-4" /> Weiter zum Video-Scan</button>
-              : <button onClick={zuschneiden} disabled={!!busy} className="rounded-2xl py-2.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><ScanLine className="w-4 h-4" /> Zuschneiden</button>}
-          </div>
+          {videoNoetig && !lang ? (
+            <div className="rounded-2xl p-3 space-y-2 border border-amber/50 bg-amber/10">
+              <div className="font-bold text-amber flex items-center gap-2"><ScrollText className="w-5 h-5" /> Achtung: Video-Scan nötig</div>
+              <div className="text-white/85 text-sm">Der Beleg ist so lang, dass die Schrift auf einem Foto zu klein wird ({Math.round(videoNoetig.pxProZeichen)} statt mindestens {MIN_PX} Bildpunkte je Buchstabe). Die KI würde Zahlen falsch lesen. Dein Foto nimmt die App als Übersicht, dann fährst du mit dem Handy einmal über den Beleg.</div>
+              <button onClick={zumVideo} disabled={!!busy} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><ScrollText className="w-5 h-5" /> Video-Scan starten</button>
+              <div className="flex justify-between text-xs">
+                <button onClick={() => setAnleitung('nur')} className="text-amber">Anleitung ansehen</button>
+                <button onClick={() => { setVideoNoetig(null); zuschneiden() }} className="text-white/60">Trotzdem nur mit Foto weiter</button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => { if (lang) setVideo(true); else { setQuelle(null); setEcken(null); setKi(null); setVideoNoetig(null) } }} className="rounded-2xl py-2.5 bg-white/10 inline-flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> {lang ? 'Neu scannen' : 'Neues Foto'}</button>
+              <button onClick={korrektur || nurBild || lang ? zuschneiden : weiter} disabled={!!busy} className="rounded-2xl py-2.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><ScanLine className="w-4 h-4" /> {korrektur || nurBild || lang ? 'Zuschneiden' : 'Weiter'}</button>
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -354,6 +385,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
         </>
       )}
       {busy && <div className="text-amber text-sm">{busy}</div>}
+      {anleitung && <VideoAnleitung onFertig={() => { const weiterZumVideo = anleitung !== 'nur'; setAnleitung(false); if (weiterZumVideo) setTimeout(zumVideo, 0) }} />}
       {video && uebersicht && <VideoScan uebersicht={uebersicht} onFertig={videoFertig} onAbbrechen={() => setVideo(false)} />}
     </div>
   )

@@ -252,6 +252,21 @@ export function papierSpalten(g, von = 0.2, bis = 0.8) {
   return best ? { links: best.l / w, rechts: best.r / w } : null
 }
 
+// Ist das untere Ende des Papiers im Kamerabild zu sehen? Die untersten Zeilen im Papierbereich sind dann dunkel
+// (Untergrund), weiter oben hell. Nur so ist sicher, dass die letzten Zeilen des Belegs wirklich aufgenommen sind –
+// die Lage in der Übersicht allein ist dafür am Ende ein paar Zeilen zu ungenau.
+export function papierEnde(g, lr) {
+  const { w, h, d } = g
+  const x0 = Math.round((lr.links + (lr.rechts - lr.links) * 0.1) * w), x1 = Math.round((lr.rechts - (lr.rechts - lr.links) * 0.1) * w)
+  if (x1 - x0 < 10) return false
+  const zeile = (y) => { const v = []; for (let x = x0; x < x1; x += 2) v.push(d[y * w + x]); v.sort((a, b) => a - b); return v[Math.floor(v.length * 0.75)] }
+  const oben = []; for (let y = Math.round(h * 0.1); y < h * 0.5; y += 3) oben.push(zeile(y))
+  oben.sort((a, b) => a - b)
+  const papier = oben[Math.floor(oben.length / 2)]
+  let unten = 0; for (let y = Math.round(h * 0.94); y < h; y++) unten = Math.max(unten, zeile(y))
+  return papier - unten > 50 && unten < papier * 0.6
+}
+
 // mittlere Helligkeit 0–255
 export function helligkeit(g) {
   return g.hell
@@ -340,6 +355,7 @@ export function verfolger(uebersicht) {
     const s = schaerfe(g)
     z.bestScharf = Math.max(z.bestScharf * 0.995, s)
     const p = papierSpalten(g)
+    if (p) z.kontrast = true
     if (p && p.rechts - p.links > 0.15) z.lr = z.lr ? { links: z.lr.links * 0.6 + p.links * 0.4, rechts: z.lr.rechts * 0.6 + p.rechts * 0.4 } : p
     let m = null
     if (z.lr) {
@@ -408,13 +424,15 @@ export function verfolger(uebersicht) {
       for (let i = a; i < e; i++) if (!bedeckt[i]) frei++
       const anteil = frei / z.hO
       // eine Lücke, die dieses Bild ganz schließt (oben und unten schon erfasst)
+      // das Ende des Papiers ist im Bild: dieses Bild auf jeden Fall aufnehmen (die letzten Zeilen)
+      const endeJetzt = !z.endeAufgenommen && z.lr && z.y + z.hO >= HO * 0.85 && s >= z.bestScharf * 0.7 && papierEnde(g, z.lr)
       const schliesst = frei >= 3 && z.abschnitte.length > 0 && (a === 0 || bedeckt[a - 1] || bedeckt[a]) && (e === HO || bedeckt[e] || bedeckt[e - 1]) && s >= z.bestScharf * 0.8
-      if ((anteil >= 0.35 && (s >= z.bestScharf * 0.75 || anteil >= 0.55)) || (!z.abschnitte.length && anteil > 0.2) || schliesst) {
+      if ((anteil >= 0.35 && (s >= z.bestScharf * 0.75 || anteil >= 0.55)) || (!z.abschnitte.length && anteil > 0.2) || schliesst || endeJetzt) {
         // Gegenprobe im ganzen Beleg: nur aufnehmen, wenn die Lage eindeutig dort ist
         // Ausnahmen: die Bewegung wurde von Bild zu Bild sicher verfolgt, oder es ist der Anfang oben am Beleg
         // (dort beginnt man laut Anleitung). Beim Zusammensetzen wird jeder Abschnitt ohnehin noch einmal genau in
         // der Übersicht eingepasst, und die KI liest die Abschnitte einzeln – eine strenge Gegenprobe ließ oben Lücken.
-        const vertraut = z.perBewegung || (!z.abschnitte.length && z.y <= z.hO * 0.3)
+        const vertraut = z.perBewegung || endeJetzt || (!z.abschnitte.length && z.y <= z.hO * 0.3)
         if (!vertraut) {
           const probe = einpassen(O, streifen(q, z.lr, z.f), -z.hO * 0.6, HO - z.hO * 0.4, 1, BAND)
           if (!probe || !probe.eindeutig) return zustandMelden(g, s, p, false)
@@ -433,7 +451,8 @@ export function verfolger(uebersicht) {
         const ab = { bild, l: ((c - b / 2) * voll.width - x0) / bild.width, r: ((c + b / 2) * voll.width - x0) / bild.width, y: best.r.y, hO: best.h }
         z.abschnitte.push(ab)
         const [a2, e2] = bereich(ab.y, ab.hO)
-        for (let i = a2; i < e2; i++) bedeckt[i] = 1
+        for (let i = a2; i < (endeJetzt ? HO : e2); i++) bedeckt[i] = 1
+        if (endeJetzt) z.endeAufgenommen = true
         neu = true
       }
     }
@@ -448,7 +467,8 @@ export function verfolger(uebersicht) {
     return {
       y: z.y, hO: z.hO, HO, sicher: z.unsicher === 0, verloren: z.unsicher > 6, neu, abdeckung: abdeckung(), luecke,
       // Anfang und Ende des Belegs scharf erfasst (sonst kämen sie aus dem unschärferen Übersichtsfoto)
-      endenErfasst: Boolean(bedeckt[0] && bedeckt[HO - 1]),
+      // Ende: auf dunklem Untergrund erst, wenn das Papierende im Kamerabild zu sehen war
+      endenErfasst: Boolean(bedeckt[0] && (z.endeAufgenommen || (!z.kontrast && bedeckt[HO - 1]))),
       tempo: z.hO ? z.v / z.hO : null, papier: p, hell: g.hell, scharf: z.bestScharf ? s / z.bestScharf : null,
       abschnitte: z.abschnitte.length,
     }
