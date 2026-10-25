@@ -295,7 +295,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
         <div className="text-white/75 text-xs">Beleg flach auf einen dunklen Untergrund legen und den ganzen Beleg fotografieren. Die App prüft, ob die Schrift scharf genug ist – bei langen Belegen führt sie dich danach durch einen Video-Scan.</div>
         <button onClick={() => setFotoKamera(true)} disabled={!!busy} className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> Beleg fotografieren</button>
         {/* Kamera des Handys selbst: volle Sensorauflösung (deutlich schärfer bei langen Belegen), aber ohne Taschenlampe und Hinweise */}
-        <button onClick={() => handyKamera.current.click()} disabled={!!busy} className="w-full rounded-2xl py-2.5 text-sm font-semibold bg-white/10 border border-white/20 inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> Mit der Handy-Kamera (schärfer)</button>
+        <button onClick={() => handyKamera.current.click()} disabled={!!busy} className="w-full rounded-2xl py-2.5 text-sm font-semibold bg-white/10 border border-white/20 inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> iPhone-Kamera-App öffnen (volle Auflösung)</button>
         <input ref={handyKamera} type="file" accept="image/*" capture="environment" className="hidden" onChange={laden} />
         <button onClick={() => galerie.current.click()} disabled={!!busy} className="w-full text-white/60 text-xs py-1 inline-flex items-center justify-center gap-1.5"><ImagePlus className="w-3.5 h-3.5" /> Vorhandenes Bild wählen</button>
         <input ref={galerie} type="file" accept="image/*" className="hidden" onChange={laden} />
