@@ -162,18 +162,22 @@ export function zusammensetzenUebersicht(abschnitte, uebersicht, WR, HO) {
     q.l = c - b / 2; q.r = c + b / 2; q.hO /= best.f
     q.y = p.y + best.v.dy * WR / M; q.xoff = p.xoff + best.v.dx * Wout / M
   }
+  // an den Seiten etwas über den erkannten Papierrand hinaus mitnehmen: der Rand wird im Kamerabild oft etwas zu
+  // knapp erkannt, und Bons sind bis an den Rand bedruckt (sonst fehlen vorne Buchstaben und hinten die Cent)
+  const RAND = 0.04, rand = Math.round(Wout * RAND)
   const out = document.createElement('canvas')
-  out.width = Wout; out.height = Math.round(HO * s)
+  out.width = Wout + 2 * rand; out.height = Math.round(HO * s)
   const ctx = out.getContext('2d')
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, out.width, out.height)
-  ctx.drawImage(uebersicht, 0, 0, out.width, out.height)
+  ctx.drawImage(uebersicht, rand, 0, Wout, out.height)
   a.forEach((x, i) => {
     const k = x.hO / x.bild.height // Übersichtszeilen je Kamerapixel
     let oben = 0
     if (i) { const p = a[i - 1], ende = Math.min(p.y + p.hO, x.y + x.hO); if (ende > x.y) oben = ((x.y + ende) / 2 - x.y) / k }
-    // an den Seiten 2 % weglassen, damit kein Untergrund vom Kamerabild stehen bleibt (dort bleibt das Übersichtsfoto)
-    const sw = (x.r - x.l) * x.bild.width * 0.96, sx = x.l * x.bild.width + sw * 0.02 / 0.96
-    ctx.drawImage(x.bild, sx, oben, sw, x.bild.height - oben, Math.round(x.xoff + Wout * 0.02), (x.y + oben * k) * s, Wout * 0.96, (x.bild.height - oben) * k * s)
+    const pw = (x.r - x.l) * x.bild.width
+    const sx = Math.max(0, x.l * x.bild.width - pw * RAND), sx1 = Math.min(x.bild.width, x.r * x.bild.width + pw * RAND)
+    const f = Wout / pw // Ausgabepixel je Kamerapixel
+    ctx.drawImage(x.bild, sx, oben, sx1 - sx, x.bild.height - oben, Math.round(x.xoff + rand + (sx - x.l * x.bild.width) * f), (x.y + oben * k) * s, (sx1 - sx) * f, (x.bild.height - oben) * k * s)
   })
   return out
 }
