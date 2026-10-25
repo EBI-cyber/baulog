@@ -37,7 +37,7 @@ function einruecken(ecken, anteil) {
 // korrektur = { bild, ecken }: gespeichertes Originalfoto erneut zuschneiden (ohne KI), Ergebnis über onKorrigiert
 // nurBild: nur fotografieren und zuschneiden (z. B. fehlendes Belegbild nachscannen), Ergebnis über onKorrigiert
 // sofortKamera: gleich die Kamera öffnen (nächster Beleg nach „Speichern & nächster“)
-export default function BelegScanner({ gewerke = [], projekt, verschleissProzent = 25, onFertig, onAbbrechen, onOhneBeleg, korrektur, nurBild, onKorrigiert, sofortKamera }) {
+export default function BelegScanner({ gewerke = [], projekt, verschleissProzent = 25, onFertig, onAbbrechen, onOhneBeleg, korrektur, nurBild, onKorrigiert, sofortKamera, neuLesen }) {
   const [quelle, setQuelle] = useState(null) // Canvas des verkleinerten Fotos
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
@@ -84,6 +84,16 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const inp = 'w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 outline-none focus:border-amber'
   // Korrekturmodus: Originalfoto laden und mit den gespeicherten Ecken starten
   const korrekturGeladen = useRef(false)
+  // Neu einlesen: gespeichertes Belegbild (schon zugeschnitten) ohne Zuschnitt direkt von der KI lesen lassen
+  if (neuLesen && !korrekturGeladen.current) {
+    korrekturGeladen.current = true
+    ladeBild(neuLesen).then((img) => {
+      const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight
+      c.getContext('2d').drawImage(img, 0, 0)
+      voll.current = c; autoZuschnitt.current = true
+      setQuelle(c); setVorschau(neuLesen); setEcken([{ x: 0, y: 0 }, { x: c.width, y: 0 }, { x: c.width, y: c.height }, { x: 0, y: c.height }])
+    }).catch(() => melden('Belegbild konnte nicht geladen werden.'))
+  }
   if (korrektur && !korrekturGeladen.current) {
     korrekturGeladen.current = true
     ladeBild(korrektur.bild).then((img) => {
@@ -277,7 +287,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const fertig = async (weiter) => {
     const betrag = parseBetrag(ki.betrag)
     if (Number.isNaN(betrag) || betrag <= 0) { melden('Bitte den Gesamtbetrag des Belegs eintragen, z. B. 127,53.'); return }
-    const alle = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt > 0)
+    const alle = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt !== 0)
     const summe = alle.reduce((a, p) => a + p.gesamt, 0)
     if (alle.length && Math.abs(summe - betrag) > 0.01 && !await frage('Die Positionen ergeben ' + eur(summe) + ', der Beleg ' + eur(betrag) + '.\n\nTrotzdem speichern? Die Differenz von ' + eur(betrag - summe) + ' wird als eigene Zeile „Differenz laut Beleg“ gebucht und in den Materialbelegen markiert.')) return
     // Verschleißteile: nur der eingestellte Anteil wird berechnet
@@ -381,9 +391,9 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
           {markiert && <Vollbild src={ergebnis} markierung={markiert.markierung} titel={markiert.titel} onClose={() => setMarkiert(null)} />}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3">
-              {!korrektur && !nurBild && lang && <button onClick={() => nochmal(false)} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Video wiederholen</button>}
-              {!korrektur && !nurBild && <button onClick={() => nochmal(true)} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Neues Foto</button>}
-              <button onClick={() => setErgebnis('')} className="text-amber text-xs">Zuschnitt ändern</button>
+              {!korrektur && !nurBild && !neuLesen && lang && <button onClick={() => nochmal(false)} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Video wiederholen</button>}
+              {!korrektur && !nurBild && !neuLesen && <button onClick={() => nochmal(true)} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Neues Foto</button>}
+              {!neuLesen && <button onClick={() => setErgebnis('')} className="text-amber text-xs">Zuschnitt ändern</button>}
             </div>
             {fassungen && (
               <div className="flex rounded-xl overflow-hidden border border-white/20 text-xs">
@@ -456,8 +466,13 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
               </div>
               {/* Speichern bleibt beim Scrollen durch lange Positionslisten unten erreichbar */}
               <div className="grid grid-cols-2 gap-2 sticky bottom-0 z-10 -mx-2 px-2 py-2 rounded-2xl bg-neutral-900/95 shadow-[0_-8px_24px_rgba(0,0,0,0.5)]">
-                <button onClick={() => fertig(false)} className="rounded-2xl py-3 font-semibold bg-white/10">Speichern</button>
-                <button onClick={() => fertig(true)} className="rounded-2xl py-3 font-bold btn-grad">Speichern &amp; nächster</button>
+                {neuLesen ? <>
+                  <button onClick={onAbbrechen} className="rounded-2xl py-3 font-semibold bg-white/10">Abbrechen</button>
+                  <button onClick={() => fertig(false)} className="rounded-2xl py-3 font-bold btn-grad">Positionen ersetzen</button>
+                </> : <>
+                  <button onClick={() => fertig(false)} className="rounded-2xl py-3 font-semibold bg-white/10">Speichern</button>
+                  <button onClick={() => fertig(true)} className="rounded-2xl py-3 font-bold btn-grad">Speichern &amp; nächster</button>
+                </>}
               </div>
             </div>
           )}
