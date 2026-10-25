@@ -101,7 +101,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       const c = verkleinern(quellbild, 1600)
       const W = c.width, H = c.height
       {
-        const w0 = quellbild.naturalWidth || quellbild.width, h0 = quellbild.naturalHeight || quellbild.height, f = Math.min(1, 3000 / Math.max(w0, h0))
+        const w0 = quellbild.naturalWidth || quellbild.width, h0 = quellbild.naturalHeight || quellbild.height, f = Math.min(1, 4000 / Math.max(w0, h0))
         const v = document.createElement('canvas'); v.width = Math.round(w0 * f); v.height = Math.round(h0 * f)
         v.getContext('2d').drawImage(quellbild, 0, 0, v.width, v.height)
         voll.current = v
@@ -169,17 +169,17 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     try { setUebersicht(entzerren(voll.current || quelle, voll.current ? eckenVoll() : ecken, 1600)); setVideo(true) }
     catch (err) { melden('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)) }
   }
-  // Ergebnis des Video-Scans: das lange Bild ist schon passend zum Übersichtsfoto zugeschnitten
-  const videoFertig = (c, anzahl, abschnitte) => {
+  // Ergebnis des Video-Scans: die KI liest die einzelnen Abschnitte (kontrastreich, höchstens 1000 px breit).
+  // Als Belegbild bleibt das echte Übersichtsfoto – ein aus Videostücken zusammengesetztes Bild hat Nähte und
+  // Versätze und sähe für Kunde oder Finanzamt nicht wie das Original aus.
+  const videoFertig = (_c, _anzahl, abschnitte) => {
     setVideo(false)
-    // die KI liest die einzelnen Abschnitte (kontrastreich, höchstens 1000 px breit) statt des zusammengesetzten Bildes
     try {
       videoStuecke.current = (abschnitte || []).map((a) => dokumentFilter(verkleinern(a, Math.max(a.width, a.height) * Math.min(1, 1000 / a.width))).toDataURL('image/jpeg', 0.85))
     } catch { videoStuecke.current = null }
     setLang(true)
     autoZuschnitt.current = true
-    setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85)); setErgebnis(''); setKi(null)
-    setEcken([{ x: 0, y: 0 }, { x: c.width, y: 0 }, { x: c.width, y: c.height }, { x: 0, y: c.height }])
+    setErgebnis(''); setKi(null)
   }
   useEffect(() => { if (autoZuschnitt.current && quelle && ecken) { autoZuschnitt.current = false; zuschneiden() } }) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -233,7 +233,8 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       let url = ''
       try {
         // „Dokument“ (Schatten weg, schwarze Schrift auf Weiß) als Standard, „Farbe“ als Alternative
-        const roh = entzerren(quelle, ecken, 1600)
+        // aus dem Foto in voller Auflösung zuschneiden (dieselbe Auflösung, mit der die Schriftgröße geprüft wurde)
+        const roh = voll.current && !korrektur ? entzerren(voll.current, eckenVoll(), 1600) : entzerren(quelle, ecken, 1600)
         const farbe = document.createElement('canvas'); farbe.width = roh.width; farbe.height = roh.height
         farbe.getContext('2d').drawImage(roh, 0, 0)
         const dok = dokumentFilter(roh)
@@ -279,10 +280,10 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const positionen = alle.filter((p) => !p.privat).map((p) => ({ ...p, anteil: p.verschleiss ? Math.max(0, Math.min(100, parseBetrag(p.anteil) || 0)) : 100 }))
     const privat = alle.filter((p) => p.privat).reduce((a, p) => a + p.gesamt, 0)
     // Originalfoto (komprimiert) und Ecken mitgeben, damit der Zuschnitt später korrigierbar bleibt
-    // langer Beleg: das zusammengesetzte Bild ist schon zugeschnitten, ein Rohbild bräuchte nur Platz (und sprengt sonst den Cloud-Upload)
-    const roh = lang ? null : { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
+    const roh = { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
     const privatPositionen = alle.filter((p) => p.privat)
-    const bildUrl = lang ? await ablagefassung(ergebnis) : ergebnis
+    // Größe für den Cloud-Upload begrenzen
+    const bildUrl = await ablagefassung(ergebnis)
     onFertig({ dataUrl: bildUrl, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, privat, privatPositionen, roh }, { weiter })
   }
 
