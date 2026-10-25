@@ -101,7 +101,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       const c = verkleinern(quellbild, 1600)
       const W = c.width, H = c.height
       {
-        const w0 = quellbild.naturalWidth || quellbild.width, h0 = quellbild.naturalHeight || quellbild.height, f = Math.min(1, 3000 / Math.max(w0, h0))
+        const w0 = quellbild.naturalWidth || quellbild.width, h0 = quellbild.naturalHeight || quellbild.height, f = Math.min(1, 4000 / Math.max(w0, h0))
         const v = document.createElement('canvas'); v.width = Math.round(w0 * f); v.height = Math.round(h0 * f)
         v.getContext('2d').drawImage(quellbild, 0, 0, v.width, v.height)
         voll.current = v
@@ -140,13 +140,13 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const ro = new ResizeObserver(messen); ro.observe(el)
     return () => ro.disconnect()
   }, [quelle, ergebnis]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Nochmal: beim Video-Scan mit derselben Übersicht neu scannen, sonst ein neues Foto – man bleibt im Beleg
+  // Nochmal: beim Video-Scan mit derselben Übersicht neu scannen, sonst (oder mit neuesFoto) ein neues Foto – man bleibt im Beleg
   const lauf = useRef(0) // laufende KI-Auswertung verwerfen, wenn inzwischen neu gescannt wird
-  const nochmal = () => {
+  const nochmal = (neuesFoto) => {
     lauf.current++
     setErgebnis(''); setKi(null); setFassungen(null); setBusy('')
-    if (lang && uebersicht) setVideo(true)
-    else { setQuelle(null); setEcken(null); setVideoNoetig(null); setLang(false); setFotoKamera(true) }
+    if (lang && uebersicht && neuesFoto !== true) setVideo(true)
+    else { setQuelle(null); setEcken(null); setVideoNoetig(null); setLang(false); setUebersicht(null); videoStuecke.current = null; setFotoKamera(true) }
   }
   // Ecken im Foto in voller Auflösung
   const eckenVoll = () => {
@@ -169,17 +169,17 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     try { setUebersicht(entzerren(voll.current || quelle, voll.current ? eckenVoll() : ecken, 1600)); setVideo(true) }
     catch (err) { melden('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)) }
   }
-  // Ergebnis des Video-Scans: das lange Bild ist schon passend zum Übersichtsfoto zugeschnitten
-  const videoFertig = (c, anzahl, abschnitte) => {
+  // Ergebnis des Video-Scans: die KI liest die einzelnen Abschnitte (kontrastreich, höchstens 1000 px breit).
+  // Als Belegbild bleibt das echte Übersichtsfoto – ein aus Videostücken zusammengesetztes Bild hat Nähte und
+  // Versätze und sähe für Kunde oder Finanzamt nicht wie das Original aus.
+  const videoFertig = (_c, _anzahl, abschnitte) => {
     setVideo(false)
-    // die KI liest die einzelnen Abschnitte (kontrastreich, höchstens 1000 px breit) statt des zusammengesetzten Bildes
     try {
       videoStuecke.current = (abschnitte || []).map((a) => dokumentFilter(verkleinern(a, Math.max(a.width, a.height) * Math.min(1, 1000 / a.width))).toDataURL('image/jpeg', 0.85))
     } catch { videoStuecke.current = null }
     setLang(true)
     autoZuschnitt.current = true
-    setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85)); setErgebnis(''); setKi(null)
-    setEcken([{ x: 0, y: 0 }, { x: c.width, y: 0 }, { x: c.width, y: c.height }, { x: 0, y: c.height }])
+    setErgebnis(''); setKi(null)
   }
   useEffect(() => { if (autoZuschnitt.current && quelle && ecken) { autoZuschnitt.current = false; zuschneiden() } }) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -233,7 +233,8 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       let url = ''
       try {
         // „Dokument“ (Schatten weg, schwarze Schrift auf Weiß) als Standard, „Farbe“ als Alternative
-        const roh = entzerren(quelle, ecken, 1600)
+        // aus dem Foto in voller Auflösung zuschneiden (dieselbe Auflösung, mit der die Schriftgröße geprüft wurde)
+        const roh = voll.current && !korrektur ? entzerren(voll.current, eckenVoll(), 1600) : entzerren(quelle, ecken, 1600)
         const farbe = document.createElement('canvas'); farbe.width = roh.width; farbe.height = roh.height
         farbe.getContext('2d').drawImage(roh, 0, 0)
         const dok = dokumentFilter(roh)
@@ -279,10 +280,10 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const positionen = alle.filter((p) => !p.privat).map((p) => ({ ...p, anteil: p.verschleiss ? Math.max(0, Math.min(100, parseBetrag(p.anteil) || 0)) : 100 }))
     const privat = alle.filter((p) => p.privat).reduce((a, p) => a + p.gesamt, 0)
     // Originalfoto (komprimiert) und Ecken mitgeben, damit der Zuschnitt später korrigierbar bleibt
-    // langer Beleg: das zusammengesetzte Bild ist schon zugeschnitten, ein Rohbild bräuchte nur Platz (und sprengt sonst den Cloud-Upload)
-    const roh = lang ? null : { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
+    const roh = { bild: quelle.toDataURL('image/jpeg', 0.7), ecken }
     const privatPositionen = alle.filter((p) => p.privat)
-    const bildUrl = lang ? await ablagefassung(ergebnis) : ergebnis
+    // Größe für den Cloud-Upload begrenzen
+    const bildUrl = await ablagefassung(ergebnis)
     onFertig({ dataUrl: bildUrl, lieferant: ki.lieferant.trim(), datum: ki.datum, betrag, positionen, privat, privatPositionen, roh }, { weiter })
   }
 
@@ -340,14 +341,15 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
                 <div className="font-bold text-amber flex items-center gap-2"><ScrollText className="w-5 h-5" /> Achtung: Video-Scan nötig</div>
                 <div className="text-white/85 text-xs">Der Beleg ist zu lang für ein Foto: die Schrift wäre zu klein ({Math.round(videoNoetig.pxProZeichen)} statt mindestens {MIN_PX} Bildpunkte je Buchstabe). Dein Foto dient als Übersicht, dann fährst du mit dem Handy einmal über den Beleg.</div>
                 <button onClick={zumVideo} disabled={!!busy} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><ScrollText className="w-5 h-5" /> Video-Scan starten</button>
-                <div className="flex justify-between text-xs">
-                  <button onClick={() => setAnleitung('nur')} className="text-amber">Anleitung ansehen</button>
+                <div className="flex justify-between gap-2 text-xs">
+                  <button onClick={() => nochmal(true)} className="text-amber inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Neues Foto</button>
+                  <button onClick={() => setAnleitung('nur')} className="text-amber">Anleitung</button>
                   <button onClick={() => { setVideoNoetig(null); zuschneiden() }} className="text-white/60">Trotzdem nur mit Foto weiter</button>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={nochmal} className="rounded-2xl py-3 bg-white/10 inline-flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> {lang ? 'Nochmal scannen' : 'Neues Foto'}</button>
+                <button onClick={() => nochmal(true)} className="rounded-2xl py-3 bg-white/10 inline-flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> Neues Foto</button>
                 <button onClick={korrektur || nurBild || lang ? zuschneiden : weiter} disabled={!!busy} className="rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><ScanLine className="w-4 h-4" /> {korrektur || nurBild || lang ? 'Zuschneiden' : 'Weiter'}</button>
               </div>
             )}
@@ -365,7 +367,8 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
           {markiert && <Vollbild src={ergebnis} markierung={markiert.markierung} titel={markiert.titel} onClose={() => setMarkiert(null)} />}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3">
-              {!korrektur && !nurBild && <button onClick={nochmal} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> {lang ? 'Nochmal scannen' : 'Neues Foto'}</button>}
+              {!korrektur && !nurBild && lang && <button onClick={() => nochmal(false)} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Video wiederholen</button>}
+              {!korrektur && !nurBild && <button onClick={() => nochmal(true)} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Neues Foto</button>}
               <button onClick={() => setErgebnis('')} className="text-amber text-xs">Zuschnitt ändern</button>
             </div>
             {fassungen && (

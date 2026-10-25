@@ -25,6 +25,9 @@ const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDig
 const tag = (d) => { try { return new Date(d).toLocaleDateString('de-DE') } catch { return '' } }
 const zeile = (e) => (Number(e.qty) || 0) * (Number(e.unitCost) || 0)
 const istDifferenz = (e) => /Differenz laut Beleg/.test(e.label || '')
+// Positionen in Belegreihenfolge: Baustellen-Positionen, dann private, zuletzt die Differenzzeile
+const rang = (e) => (istDifferenz(e) ? 2 : /privat, nicht berechnet/.test(e.label || '') ? 1 : 0)
+const belegfolge = (x, y) => rang(x) - rang(y) || String(x.createdAt).localeCompare(String(y.createdAt)) || Number(x.id) - Number(y.id)
 
 // Gescannte Belege eines Projekts zusammenfassen: Einträge mit gleicher Belegnotiz und gleichem Datum gehören zu einem Beleg
 export function belegeAus(eintraege) {
@@ -253,8 +256,10 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                       if (!/^\d{4}-\d{2}-\d{2}$/.test(neu) || neu === String(b.datum).slice(0, 10) || Number(neu.slice(0, 4)) < 2000) { setDatumEdit(''); return }
                       // alle Positionen des Belegs auf das neue Datum setzen, auch in der Belegnotiz
                       const de = new Date(neu + 'T12:00:00').toLocaleDateString('de-DE')
-                      for (const e of b.eintraege) {
-                        await onUpdate(e, { createdAt: new Date(neu + 'T12:00:00').toISOString(), note: (e.note || '').replace(/vom \d{1,2}\.\d{1,2}\.\d{4}/, 'vom ' + de) })
+                      // Reihenfolge der Positionen dabei behalten (je eine Millisekunde Abstand)
+                      const basis = Date.parse(neu + 'T12:00:00')
+                      for (const [i, e] of [...b.eintraege].sort(belegfolge).entries()) {
+                        await onUpdate(e, { createdAt: new Date(basis + i).toISOString(), note: (e.note || '').replace(/vom \d{1,2}\.\d{1,2}\.\d{4}/, 'vom ' + de) })
                       }
                       setDatumEdit('')
                     }} />
@@ -337,7 +342,7 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
       )}
       {offenerBeleg && (() => {
         const b = offenerBeleg
-        const pos = [...b.eintraege].sort((x, y) => Number(istDifferenz(x)) - Number(istDifferenz(y)))
+        const pos = [...b.eintraege].sort(belegfolge)
         const diff = b.eintraege.filter(istDifferenz).reduce((a, e) => a + zeile(e), 0)
         return (
           <div className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-40" onClick={(e) => { e.stopPropagation(); setOffen('') }}>

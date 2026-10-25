@@ -61,7 +61,8 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
     if (typeof DeviceOrientationEvent === 'undefined' || typeof DeviceOrientationEvent.requestPermission !== 'function') lageHoeren()
     ;(async () => {
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+        // Übersichtsfoto in 4K (es wird das Belegbild, das Kunde und Finanzamt sehen), Video-Scan in Full HD (flüssiger)
+        const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: foto ? 3840 : 1920 }, height: { ideal: foto ? 2160 : 1080 } }, audio: false })
         if (!aktiv) { s.getTracks().forEach((t) => t.stop()); return }
         stream.current = s
         const spur = s.getVideoTracks()[0]
