@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ReceiptText, Trash2, AlertTriangle, Sparkles, CalendarDays, Camera } from 'lucide-react'
 import IconChip from '../ui/IconChip'
 import Vollbild from './Vollbild'
 import BelegScanner from './BelegScanner'
-import { privatPruefen, positionFinden } from '../lib/ai'
+import { privatPruefen, positionFinden, materialZuordnen } from '../lib/ai'
 import { listeSicherungen, sicherungLesen } from '../lib/backup'
 import { melden, frage, toast } from '../ui/Hinweise'
 
@@ -111,6 +111,30 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
   const doppelte = belege.filter((b) => b.doppelt).length
   const ohneBeleg = eintraege.filter((e) => e.type === 'material' && !(e.note && /^Beleg/.test(e.note)))
   const ohnePreis = ohneBeleg.filter((e) => !(Number(e.unitCost) > 0) && !/privat, nicht berechnet/.test(e.label || ''))
+
+  // KI ordnet Material ohne Preis den Belegpositionen zu: doppelt erfasst oder beim Diktat falsch aufgenommen
+  const [zuordnung, setZuordnung] = useState({}) // id → { art, position, grund }
+  const [zuordnenBusy, setZuordnenBusy] = useState(false)
+  const positionen = belege.flatMap((b) => b.eintraege.filter((e) => !istDifferenz(e) && !/privat, nicht berechnet/.test(e.label || '')).map((e) => ({ e, b })))
+  const ohneLieferant = (t) => String(t || '').replace(/^[^:]*:\s*/, '').replace(/\s*\(Verschleißanteil.*$/, '')
+  const zuordnen = async (still) => {
+    if (!ohnePreis.length) return
+    setZuordnenBusy(true)
+    try {
+      const liste = await materialZuordnen(
+        ohnePreis.map((e) => ({ id: String(e.id), text: e.label || '', menge: Number(e.qty) || 1, gewerk: e.gewerk || '', datum: tag(e.createdAt) })),
+        positionen.map(({ e, b }) => ({ id: String(e.id), text: ohneLieferant(e.label), menge: Number(e.qty) || 1, datum: tag(b.datum), lieferant: b.lieferant })))
+      const neu = {}
+      for (const z of liste) if (z && z.id) neu[String(z.id)] = z
+      setZuordnung(neu)
+    } catch (err) { if (!still) melden(err && err.message ? err.message : String(err)) }
+    setZuordnenBusy(false)
+  }
+  // beim Öffnen einmal automatisch abgleichen lassen
+  const gestartet = useRef(false)
+  useEffect(() => { if (!gestartet.current && ohnePreis.length) { gestartet.current = true; zuordnen(true) } })
+  const vorschlag = (e) => { const z = zuordnung[String(e.id)]; return z && (z.art === 'beleg' || z.art === 'kein_material') ? z : null }
+  const zuLoeschen = ohnePreis.filter(vorschlag)
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
@@ -255,17 +279,37 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
           // von Hand erfasstes Material ohne Preis: fehlt sonst unbemerkt in Selbstkosten und Abrechnung
           <div className="rounded-xl p-3 border border-amber/40 bg-amber/10 space-y-2">
             <div className="text-amber text-sm font-semibold flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Preis fehlt bei {ohnePreis.length} {ohnePreis.length === 1 ? 'Material' : 'Materialien'}</div>
-            {ohnePreis.map((e) => (
-              <form key={e.id} className="flex items-center gap-2 text-sm" onSubmit={async (ev) => {
-                ev.preventDefault()
-                const v = parseFloat(String(new FormData(ev.currentTarget).get('preis') || '').replace(/\./g, '').replace(',', '.'))
-                if (v > 0) await onUpdate(e, { unitCost: v })
-              }}>
-                <div className="flex-1 min-w-0"><div className="truncate">{e.label}</div><div className="text-white/60 text-xs">{Number(e.qty) || 1} × Einzelpreis</div></div>
-                <input name="preis" inputMode="decimal" placeholder="€" className="w-20 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-right" />
-                <button className="rounded-lg px-3 py-1.5 btn-grad font-semibold text-xs">OK</button>
-              </form>
-            ))}
+            {zuordnenBusy ? <div className="text-white/70 text-xs flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-amber animate-pulse" /> KI gleicht mit den Belegen ab …</div>
+              : zuLoeschen.length > 0 ? (
+                <button onClick={() => onDelete(zuLoeschen)} className="w-full rounded-xl py-2 text-sm font-semibold btn-grad inline-flex items-center justify-center gap-2">
+                  <Sparkles className="w-4 h-4" /> {zuLoeschen.length} {zuLoeschen.length === 1 ? 'Eintrag' : 'Einträge'} laut KI entfernen
+                </button>
+              ) : <button onClick={() => zuordnen(false)} className="text-amber text-xs font-semibold inline-flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Von der KI mit den Belegen abgleichen</button>}
+            {ohnePreis.map((e) => {
+              const z = vorschlag(e)
+              const pos = z && z.art === 'beleg' ? positionen.find((p) => String(p.e.id) === String(z.position)) : null
+              return (
+                <div key={e.id} className="space-y-1">
+                  <form className="flex items-center gap-2 text-sm" onSubmit={async (ev) => {
+                    ev.preventDefault()
+                    const v = parseFloat(String(new FormData(ev.currentTarget).get('preis') || '').replace(/\./g, '').replace(',', '.'))
+                    if (v > 0) await onUpdate(e, { unitCost: v })
+                  }}>
+                    <div className="flex-1 min-w-0"><div className="truncate">{e.label}</div><div className="text-white/60 text-xs">{Number(e.qty) || 1} × Einzelpreis</div></div>
+                    <input name="preis" inputMode="decimal" placeholder="€" className="w-20 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-right" />
+                    <button className="rounded-lg px-3 py-1.5 btn-grad font-semibold text-xs">OK</button>
+                    <button type="button" onClick={() => onDelete([e])} title="Eintrag löschen" className="text-white/60 hover:text-ember p-1.5 -m-1 shrink-0"><Trash2 className="w-4 h-4" /></button>
+                  </form>
+                  {z && (
+                    <div className="text-xs text-amber/90">
+                      {z.art === 'beleg'
+                        ? <>Steht schon auf dem Beleg{pos ? <> {pos.b.lieferant} vom {tag(pos.b.datum)}: „{ohneLieferant(pos.e.label)}“</> : null} – doppelt erfasst</>
+                        : <>Kein Material – vermutlich beim Diktat falsch aufgenommen{z.grund ? ' (' + z.grund + ')' : ''}</>}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
         {belege.length > 0 && (

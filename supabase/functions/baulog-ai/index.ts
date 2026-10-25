@@ -101,11 +101,25 @@ Deno.serve(async (req) => {
         { role: 'system', content: 'Ein Handwerksbetrieb rechnet Material für die Baustelle „' + String(body.projekt || '') + '“ beim Kunden ab. Prüfe die Positionen und nenne nur die, die offensichtlich nicht zu dieser Baustelle gehören, sondern privat sein könnten (z. B. Pool-, Garten-, Haushalts-, Lebensmittel-, Freizeit-, Deko-, Auto-, Tierbedarf oder Werkzeug zur dauerhaften eigenen Nutzung). Nenne außerdem Werkzeuge und Verschleißteile, die nicht im Bauwerk verbleiben, sondern über mehrere Baustellen genutzt werden (z. B. Meißel, Bohrer, Bits, Trennscheiben, Sägeblätter, Schleifscheiben, Kellen, Pinsel), mit art „verschleiss“; Verbrauchsmaterial wie Rohre, Kleber, Silikon, Schrauben nicht. Baustellentypisches Material nicht nennen. Antworte NUR als JSON: {"verdacht":[{"id":"...","art":"privat|verschleiss","grund":"kurz"}]}' },
         { role: 'user', content: liste },
       ]
+    } else if (task === 'zuordnen') {
+      // von Hand/per Diktat erfasstes Material ohne Preis den gescannten Belegpositionen zuordnen
+      jsonMode = true
+      const offen = (body.offen || []).map((p) => 'id=' + p.id + ': ' + p.text + ' (Menge ' + p.menge + ', ' + p.datum + (p.gewerk ? ', Gewerk ' + p.gewerk : '') + ')').join('\n')
+      const pos = (body.positionen || []).map((p) => 'id=' + p.id + ': ' + p.text + ' (Menge ' + p.menge + ', ' + p.datum + (p.lieferant ? ', ' + p.lieferant : '') + ')').join('\n')
+      messages = [
+        { role: 'system', content: 'Ein Handwerker erfasst Material auf der Baustelle per Diktat oder von Hand (ohne Preis) und scannt zusätzlich die Einkaufsbelege. Ordne jeden Diktat-Eintrag ein: ' +
+          '„beleg“, wenn derselbe Artikel schon als Belegposition erfasst ist (Material ist dann doppelt; Schreibweise, Diktierfehler und Abkürzungen beachten, z. B. „Silicon“ = „Silikon weiß 310 ml“, „Fliesenkleber“ = „Flexkleber C2TE 25 kg“; der Beleg darf einige Tage vor dem Diktat liegen); nenne die passende Belegposition. ' +
+          '„kein_material“, wenn der Eintrag kein Material ist, sondern beim Diktat falsch aufgenommen wurde (Tätigkeit, Gewerk/Rubrik, Raum, Maschine, Werkzeug, Füllwort, Name oder unverständlicher Text). ' +
+          '„offen“, wenn es echtes Material ist, aber keine passende Belegposition existiert. Im Zweifel „offen“, nichts raten. ' +
+          'Antworte NUR als JSON: {"zuordnung":[{"id":"...","art":"beleg|kein_material|offen","position":"id der Belegposition oder null","grund":"kurz, deutsch"}]}' },
+        { role: 'user', content: 'Diktat-Einträge ohne Preis:\n' + offen + '\n\nGescannte Belegpositionen:\n' + (pos || '(keine)') },
+      ]
     } else if (task === 'abschluss') {
       jsonMode = true
       const ctx = body.ctx || {}
       const masch = (ctx.maschinen || []).map((m) => m.name).join(', ')
       const sys = 'Extrahiere aus einer gesprochenen Abschluss-Notiz die ausgeführte Menge, das verbrauchte Material und die benutzten Maschinen/Werkzeuge. ' +
+        'materials nur für echtes Verbrauchsmaterial, das im Bauwerk bleibt (z. B. Kleber, Silikon, Rohre, Fittings, Schrauben); keine Tätigkeiten, Gewerke, Räume, Maschinen oder Werkzeuge, keine Füllwörter – im Zweifel weglassen. ' +
         'Antworte NUR als JSON: {"menge":number|null,"einheit":"string","materials":[{"label":"string","qty":number,"unitCost":number}],"maschinen":[{"name":"string","minutes":number}],"beschreibung":"string"}. ' +
         'maschinen.name möglichst aus: [' + masch + ']. Wenn Maschinendauer nicht genannt: minutes = ' + (ctx.workMinutes || 0) + '. unitCost (EK €) nur wenn genannt, sonst 0. einheit bevorzugt "' + (ctx.einheit || '') + '".'
       messages = [
@@ -116,7 +130,7 @@ Deno.serve(async (req) => {
       return out({ error: 'unbekannter task' }, 400)
     }
 
-    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden'].includes(task) ? 'gpt-4o' : 'gpt-4o-mini'
+    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen'].includes(task) ? 'gpt-4o' : 'gpt-4o-mini'
     const temperature = task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2
     const ask = async (msgs, temp) => {
       const payload = { model, temperature: temp, messages: msgs }

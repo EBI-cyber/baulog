@@ -73,6 +73,12 @@ export async function privatPruefen(positionen, projekt) {
   return Array.isArray(d.verdacht) ? d.verdacht : []
 }
 
+// Material ohne Preis den Belegpositionen zuordnen → [{ id, art: 'beleg'|'kein_material'|'offen', position, grund }]
+export async function materialZuordnen(offen, positionen) {
+  const d = await callAI({ task: 'zuordnen', offen, positionen })
+  return Array.isArray(d.zuordnung) ? d.zuordnung : []
+}
+
 export async function parseSetup(transcript, gewerke, katalog) {
   return callAI({ task: 'setup', transcript, gewerke, katalog })
 }
