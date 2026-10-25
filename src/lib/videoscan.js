@@ -320,8 +320,9 @@ export function verfolger(uebersicht) {
     return best
   }
   const abdeckung = () => { let n = 0; for (let i = 0; i < HO; i++) n += bedeckt[i]; return n / HO }
-  // Zeilen, die ein Abschnitt ab y mit Höhe h abdeckt (an den Bildrändern nicht ganz bis zum Rand)
-  const bereich = (y, h) => [y <= h * 0.1 ? 0 : Math.max(0, Math.round(y + h * 0.08)), y + h >= HO - h * 0.1 ? HO : Math.min(HO, Math.round(y + h * 0.92))]
+  // Zeilen, die ein Abschnitt ab y mit Höhe h abdeckt (an den Bildrändern nicht ganz bis zum Rand). Anfang und Ende
+  // des Belegs zählen nur, wenn das Kamerabild wirklich bis dorthin reicht – sonst fehlten die letzten Zeilen.
+  const bereich = (y, h) => [y <= 2 ? 0 : Math.max(0, Math.round(y + h * 0.08)), y + h >= HO - 2 ? HO : Math.min(HO, Math.round(y + h * 0.92))]
 
   function schritt(q, t, aufnehmen, vollbild) {
     let g = grau(q, SPUR)
