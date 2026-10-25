@@ -140,13 +140,13 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     const ro = new ResizeObserver(messen); ro.observe(el)
     return () => ro.disconnect()
   }, [quelle, ergebnis]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Nochmal: beim Video-Scan mit derselben Übersicht neu scannen, sonst ein neues Foto – man bleibt im Beleg
+  // Nochmal: beim Video-Scan mit derselben Übersicht neu scannen, sonst (oder mit neuesFoto) ein neues Foto – man bleibt im Beleg
   const lauf = useRef(0) // laufende KI-Auswertung verwerfen, wenn inzwischen neu gescannt wird
-  const nochmal = () => {
+  const nochmal = (neuesFoto) => {
     lauf.current++
     setErgebnis(''); setKi(null); setFassungen(null); setBusy('')
-    if (lang && uebersicht) setVideo(true)
-    else { setQuelle(null); setEcken(null); setVideoNoetig(null); setLang(false); setFotoKamera(true) }
+    if (lang && uebersicht && neuesFoto !== true) setVideo(true)
+    else { setQuelle(null); setEcken(null); setVideoNoetig(null); setLang(false); setUebersicht(null); videoStuecke.current = null; setFotoKamera(true) }
   }
   // Ecken im Foto in voller Auflösung
   const eckenVoll = () => {
@@ -340,14 +340,15 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
                 <div className="font-bold text-amber flex items-center gap-2"><ScrollText className="w-5 h-5" /> Achtung: Video-Scan nötig</div>
                 <div className="text-white/85 text-xs">Der Beleg ist zu lang für ein Foto: die Schrift wäre zu klein ({Math.round(videoNoetig.pxProZeichen)} statt mindestens {MIN_PX} Bildpunkte je Buchstabe). Dein Foto dient als Übersicht, dann fährst du mit dem Handy einmal über den Beleg.</div>
                 <button onClick={zumVideo} disabled={!!busy} className="w-full rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><ScrollText className="w-5 h-5" /> Video-Scan starten</button>
-                <div className="flex justify-between text-xs">
-                  <button onClick={() => setAnleitung('nur')} className="text-amber">Anleitung ansehen</button>
+                <div className="flex justify-between gap-2 text-xs">
+                  <button onClick={() => nochmal(true)} className="text-amber inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Neues Foto</button>
+                  <button onClick={() => setAnleitung('nur')} className="text-amber">Anleitung</button>
                   <button onClick={() => { setVideoNoetig(null); zuschneiden() }} className="text-white/60">Trotzdem nur mit Foto weiter</button>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={nochmal} className="rounded-2xl py-3 bg-white/10 inline-flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> {lang ? 'Nochmal scannen' : 'Neues Foto'}</button>
+                <button onClick={() => nochmal(true)} className="rounded-2xl py-3 bg-white/10 inline-flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> Neues Foto</button>
                 <button onClick={korrektur || nurBild || lang ? zuschneiden : weiter} disabled={!!busy} className="rounded-2xl py-3 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50"><ScanLine className="w-4 h-4" /> {korrektur || nurBild || lang ? 'Zuschneiden' : 'Weiter'}</button>
               </div>
             )}
@@ -365,7 +366,8 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
           {markiert && <Vollbild src={ergebnis} markierung={markiert.markierung} titel={markiert.titel} onClose={() => setMarkiert(null)} />}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3">
-              {!korrektur && !nurBild && <button onClick={nochmal} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> {lang ? 'Nochmal scannen' : 'Neues Foto'}</button>}
+              {!korrektur && !nurBild && lang && <button onClick={() => nochmal(false)} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Video wiederholen</button>}
+              {!korrektur && !nurBild && <button onClick={() => nochmal(true)} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> Neues Foto</button>}
               <button onClick={() => setErgebnis('')} className="text-amber text-xs">Zuschnitt ändern</button>
             </div>
             {fassungen && (

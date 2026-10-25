@@ -367,16 +367,18 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
             if (b.positionen.length && Math.abs(summe - baustelle) > 0.01) pos.push({ bezeichnung: 'Differenz laut Beleg', menge: 1, gesamt: Math.round((baustelle - summe) * 100) / 100, gewerk: pos[0].gewerk || gewerk })
             // private Positionen dokumentieren: als Eintrag ohne Kosten, damit der Abzug im Leistungsnachweis steht
             for (const p of (b.privatPositionen || [])) pos.push({ ...p, privatDoku: true })
+            // je Position eine Millisekunde später: so bleibt die Reihenfolge wie auf dem Beleg erhalten
+            const zeitpunkt = (i) => new Date(Date.parse(createdAt) + i).toISOString()
             onSave(pos.map((p, i) => {
               if (p.privatDoku) return {
-                type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt, note: notiz, qty: 1, unitCost: 0, dataUrl: '', belegRoh: null,
+                type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt: zeitpunkt(i), note: notiz, qty: 1, unitCost: 0, dataUrl: '', belegRoh: null,
                 label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung + ' (privat, nicht berechnet: ' + fmt(p.gesamt) + ')',
               }
               // Verschleißteil: nur der Anteil wird berechnet, der volle Preis steht in der Bezeichnung
               const anteil = p.anteil != null && p.anteil < 100 ? p.anteil : 100
               const berechnet = p.gesamt * anteil / 100
               return {
-              type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt, note: notiz,
+              type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt: zeitpunkt(i), note: notiz,
               label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung + (anteil < 100 ? ' (Verschleißanteil ' + anteil + ' % von ' + fmt(p.gesamt) + ')' : ''),
               qty: p.menge > 0 ? p.menge : 1, unitCost: Math.round((berechnet / (p.menge > 0 ? p.menge : 1)) * 10000) / 10000,
               dataUrl: i === 0 ? b.dataUrl : '', belegRoh: i === 0 ? b.roh : null,
