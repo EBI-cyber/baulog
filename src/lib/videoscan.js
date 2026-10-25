@@ -446,6 +446,8 @@ export function verfolger(uebersicht) {
     }
     return {
       y: z.y, hO: z.hO, HO, sicher: z.unsicher === 0, verloren: z.unsicher > 6, neu, abdeckung: abdeckung(), luecke,
+      // Anfang und Ende des Belegs scharf erfasst (sonst kämen sie aus dem unschärferen Übersichtsfoto)
+      endenErfasst: Boolean(bedeckt[0] && bedeckt[HO - 1]),
       tempo: z.hO ? z.v / z.hO : null, papier: p, hell: g.hell, scharf: z.bestScharf ? s / z.bestScharf : null,
       abschnitte: z.abschnitte.length,
     }

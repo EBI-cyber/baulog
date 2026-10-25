@@ -125,6 +125,7 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
     let hinweis = begleiter({ lage: z.lage, papier: st.papier, tempo: z.laeuft && st.sicher ? st.tempo : null, hell: st.hell, scharf: st.scharf, laeuft: z.laeuft })
     if (st.verloren) hinweis = { ...hinweis, text: 'Suche die Stelle im Beleg – Handy ruhig halten', stufe: 'achtung' }
     else if (z.laeuft && st.luecke && hinweis.stufe === 'gut') hinweis = { ...hinweis, text: 'Weiter oben fehlt noch ein Stück – kurz zurückfahren', stufe: 'achtung' }
+    else if (z.laeuft && st.abdeckung >= 0.9 && !st.endenErfasst && hinweis.stufe === 'gut') hinweis = { ...hinweis, text: 'Noch bis ganz ans Ende des Belegs fahren', stufe: 'achtung' }
     // Hinweise erst nach einer halben Sekunde zeigen, damit sie nicht flackern
     if (hinweis.text !== (z.kandidat && z.kandidat.text)) { z.kandidat = hinweis; z.seit = t }
     const gezeigt = t - z.seit > 500 || hinweis.stufe === 'stopp' ? hinweis : (z.gezeigt || hinweis)
@@ -132,7 +133,8 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
     if (gezeigt.stufe !== 'gut' || !z.laeuft) z.sprich(gezeigt.text, tonRef.current)
     setAnzeige({ abschnitte: st.abschnitte, abdeckung: st.abdeckung, bereiche: spur.current.bereiche(), lage: z.lage, pos: st.y != null && !st.verloren ? [st.y / st.HO, (st.y + st.hO) / st.HO] : null, hinweis: gezeigt })
     // ganzer Beleg erfasst: automatisch fertig
-    if (z.laeuft && st.abdeckung >= 0.985) fertig()
+    // erst fertig, wenn auch Anfang und Ende scharf erfasst sind: Lücken füllt nur das unschärfere Übersichtsfoto
+    if (z.laeuft && st.abdeckung >= 0.985 && st.endenErfasst) fertig()
   }
 
   // Übersichtsfoto in voller Kameraauflösung aufnehmen
