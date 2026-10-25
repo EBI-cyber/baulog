@@ -50,7 +50,11 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const [suchePos, setSuchePos] = useState(-1)
   const [busy, setBusy] = useState('')
   const [video, setVideo] = useState(false) // Video-Scan für lange Belege offen
-  const [fotoKamera, setFotoKamera] = useState(Boolean(sofortKamera)) // eigene Kamera (mit Taschenlampe) für das Übersichtsfoto
+  // zuletzt gewählte Kamera merken: beim nächsten Beleg der Serie und bei „Neues Foto“ geht es damit weiter
+  const [methode, setMethode] = useState(() => { try { return localStorage.getItem('belegKamera') || 'app' } catch { return 'app' } })
+  const methodeMerken = (m) => { setMethode(m); try { localStorage.setItem('belegKamera', m) } catch { /* egal */ } }
+  // die iPhone-Kamera-App lässt sich nur per Tipp öffnen, daher dann den Knopf groß anbieten statt sie automatisch zu starten
+  const [fotoKamera, setFotoKamera] = useState(Boolean(sofortKamera) && methode !== 'handy') // eigene Kamera (mit Taschenlampe) für das Übersichtsfoto
   const [videoNoetig, setVideoNoetig] = useState(null) // { pxProZeichen } – Foto zu klein für scharfe Schrift
   const [anleitung, setAnleitung] = useState(false) // bebilderte Anleitung vor dem ersten Video-Scan
   const voll = useRef(null) // Foto in voller Auflösung (für die Qualitätsprüfung und das Übersichtsfoto)
@@ -146,7 +150,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     lauf.current++
     setErgebnis(''); setKi(null); setFassungen(null); setBusy('')
     if (lang && uebersicht && neuesFoto !== true) setVideo(true)
-    else { setQuelle(null); setEcken(null); setVideoNoetig(null); setLang(false); setUebersicht(null); videoStuecke.current = null; setFotoKamera(true) }
+    else { setQuelle(null); setEcken(null); setVideoNoetig(null); setLang(false); setUebersicht(null); videoStuecke.current = null; setFotoKamera(methode !== 'handy') }
   }
   // Ecken im Foto in voller Auflösung
   const eckenVoll = () => {
@@ -293,9 +297,14 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     return (
       <div className="space-y-2">
         <div className="text-white/75 text-xs">Beleg flach auf einen dunklen Untergrund legen und den ganzen Beleg fotografieren. Die App prüft, ob die Schrift scharf genug ist – bei langen Belegen führt sie dich danach durch einen Video-Scan.</div>
-        <button onClick={() => setFotoKamera(true)} disabled={!!busy} className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> Beleg fotografieren</button>
-        {/* Kamera des Handys selbst: volle Sensorauflösung (deutlich schärfer bei langen Belegen), aber ohne Taschenlampe und Hinweise */}
-        <button onClick={() => handyKamera.current.click()} disabled={!!busy} className="w-full rounded-2xl py-2.5 text-sm font-semibold bg-white/10 border border-white/20 inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> iPhone-Kamera-App öffnen (volle Auflösung)</button>
+        {(() => {
+          const gross = 'w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2'
+          const klein = 'w-full rounded-2xl py-2.5 text-sm font-semibold bg-white/10 border border-white/20 inline-flex items-center justify-center gap-2'
+          const app = <button key="app" onClick={() => { methodeMerken('app'); setFotoKamera(true) }} disabled={!!busy} className={methode === 'handy' ? klein : gross}><Camera className={methode === 'handy' ? 'w-4 h-4' : 'w-5 h-5'} /> Beleg fotografieren{methode === 'handy' ? ' (App-Kamera mit Licht)' : ''}</button>
+          // Kamera des Handys selbst: volle Sensorauflösung (deutlich schärfer bei langen Belegen), aber ohne Taschenlampe und Hinweise
+          const handy = <button key="handy" onClick={() => { methodeMerken('handy'); handyKamera.current.click() }} disabled={!!busy} className={methode === 'handy' ? gross : klein}><Camera className={methode === 'handy' ? 'w-5 h-5' : 'w-4 h-4'} /> iPhone-Kamera-App öffnen (volle Auflösung)</button>
+          return methode === 'handy' ? [handy, app] : [app, handy]
+        })()}
         <input ref={handyKamera} type="file" accept="image/*" capture="environment" className="hidden" onChange={laden} />
         <button onClick={() => galerie.current.click()} disabled={!!busy} className="w-full text-white/60 text-xs py-1 inline-flex items-center justify-center gap-1.5"><ImagePlus className="w-3.5 h-3.5" /> Vorhandenes Bild wählen</button>
         <input ref={galerie} type="file" accept="image/*" className="hidden" onChange={laden} />
