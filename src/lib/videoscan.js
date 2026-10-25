@@ -138,6 +138,26 @@ export function einpassen(O, F, ymin, ymax, rx = 2, band = [0, 1]) {
 // Nachbarn werden in höherer Auflösung genau aneinander ausgerichtet; Lücken füllt das (unschärfere) Übersichtsfoto.
 export function zusammensetzenUebersicht(abschnitte, uebersicht, WR, HO) {
   const a = [...abschnitte].sort((p, q) => p.y - q.y).map((x) => ({ ...x, xoff: 0 }))
+  // Jeden Abschnitt zuerst für sich im Übersichtsfoto einpassen: Maßstab und Lage. Der Papierrand im Kamerabild wird
+  // oft zu knapp oder zu breit erkannt; dann wäre der Abschnitt vergrößert und liefe über die Zuschnittlinien hinaus
+  // (Kopf, Ende und Seiten des Belegs fehlten). Maßgeblich sind die Linien des Übersichtsfotos.
+  const O = grau(uebersicht, WR)
+  const passung = (x, f, y0, y1) => {
+    const c = (x.l + x.r) / 2 * x.bild.width, b = (x.r - x.l) * f * x.bild.width
+    const F = grauBereich(x.bild, c - b / 2, 0, b, x.bild.height, WR)
+    const r = einpassen(O, F, y0, y1, 3, [0.05, 0.95])
+    return r && { f, r, h: F.h }
+  }
+  a.forEach((x) => {
+    const R = Math.max(15, x.hO * 0.3)
+    let best = null
+    for (let f = 0.8; f <= 1.25 + 1e-9; f += 0.025) { const p = passung(x, f, x.y - R, x.y + R); if (p && (!best || p.r.fehler < best.r.fehler)) best = p }
+    if (!best) return
+    for (let f = best.f - 0.02; f <= best.f + 0.02 + 1e-9; f += 0.005) { const p = passung(x, f, best.r.y - 4, best.r.y + 4); if (p && p.r.fehler < best.r.fehler) best = p }
+    const c = (x.l + x.r) / 2, b = (x.r - x.l) * best.f
+    x.l = c - b / 2 - best.r.dx / WR * b; x.r = x.l + b
+    x.y = best.r.y; x.hO = best.h; x.yUeb = best.r.y
+  })
   const breiten = a.map((x) => (x.r - x.l) * x.bild.width).sort((p, q) => p - q)
   const Wout = Math.round(Math.min(1100, breiten[Math.floor(breiten.length / 2)]))
   const s = Wout / WR, M = 400
@@ -146,22 +166,19 @@ export function zusammensetzenUebersicht(abschnitte, uebersicht, WR, HO) {
     const c = (x.l + x.r) / 2 * x.bild.width, b = (x.r - x.l) * f * x.bild.width
     return grauBereich(x.bild, c - b / 2, 0, b, x.bild.height, M)
   }
-  // Nachbarn in der Überlappung genau aufeinanderlegen: Lage, seitlicher Versatz und Maßstab.
-  // Die Lage aus der Übersicht ist nur auf wenige Pixel genau – das reicht nicht für saubere Nähte.
+  // Nachbarn in der Überlappung genau aufeinanderlegen (Lage und seitlicher Versatz): die Übersicht ist nur auf
+  // wenige Pixel genau – das reicht nicht für saubere Nähte. Der Maßstab bleibt, und die Lage darf nur wenig von
+  // der Übersicht abweichen, sonst würden sich kleine Fehler von Abschnitt zu Abschnitt aufsummieren.
   for (let i = 1; i < a.length; i++) {
     const p = a[i - 1], q = a[i]
     if (q.y > p.y + p.hO * 0.85) continue // kaum Überlappung
-    const A = streifen(p)
-    let best = null
-    for (const f of [0.97, 0.985, 1, 1.015, 1.03]) {
-      const v = verschiebung(A, streifen(q, f), 0, (q.y - p.y) * M / WR, 6, 16)
-      if (v && !v.rand && (!best || v.fehler < best.v.fehler)) best = { f, v }
-    }
-    if (!best) continue
-    const c = (q.l + q.r) / 2, b = (q.r - q.l) * best.f
-    q.l = c - b / 2; q.r = c + b / 2; q.hO /= best.f
-    q.y = p.y + best.v.dy * WR / M; q.xoff = p.xoff + best.v.dx * Wout / M
+    const v = verschiebung(streifen(p), streifen(q), 0, (q.y - p.y) * M / WR, 6, 12)
+    if (!v || v.rand) continue
+    const y = p.y + v.dy * WR / M
+    if (q.yUeb != null && Math.abs(y - q.yUeb) > 3) continue
+    q.y = y; q.xoff = Math.max(-Wout * 0.02, Math.min(Wout * 0.02, p.xoff + v.dx * Wout / M))
   }
+  // genau bis zu den Zuschnittlinien des Übersichtsfotos (die Abschnitte sind oben darauf eingepasst)
   const out = document.createElement('canvas')
   out.width = Wout; out.height = Math.round(HO * s)
   const ctx = out.getContext('2d')
@@ -171,9 +188,8 @@ export function zusammensetzenUebersicht(abschnitte, uebersicht, WR, HO) {
     const k = x.hO / x.bild.height // Übersichtszeilen je Kamerapixel
     let oben = 0
     if (i) { const p = a[i - 1], ende = Math.min(p.y + p.hO, x.y + x.hO); if (ende > x.y) oben = ((x.y + ende) / 2 - x.y) / k }
-    // an den Seiten 2 % weglassen, damit kein Untergrund vom Kamerabild stehen bleibt (dort bleibt das Übersichtsfoto)
-    const sw = (x.r - x.l) * x.bild.width * 0.96, sx = x.l * x.bild.width + sw * 0.02 / 0.96
-    ctx.drawImage(x.bild, sx, oben, sw, x.bild.height - oben, Math.round(x.xoff + Wout * 0.02), (x.y + oben * k) * s, Wout * 0.96, (x.bild.height - oben) * k * s)
+    const sx = x.l * x.bild.width, sw = (x.r - x.l) * x.bild.width
+    ctx.drawImage(x.bild, sx, oben, sw, x.bild.height - oben, Math.round(x.xoff), (x.y + oben * k) * s, Wout, (x.bild.height - oben) * k * s)
   })
   return out
 }
@@ -213,11 +229,14 @@ export function kiAbschnitte(abschnitte, HO, max = 8) {
 // von/bis: ausgewerteter Höhenbereich (Anteile), z. B. oben und unten getrennt, um Schräglage zu erkennen.
 export function papierSpalten(g, von = 0.2, bis = 0.8) {
   const { w, h, d } = g
-  const spalte = new Float32Array(w)
+  // je Spalte eine helle Stelle (75. Perzentil) statt des Mittelwerts: Bons sind bis an den Rand bedruckt, und dichte
+  // Schrift machte die Randspalten im Mittel so dunkel, dass das Papier zu schmal erkannt wurde (Bild dann vergrößert)
+  const spalte = new Float32Array(w), werte = []
   for (let x = 0; x < w; x++) {
-    let s = 0, n = 0
-    for (let y = Math.round(h * von); y < h * bis; y += 2) { s += d[y * w + x]; n++ }
-    spalte[x] = s / n
+    werte.length = 0
+    for (let y = Math.round(h * von); y < h * bis; y += 2) werte.push(d[y * w + x])
+    werte.sort((a, b) => a - b)
+    spalte[x] = werte[Math.floor(werte.length * 0.75)] || 0
   }
   let lo = 255, hi = 0
   for (const v of spalte) { lo = Math.min(lo, v); hi = Math.max(hi, v) }
@@ -334,12 +353,15 @@ export function verfolger(uebersicht) {
           z.refPix = z.refPix ? z.refPix * 0.8 + v.fehler * 0.2 : v.fehler
           const vor = z.y + v.dy * z.hO / g.h
           // passt die Übersicht dort nicht (bestes Ergebnis am Rand), war die Bewegung falsch gemessen (Wackler)
+          // Bestätigt die Übersicht nicht, trotzdem der gemessenen Bewegung folgen: die Vergleichsgüte schwankt mit dem
+          // Inhalt (Kopf mit viel Weiß passt besser als dichte Textzeilen), sonst bliebe die Lage stehen und die
+          // Verfolgung hinkte hinterher. Erst nach längerer Zeit ohne Bestätigung darf die Suche im ganzen Beleg korrigieren.
           const d = einpassen(O, F, vor - 4, vor + 4, 2, [0.1, 0.9])
-          if (d && !d.rand && d.fehler < z.refFehler * 1.5) {
-            z.vPix = v.dy
-            m = { y: vor * 0.7 + d.y * 0.3, fehler: d.fehler }
-            ok = true; z.perBewegung = true
-          }
+          const bestaetigt = d && !d.rand && d.fehler < z.refFehler * 1.5
+          z.ohneUeb = bestaetigt ? 0 : (z.ohneUeb || 0) + 1
+          z.vPix = v.dy
+          m = bestaetigt ? { y: vor * 0.7 + d.y * 0.3, fehler: d.fehler } : { y: vor, fehler: d && !d.rand ? d.fehler : z.refFehler }
+          ok = true; z.perBewegung = z.ohneUeb < 15
         }
       }
       // 2) sonst in der Übersicht nahe der erwarteten Lage suchen (passt, wenn ähnlich gut wie bisher). Die Vorhersage
@@ -365,7 +387,7 @@ export function verfolger(uebersicht) {
           if (o && !o.rand && o.fehler <= g2.fehler * 1.15) g2 = { ...o, eindeutig: true }
         }
         if (g2 && g2.eindeutig && (!ok || (!z.perBewegung && Math.abs(g2.y - m.y) > 10 && g2.fehler < z.refBand * 0.85))) {
-          const sk = skalieren(q, g2.y, z.f, 0.06, 8)
+          const sk = skalieren(q, g2.y, 1, 0.06, 8)
           if (!ok || sk.r.fehler < m.fehler * 0.9) { m = sk.r; z.f = sk.f; ok = true; z.sprung = t }
         }
         if (g2 && g2.eindeutig) z.refBand = z.refBand ? z.refBand * 0.7 + g2.fehler * 0.3 : g2.fehler
@@ -388,13 +410,19 @@ export function verfolger(uebersicht) {
       const schliesst = frei >= 3 && z.abschnitte.length > 0 && (a === 0 || bedeckt[a - 1] || bedeckt[a]) && (e === HO || bedeckt[e] || bedeckt[e - 1]) && s >= z.bestScharf * 0.8
       if ((anteil >= 0.35 && (s >= z.bestScharf * 0.75 || anteil >= 0.55)) || (!z.abschnitte.length && anteil > 0.2) || schliesst) {
         // Gegenprobe im ganzen Beleg: nur aufnehmen, wenn die Lage eindeutig dort ist
-        const probe = einpassen(O, streifen(q, z.lr, z.f), -z.hO * 0.6, HO - z.hO * 0.4, 1, BAND)
-        if (!probe || !probe.eindeutig) return zustandMelden(g, s, p, false)
-        // weicht sie ab, lieber nicht aufnehmen: bei gleich aussehenden Artikeln irrt eher die Gegenprobe in der kleinen
-        // Übersicht als die Verfolgung von Bild zu Bild (ein falscher Abschnitt verdoppelt oder verschluckt Zeilen)
-        if (Math.abs(probe.y - z.y) > 10) return zustandMelden(g, s, p, false)
+        // Ausnahmen: die Bewegung wurde von Bild zu Bild sicher verfolgt, oder es ist der Anfang oben am Beleg
+        // (dort beginnt man laut Anleitung). Beim Zusammensetzen wird jeder Abschnitt ohnehin noch einmal genau in
+        // der Übersicht eingepasst, und die KI liest die Abschnitte einzeln – eine strenge Gegenprobe ließ oben Lücken.
+        const vertraut = z.perBewegung || (!z.abschnitte.length && z.y <= z.hO * 0.3)
+        if (!vertraut) {
+          const probe = einpassen(O, streifen(q, z.lr, z.f), -z.hO * 0.6, HO - z.hO * 0.4, 1, BAND)
+          if (!probe || !probe.eindeutig) return zustandMelden(g, s, p, false)
+          // weicht sie ab, lieber nicht aufnehmen: bei gleich aussehenden Artikeln irrt eher die Gegenprobe in der kleinen
+          // Übersicht als die Verfolgung von Bild zu Bild (ein falscher Abschnitt verdoppelt oder verschluckt Zeilen)
+          if (Math.abs(probe.y - z.y) > 10) return zustandMelden(g, s, p, false)
+        }
         // Maßstab und seitliche Lage genauer bestimmen
-        const best = skalieren(q, z.y, z.f, 0.03, 5, 0.01)
+        const best = skalieren(q, z.y, Math.max(0.95, Math.min(1.05, z.f)), 0.03, 5, 0.01)
         const b = (z.lr.rechts - z.lr.links) * best.f
         const c = (z.lr.links + z.lr.rechts) / 2 - (best.r.dx / WR) * b
         // nur den Papierstreifen (mit etwas Rand) aufheben, das spart Speicher auf dem Handy
