@@ -7,6 +7,7 @@ import { RoleContext } from './lib/role'
 import Nav from './components/Nav'
 import DailyReminder from './components/DailyReminder'
 import SyncBadge from './components/SyncBadge'
+import Hinweise from './ui/Hinweise'
 import Projekte from './screens/Projekte'
 import ProjektDetail from './screens/ProjektDetail'
 import Dashboard from './screens/Dashboard'
@@ -86,6 +87,7 @@ export default function App() {
     <AuthProvider>
       <HashRouter>
         <Shell />
+        <Hinweise />
       </HashRouter>
     </AuthProvider>
   )

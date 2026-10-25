@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Building2, Merge, Trash2, Save } from 'lucide-react'
 import IconChip from '../ui/IconChip'
 import { updateProjekt, deleteProjekt, listProjekte, projekteZusammenfuehren } from '../lib/db'
+import { melden, frage, toast } from '../ui/Hinweise'
 
 // Projekt bearbeiten: Stammdaten, mit anderem Projekt zusammenführen, löschen
 export default function ProjektSheet({ projekt, onClose, onSaved, onGone }) {
@@ -14,7 +15,7 @@ export default function ProjektSheet({ projekt, onClose, onSaved, onGone }) {
   const upd = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
   const speichern = async () => {
-    if (!form.name.trim()) { alert('Bitte einen Projektnamen eingeben.'); return }
+    if (!form.name.trim()) { melden('Bitte einen Projektnamen eingeben.'); return }
     const rate = Number(String(form.hourlyRate).replace(',', '.'))
     await updateProjekt(projekt.id, { name: form.name.trim(), customer: form.customer.trim(), address: form.address.trim(), hourlyRate: Number.isFinite(rate) ? rate : projekt.hourlyRate })
     onSaved()
@@ -23,15 +24,15 @@ export default function ProjektSheet({ projekt, onClose, onSaved, onGone }) {
   const zusammenfuehren = async () => {
     const z = andere.find((p) => String(p.id) === String(ziel))
     if (!z) return
-    if (!confirm('„' + projekt.name.trim() + '“ in „' + z.name.trim() + '“ zusammenführen?\n\nAlle Einträge und Abschläge wandern in „' + z.name.trim() + '“, Abschläge werden nach Zeitraum neu nummeriert. „' + projekt.name.trim() + '“ verschwindet danach.\n\nDer aktuelle Stand wird vorher automatisch gesichert.')) return
+    if (!await frage('„' + projekt.name.trim() + '“ in „' + z.name.trim() + '“ zusammenführen?\n\nAlle Einträge und Abschläge wandern in „' + z.name.trim() + '“, Abschläge werden nach Zeitraum neu nummeriert. „' + projekt.name.trim() + '“ verschwindet danach.\n\nDer aktuelle Stand wird vorher automatisch gesichert.')) return
     setBusy(true)
     try { await projekteZusammenfuehren(projekt.id, z.id); onGone(z.id) }
-    catch (e) { alert(e && e.message ? e.message : String(e)) }
+    catch (e) { melden(e && e.message ? e.message : String(e)) }
     setBusy(false)
   }
 
   const loeschen = async () => {
-    if (!confirm('Projekt „' + projekt.name.trim() + '“ mit allen Einträgen löschen?\n\nDer aktuelle Stand wird vorher automatisch gesichert.')) return
+    if (!await frage('Projekt „' + projekt.name.trim() + '“ mit allen Einträgen löschen?\n\nDer aktuelle Stand wird vorher automatisch gesichert.')) return
     await deleteProjekt(projekt.id); onGone(null)
   }
 

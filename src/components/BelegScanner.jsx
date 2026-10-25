@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Camera, ImagePlus, ScanLine, RotateCcw, X, Plus, ScrollText } from 'lucide-react'
+import { Camera, ImagePlus, ScanLine, RotateCcw, X, Plus, ScrollText, Search } from 'lucide-react'
 import { ladeBild, dateiAlsDataUrl, verkleinern, entzerren, verbessern, eckenFinden, dokumentFilter, ablagefassung } from '../lib/scan'
-import { belegLesen } from '../lib/ai'
+import { belegLesen, positionFinden } from '../lib/ai'
 import { parseBetrag } from '../lib/abrechnung'
 import Vollbild from './Vollbild'
 import VideoScan from './VideoScan'
 import VideoAnleitung, { anleitungGesehen } from './VideoAnleitung'
+import { melden, frage, toast } from '../ui/Hinweise'
 
 const eur = (n) => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 
@@ -35,7 +36,8 @@ function einruecken(ecken, anteil) {
 // KI liest Lieferant, Datum, Betrag und die einzelnen Positionen mit Gewerk → speichern
 // korrektur = { bild, ecken }: gespeichertes Originalfoto erneut zuschneiden (ohne KI), Ergebnis über onKorrigiert
 // nurBild: nur fotografieren und zuschneiden (z. B. fehlendes Belegbild nachscannen), Ergebnis über onKorrigiert
-export default function BelegScanner({ gewerke = [], projekt, verschleissProzent = 25, onFertig, onAbbrechen, onOhneBeleg, korrektur, nurBild, onKorrigiert }) {
+// sofortKamera: gleich die Kamera öffnen (nächster Beleg nach „Speichern & nächster“)
+export default function BelegScanner({ gewerke = [], projekt, verschleissProzent = 25, onFertig, onAbbrechen, onOhneBeleg, korrektur, nurBild, onKorrigiert, sofortKamera }) {
   const [quelle, setQuelle] = useState(null) // Canvas des verkleinerten Fotos
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
@@ -44,9 +46,11 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const [fassungen, setFassungen] = useState(null) // { dokument, farbe } – zwischen beiden umschaltbar
   const [modus, setModus] = useState('dokument')
   const [gross, setGross] = useState(false)
+  const [markiert, setMarkiert] = useState(null) // { markierung, titel } – Position auf dem Belegbild zeigen
+  const [suchePos, setSuchePos] = useState(-1)
   const [busy, setBusy] = useState('')
   const [video, setVideo] = useState(false) // Video-Scan für lange Belege offen
-  const [fotoKamera, setFotoKamera] = useState(false) // eigene Kamera (mit Taschenlampe) für das Übersichtsfoto
+  const [fotoKamera, setFotoKamera] = useState(Boolean(sofortKamera)) // eigene Kamera (mit Taschenlampe) für das Übersichtsfoto
   const [videoNoetig, setVideoNoetig] = useState(null) // { pxProZeichen } – Foto zu klein für scharfe Schrift
   const [anleitung, setAnleitung] = useState(false) // bebilderte Anleitung vor dem ersten Video-Scan
   const voll = useRef(null) // Foto in voller Auflösung (für die Qualitätsprüfung und das Übersichtsfoto)
@@ -81,14 +85,14 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
     ladeBild(korrektur.bild).then((img) => {
       const c = verkleinern(img, 1600)
       setQuelle(c); setVorschau(korrektur.bild); setEcken(korrektur.ecken)
-    }).catch(() => alert('Originalfoto konnte nicht geladen werden.'))
+    }).catch(() => melden('Originalfoto konnte nicht geladen werden.'))
   }
 
   const laden = async (ev) => {
     const f = ev.target.files && ev.target.files[0]; ev.target.value = ''
     if (!f) return
     setBusy('Lade Foto …')
-    try { await uebernehmen(await ladeBild(await dateiAlsDataUrl(f))) } catch (err) { alert(err && err.message ? err.message : String(err)) }
+    try { await uebernehmen(await ladeBild(await dateiAlsDataUrl(f))) } catch (err) { melden(err && err.message ? err.message : String(err)) }
     setBusy('')
   }
   // Foto (Bild oder Canvas) übernehmen: verkleinern, Ecken suchen
@@ -163,7 +167,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const zumVideo = () => {
     if (!anleitungGesehen()) { setAnleitung(true); return }
     try { setUebersicht(entzerren(voll.current || quelle, voll.current ? eckenVoll() : ecken, 1600)); setVideo(true) }
-    catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)) }
+    catch (err) { melden('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)) }
   }
   // Ergebnis des Video-Scans: das lange Bild ist schon passend zum Übersichtsfoto zugeschnitten
   const videoFertig = (c, anzahl, abschnitte) => {
@@ -237,7 +241,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
         const f = { dokument: dok.toDataURL('image/jpeg', 0.8), farbe: verbessern(farbe).toDataURL('image/jpeg', 0.8) }
         setFassungen(f); url = f.dokument; setModus('dokument'); setErgebnis(url)
       }
-      catch (err) { alert('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)); setBusy(''); return }
+      catch (err) { melden('Zuschneiden fehlgeschlagen: ' + (err && err.message ? err.message : err)); setBusy(''); return }
       if (ki || korrektur || nurBild) { setBusy(''); return }
       setBusy('KI liest den Beleg …')
       const meinLauf = lauf.current
@@ -259,7 +263,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
       } catch (err) {
         if (meinLauf !== lauf.current) return
         setKi({ lieferant: '', datum: '', betrag: '', positionen: [] })
-        alert('KI konnte den Beleg nicht lesen: ' + (err && err.message ? err.message : err) + '\nDu kannst die Angaben selbst eintragen.')
+        melden('KI konnte den Beleg nicht lesen: ' + (err && err.message ? err.message : err) + '\nDu kannst die Angaben selbst eintragen.')
       }
       setBusy('')
     }, 30)
@@ -267,10 +271,10 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
   const setPos = (i, patch) => setKi((k) => ({ ...k, positionen: k.positionen.map((p, j) => (j === i ? { ...p, ...patch } : p)) }))
   const fertig = async (weiter) => {
     const betrag = parseBetrag(ki.betrag)
-    if (Number.isNaN(betrag) || betrag <= 0) { alert('Bitte den Gesamtbetrag des Belegs eintragen, z. B. 127,53.'); return }
+    if (Number.isNaN(betrag) || betrag <= 0) { melden('Bitte den Gesamtbetrag des Belegs eintragen, z. B. 127,53.'); return }
     const alle = ki.positionen.map((p) => ({ ...p, gesamt: parseBetrag(p.gesamt) })).filter((p) => p.bezeichnung.trim() && Number.isFinite(p.gesamt) && p.gesamt > 0)
     const summe = alle.reduce((a, p) => a + p.gesamt, 0)
-    if (alle.length && Math.abs(summe - betrag) > 0.01 && !confirm('Die Positionen ergeben ' + eur(summe) + ', der Beleg ' + eur(betrag) + '.\n\nTrotzdem speichern? Die Differenz von ' + eur(betrag - summe) + ' wird als eigene Zeile „Differenz laut Beleg“ gebucht und in den Materialbelegen markiert.')) return
+    if (alle.length && Math.abs(summe - betrag) > 0.01 && !await frage('Die Positionen ergeben ' + eur(summe) + ', der Beleg ' + eur(betrag) + '.\n\nTrotzdem speichern? Die Differenz von ' + eur(betrag - summe) + ' wird als eigene Zeile „Differenz laut Beleg“ gebucht und in den Materialbelegen markiert.')) return
     // Verschleißteile: nur der eingestellte Anteil wird berechnet
     const positionen = alle.filter((p) => !p.privat).map((p) => ({ ...p, anteil: p.verschleiss ? Math.max(0, Math.min(100, parseBetrag(p.anteil) || 0)) : 100 }))
     const privat = alle.filter((p) => p.privat).reduce((a, p) => a + p.gesamt, 0)
@@ -292,7 +296,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
         {busy && <div className="text-amber text-sm">{busy}</div>}
         {onOhneBeleg && <button onClick={onOhneBeleg} className="w-full text-white/60 text-xs py-1">Ohne Beleg von Hand eintragen</button>}
         {onAbbrechen && <button onClick={onAbbrechen} className="w-full text-white/70 text-sm py-1">Abbrechen</button>}
-        {fotoKamera && <VideoScan onFoto={(c) => { setFotoKamera(false); setBusy('Lade Foto …'); uebernehmen(c).catch((err) => alert(err && err.message ? err.message : String(err))).finally(() => setBusy('')) }} onAbbrechen={() => setFotoKamera(false)} />}
+        {fotoKamera && <VideoScan onFoto={(c) => { setFotoKamera(false); setBusy('Lade Foto …'); uebernehmen(c).catch((err) => melden(err && err.message ? err.message : String(err))).finally(() => setBusy('')) }} onAbbrechen={() => setFotoKamera(false)} />}
       </div>
     )
   }
@@ -307,7 +311,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
           <div className="flex items-center gap-2 px-3 pt-3 pb-2">
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm">{lang ? 'Zuschnitt prüfen' : 'Ecken an den Beleg ziehen'}</div>
-              <div className="text-white/60 text-[11px] leading-tight">Ecken oder Kantenmitten ziehen – sie bewegen sich langsamer als der Finger, die Lupe zeigt die Stelle.</div>
+              <div className="text-white/60 text-xs leading-tight">Ecken oder Kantenmitten ziehen – sie bewegen sich langsamer als der Finger, die Lupe zeigt die Stelle.</div>
             </div>
             {onAbbrechen && <button onClick={onAbbrechen} className="p-2 rounded-full bg-white/10 shrink-0" title="Abbrechen"><X className="w-5 h-5" /></button>}
           </div>
@@ -358,6 +362,7 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
             <span className="absolute bottom-2 right-2 text-xs bg-black/70 text-white rounded-full px-2.5 py-1">Antippen zum Vergrößern</span>
           </button>
           {gross && <Vollbild src={ergebnis} onClose={() => setGross(false)} />}
+          {markiert && <Vollbild src={ergebnis} markierung={markiert.markierung} titel={markiert.titel} onClose={() => setMarkiert(null)} />}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               {!korrektur && !nurBild && <button onClick={nochmal} className="text-amber text-xs inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> {lang ? 'Nochmal scannen' : 'Neues Foto'}</button>}
@@ -397,6 +402,13 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
                   <input value={p.gesamt} onChange={(e) => setPos(i, { gesamt: e.target.value })} inputMode="decimal" className="w-20 bg-white/10 border border-white/20 rounded-lg px-2 py-1.5 text-sm text-right" />
                   <button onClick={() => setPos(i, { privat: !p.privat, verschleiss: false })} className={'text-xs px-2 py-1 rounded-lg border ' + (p.privat ? 'border-ember/60 text-ember' : 'border-white/20 text-white/60')}>privat</button>
                   <button onClick={() => setPos(i, { verschleiss: !p.verschleiss, privat: false, anteil: p.anteil || String(verschleissProzent) })} className={'text-xs px-2 py-1 rounded-lg border ' + (p.verschleiss ? 'border-amber/60 text-amber' : 'border-white/20 text-white/60')}>Verschleiß</button>
+                  <button title="Auf dem Beleg zeigen" disabled={suchePos >= 0} onClick={async () => {
+                    setSuchePos(i)
+                    let markierung = null
+                    try { markierung = await positionFinden(ergebnis, p.bezeichnung) } catch { /* ohne Markierung zeigen */ }
+                    setSuchePos(-1)
+                    setMarkiert({ markierung, titel: p.bezeichnung + (markierung ? '' : ' (Stelle nicht gefunden)') })
+                  }} className="text-amber p-1 disabled:opacity-50">{suchePos === i ? <span className="text-xs">…</span> : <Search className="w-4 h-4" />}</button>
                   <button onClick={() => setKi({ ...ki, positionen: ki.positionen.filter((_, j) => j !== i) })} className="text-white/60 hover:text-ember p-1"><X className="w-4 h-4" /></button>
                 </div>
               ))}
@@ -421,7 +433,8 @@ export default function BelegScanner({ gewerke = [], projekt, verschleissProzent
                 <span className="text-white/80 text-sm shrink-0">Gesamt brutto €</span>
                 <input value={ki.betrag} onChange={(e) => setKi({ ...ki, betrag: e.target.value })} inputMode="decimal" className={inp} />
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              {/* Speichern bleibt beim Scrollen durch lange Positionslisten unten erreichbar */}
+              <div className="grid grid-cols-2 gap-2 sticky bottom-0 z-10 -mx-2 px-2 py-2 rounded-2xl bg-neutral-900/95 shadow-[0_-8px_24px_rgba(0,0,0,0.5)]">
                 <button onClick={() => fertig(false)} className="rounded-2xl py-3 font-semibold bg-white/10">Speichern</button>
                 <button onClick={() => fertig(true)} className="rounded-2xl py-3 font-bold btn-grad">Speichern &amp; nächster</button>
               </div>

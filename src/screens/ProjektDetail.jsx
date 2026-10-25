@@ -23,6 +23,7 @@ import BelegScanner from '../components/BelegScanner'
 import Vollbild from '../components/Vollbild'
 import BelegeSheet, { belegeAus } from '../components/BelegeSheet'
 import { useCloudRefresh } from '../lib/useCloudRefresh'
+import { melden, frage, toast } from '../ui/Hinweise'
 import {
   ChevronLeft, ChevronRight, Users, FileText, Clock, Wallet, BadgeEuro, Package, Wrench, Ruler, Camera, NotebookPen,
   Play, Pause, Square, Sparkles, Plus, UserPlus, HardHat, X, Calculator, Send, Receipt, Check, Pencil, History,
@@ -82,7 +83,7 @@ function StatTile({ icon, label, value, grad, big }) {
     <div className={'glass rounded-3xl min-w-0 ' + (big ? 'p-3.5 sm:p-4' : 'p-2.5 sm:p-3.5')}>
       <div className="flex items-center gap-2 min-w-0">
         <IconChip icon={icon} size={big ? 'w-8 h-8 sm:w-10 sm:h-10' : 'w-7 h-7 sm:w-8 sm:h-8'} iconClass={big ? 'w-4 h-4 sm:w-5 sm:h-5' : 'w-3.5 h-3.5 sm:w-4 sm:h-4'} />
-        <div className="text-white/70 text-[11px] sm:text-xs truncate">{label}</div>
+        <div className="text-white/70 text-xs truncate">{label}</div>
       </div>
       <div className={'mt-1.5 font-bold whitespace-nowrap tabular-nums leading-tight ' + (big ? 'text-[clamp(1.1rem,5.6vw,1.6rem)]' : 'text-[clamp(0.78rem,3.7vw,1.05rem)]') + (grad ? ' grad-text' : '')}>{value}</div>
     </div>
@@ -337,14 +338,14 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
           </div>
         )}
         {type === 'material' && scan && (
-          <BelegScanner key={scanNr} gewerke={gewerkeOpts} projekt={projektName} verschleissProzent={s.verschleissProzent ?? 25} onAbbrechen={() => (editEntry ? setScan(false) : onClose())} onOhneBeleg={editEntry ? null : () => { setScan(false); setManuell(true) }} onFertig={(b, opt) => {
+          <BelegScanner key={scanNr} sofortKamera={scanNr > 0} gewerke={gewerkeOpts} projekt={projektName} verschleissProzent={s.verschleissProzent ?? 25} onAbbrechen={() => (editEntry ? setScan(false) : onClose())} onOhneBeleg={editEntry ? null : () => { setScan(false); setManuell(true) }} onFertig={(b, opt) => {
             // jede Belegposition wird ein eigener Material-Eintrag; der erste trägt das Belegbild
             const createdAt = b.datum ? new Date(b.datum + 'T12:00:00').toISOString() : new Date().toISOString()
             const fmt = (n) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
             const notiz = 'Beleg' + (b.lieferant ? ' ' + b.lieferant : '') + (b.datum ? ' vom ' + new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : '') +
               ' · ' + fmt(b.betrag) + (b.privat > 0 ? ' (davon privat ' + fmt(b.privat) + ', nicht verrechnet)' : '')
             const pos = b.positionen.length ? b.positionen : [{ bezeichnung: b.lieferant || 'Materialbeleg', menge: 1, gesamt: b.betrag - (b.privat || 0), gewerk }]
-            if (pos.reduce((a, p) => a + p.gesamt, 0) <= 0) { alert('Alle Positionen sind als privat markiert, es gibt nichts zu verrechnen.'); return }
+            if (pos.reduce((a, p) => a + p.gesamt, 0) <= 0) { melden('Alle Positionen sind als privat markiert, es gibt nichts zu verrechnen.'); return }
             const summe = pos.reduce((a, p) => a + p.gesamt, 0)
             // Privatanteil gehört nicht zur Baustelle: Differenz nur gegen den Baustellenanteil rechnen
             const baustelle = b.betrag - (b.privat || 0)
@@ -429,12 +430,12 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
             <div className="flex gap-2 flex-wrap">
               <VoiceInput onText={setText} />
               <button type="button" disabled={korrBusy || dinBusy || !text.trim()}
-                onClick={async () => { try { setKorrBusy(true); const out = await korrekturText(text); if (out) setText(out) } catch (err) { alert(err.message) } finally { setKorrBusy(false) } }}
+                onClick={async () => { try { setKorrBusy(true); const out = await korrekturText(text); if (out) setText(out) } catch (err) { melden(err.message) } finally { setKorrBusy(false) } }}
                 className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40 inline-flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" />{korrBusy ? '…' : 'Text überarbeiten'}
               </button>
               <button type="button" disabled={dinBusy || korrBusy || !text.trim()}
-                onClick={async () => { try { setDinBusy(true); const out = await dinText(text); if (out) setText(out) } catch (err) { alert(err.message) } finally { setDinBusy(false) } }}
+                onClick={async () => { try { setDinBusy(true); const out = await dinText(text); if (out) setText(out) } catch (err) { melden(err.message) } finally { setDinBusy(false) } }}
                 className="rounded-xl px-3 py-2 text-sm font-semibold bg-white/10 disabled:opacity-40 inline-flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" />{dinBusy ? '…' : 'Nach DIN'}
               </button>
@@ -477,7 +478,7 @@ function NachtragSheet({ s, defaultGewerk, gewerkeList, onClose, onSave }) {
         zeiten: (t.zeiten || []).map((z) => ({ von: z.von || '', bis: z.bis || '' })),
         notizen: (t.notizen || []).slice(),
       })))
-    } catch (e) { alert(e.message) } finally { setBusy(false) }
+    } catch (e) { melden(e.message) } finally { setBusy(false) }
   }
 
   function updateTag(i, patch) { setTage((arr) => arr.map((t, idx) => (idx === i ? { ...t, ...patch } : t))) }
@@ -606,7 +607,7 @@ function AbschlussSheet({ s, ctx, onClose, onSaved }) {
         maschinen: (r.maschinen || []).map((m) => ({ name: matchMaschine(s, m.name), minutes: String(m.minutes ?? ctx.workMinutes ?? 0) })),
         beschreibung: r.beschreibung || '',
       })
-    } catch (e) { alert(e.message) } finally { setBusy(false) }
+    } catch (e) { melden(e.message) } finally { setBusy(false) }
   }
   const setMat = (i, k, v) => setP((x) => ({ ...x, materials: x.materials.map((m, idx) => (idx === i ? { ...m, [k]: v } : m)) }))
   const setMas = (i, k, v) => setP((x) => ({ ...x, maschinen: x.maschinen.map((m, idx) => (idx === i ? { ...m, [k]: v } : m)) }))
@@ -785,7 +786,7 @@ function TagebuchKiBox({ liste, vorschlag, setVorschlag, onSpeichern }) {
         out.push({ e: texte[i], neu: neu || texte[i].text, an: Boolean(neu) && neu.trim() !== texte[i].text.trim() })
       }
       setVorschlag(out)
-    } catch (err) { alert(err && err.message ? err.message : String(err)) }
+    } catch (err) { melden(err && err.message ? err.message : String(err)) }
     setBusy('')
   }
   const set = (i, patch) => setVorschlag((v) => v.map((x, j) => (j === i ? { ...x, ...patch } : x)))
@@ -842,7 +843,7 @@ function LeistungenKiBox({ liste, alleEintraege, s, vorschlag, setVorschlag, onU
   const ermitteln = async () => {
     setBusy(true)
     try { setVorschlag(await leistungenAusTagebuch(tage, s.gewerke, s.leistungskatalog)) }
-    catch (err) { alert(err && err.message ? err.message : String(err)) }
+    catch (err) { melden(err && err.message ? err.message : String(err)) }
     setBusy(false)
   }
   const std = (n) => (Math.round(Number(n) * 100) / 100).toLocaleString('de-DE') + ' h'
@@ -922,7 +923,7 @@ function AufraeumenBox({ verdacht, onDelete }) {
         </label>
       ))}
       <button disabled={!weg.size || busy} onClick={async () => {
-        if (!confirm(weg.size + ' Einträge löschen? Der aktuelle Stand wird vorher gesichert.')) return
+        if (!await frage(weg.size + ' Einträge löschen? Der aktuelle Stand wird vorher gesichert.')) return
         setBusy(true); try { await onDelete([...weg]) } finally { setBusy(false) }
       }} className="w-full rounded-xl py-2 text-sm font-bold btn-grad disabled:opacity-40">{busy ? 'Lösche …' : 'Ausgewählte löschen (' + weg.size + ')'}</button>
     </div>
@@ -1198,9 +1199,19 @@ export default function ProjektDetail() {
       const r = await parseSetup(setupText, gewerkeList, s.leistungskatalog)
       if (r.gewerk && gewerkeList.includes(r.gewerk)) setGewerk(r.gewerk)
       if (r.leistung) setLeistung(r.leistung)
-    } catch (e) { alert(e.message) } finally { setSetupBusy(false) }
+    } catch (e) { melden(e.message) } finally { setSetupBusy(false) }
   }
-  async function remove(eid) { await deleteEintrag(eid); await load() }
+  // Gelöschte Einträge zurückholen: als neue Einträge anlegen (neues Token, damit die Löschung in der Cloud sie nicht wieder entfernt)
+  async function wiederherstellen(liste) {
+    for (const e of liste) { const { id: _id, token: _t, synced: _s, abschlagToken: _a, ...rest } = e; await addEintrag({ ...rest, projektId: Number(id) }) }
+    await load()
+  }
+  // Löschen ohne Nachfrage, dafür unten kurz „Rückgängig“
+  async function remove(eid) {
+    const e = eintraege.find((x) => x.id === eid)
+    await deleteEintrag(eid); await load()
+    if (e) toast('Eintrag gelöscht', { rueckgaengig: () => wiederherstellen([e]) })
+  }
   const leistungenG = leistungenFor(s, gewerk)
 
   return (
@@ -1224,7 +1235,7 @@ export default function ProjektDetail() {
       {!isWorker && (
         <div className="grid grid-cols-4 gap-2 -mt-2 mb-5 sm:hidden">
           {[[Pencil, 'Bearbeiten', () => setBearbeiten(true)], [Users, 'Team', () => setTeam(true)], [Receipt, 'Abschläge', () => setRechnungenOpen(true)], [FileText, 'Nachweis', () => setNachweis(true)]].map(([Icon, text, fn]) => (
-            <button key={text} onClick={fn} className="glass card-hover rounded-2xl py-2 flex flex-col items-center gap-1 text-[11px] text-white/80"><Icon className="w-5 h-5" />{text}</button>
+            <button key={text} onClick={fn} className="glass card-hover rounded-2xl py-2 flex flex-col items-center gap-1 text-xs text-white/80"><Icon className="w-5 h-5" />{text}</button>
           ))}
         </div>
       )}
@@ -1258,7 +1269,9 @@ export default function ProjektDetail() {
               )}
               {(() => {
                 const bl = belegeAus(eintraege)
-                if (!bl.length) return null
+                // von Hand erfasstes Material ohne Preis (wird in den Materialbelegen nachgetragen)
+                const ohnePreis = eintraege.filter((e) => e.type === 'material' && !(e.note && /^Beleg/.test(e.note)) && !(Number(e.unitCost) > 0) && !/privat, nicht berechnet/.test(e.label || '')).length
+                if (!bl.length && !ohnePreis) return null
                 const doppelt = bl.some((b) => b.doppelt)
                 return (
                   <button onClick={() => setBelegeOffen(true)} className="w-full glass card-hover rounded-2xl p-3 flex items-center gap-3 text-left">
@@ -1266,6 +1279,7 @@ export default function ProjektDetail() {
                     <div className="min-w-0 flex-1">
                       <div className="text-white/70 text-xs">Materialbelege · {bl.length} {bl.length === 1 ? 'Beleg' : 'Belege'}</div>
                       <div className="font-bold">{euro(bl.reduce((a, b) => a + b.betrag, 0))}{doppelt && <span className="text-ember text-xs font-semibold ml-2">möglicherweise doppelt</span>}</div>
+                      {ohnePreis > 0 && <div className="text-amber text-xs font-semibold">Preis fehlt bei {ohnePreis} {ohnePreis === 1 ? 'Material' : 'Materialien'}</div>}
                     </div>
                     <span className="text-amber text-xs font-semibold shrink-0">Ansehen</span>
                   </button>
@@ -1405,6 +1419,7 @@ export default function ProjektDetail() {
           await sicherungAnlegen('Vor dem Löschen eines Belegs')
           for (const e of liste) await deleteEintrag(e.id)
           setEintraege(await listEintraege(id))
+          toast(liste.length === 1 ? 'Position gelöscht' : liste.length + ' Positionen gelöscht', { rueckgaengig: () => wiederherstellen(liste) })
         }} />
       )}
 
@@ -1510,7 +1525,7 @@ export default function ProjektDetail() {
                 try {
                   if (alsRechnung) previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(offene), s, { mitKosten, detail, belege: belegeAnhaengen, ...abschlagOpts }))
                   else previewPdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, detail, belege: belegeAnhaengen, von: nvon, bis: nbis }))
-                } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
+                } catch (err) { melden('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
               }} className="w-full rounded-2xl py-3 font-semibold bg-white/10">Vorschau</button>
               <button onClick={async () => {
                 try {
@@ -1533,7 +1548,7 @@ export default function ProjektDetail() {
                     await sharePdf(buildLeistungsnachweis(projekt, mitVorschlag(eintraege), s, { mitKosten, detail, belege: belegeAnhaengen, von: nvon, bis: nbis }), nachweisFilename(projekt))
                   }
                   setNachweis(false)
-                } catch (err) { alert('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
+                } catch (err) { melden('PDF-Fehler: ' + (err && err.message ? err.message : err)) }
               }} disabled={gesperrt} className="w-full rounded-2xl py-3 font-bold btn-grad disabled:opacity-40">Erzeugen & teilen</button>
             </div>
           </div>
@@ -1544,13 +1559,13 @@ export default function ProjektDetail() {
         <RechnungenSheet rechnungen={rechnungen} eintraege={eintraege} hinweis={zuordnungHinweis} abweichend={abweichungen(rechnungen, eintraege, projekt.hourlyRate)} onClose={() => setRechnungenOpen(false)}
           onSavePayment={async (r, valStr) => {
             const bezahlterBetrag = parseBetrag(valStr)
-            if (Number.isNaN(bezahlterBetrag) || bezahlterBetrag < 0) { alert('Bitte einen gültigen Betrag eingeben, z. B. 2.000 oder 1969,42.'); return false }
+            if (Number.isNaN(bezahlterBetrag) || bezahlterBetrag < 0) { melden('Bitte einen gültigen Betrag eingeben, z. B. 2.000 oder 1969,42.'); return false }
             await updateRechnung(r.id, { bezahlterBetrag, bezahltAm: bezahlterBetrag > 0 ? new Date().toISOString().slice(0, 10) : null })
             await ketteAktualisieren()
             return true
           }}
           onDelete={async (r) => {
-            if (!confirm('Abschlag ' + (r.nr ?? '') + ' löschen?\n\nDer aktuelle Stand wird vorher automatisch gesichert (Einstellungen → Datensicherung).')) return
+            if (!await frage('Abschlag ' + (r.nr ?? '') + ' löschen?\n\nDer aktuelle Stand wird vorher automatisch gesichert (Einstellungen → Datensicherung).')) return
             await deleteRechnung(r.id); setEintraege(await listEintraege(id)); await ketteAktualisieren()
           }}
           onPreviewPdf={() => previewPdf(buildAbrechnungsUebersicht(projekt, rechnungen, s))}

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Mic, Square } from 'lucide-react'
+import { melden, frage, toast } from '../ui/Hinweise'
 
 // Spracherkennung (Web Speech API) — transkribiert live auf Deutsch. Beste Unterstützung: Chrome/Android.
 export default function VoiceInput({ onText }) {
@@ -8,7 +9,7 @@ export default function VoiceInput({ onText }) {
   const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
 
   function toggle() {
-    if (!SR) { alert('Spracherkennung wird hier nicht unterstützt — am besten Chrome / Android nutzen.'); return }
+    if (!SR) { melden('Spracherkennung wird hier nicht unterstützt — am besten Chrome / Android nutzen.'); return }
     if (rec) { recRef.current && recRef.current.stop(); return }
     const r = new SR()
     r.lang = 'de-DE'; r.interimResults = true; r.continuous = true

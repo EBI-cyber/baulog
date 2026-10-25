@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, Play, Check, Flashlight, Volume2, VolumeX, Camera, HelpCircle, RotateCcw } from 'lucide-react'
 import { verfolger, begleiter, grau, schaerfe } from '../lib/videoscan'
 import VideoAnleitung from './VideoAnleitung'
+import { melden, frage, toast } from '../ui/Hinweise'
 
 const FARBE = { gut: 'bg-emerald-500', achtung: 'bg-amber', stopp: 'bg-ember' }
 
@@ -170,7 +171,7 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
 
   const fertig = () => {
     const z = zustand.current; if (!z.laeuft || z.stop) return
-    if (!spur.current.anzahl()) { alert('Noch kein Abschnitt aufgenommen. Bitte das Handy über den Beleg führen.'); return }
+    if (!spur.current.anzahl()) { melden('Noch kein Abschnitt aufgenommen. Bitte das Handy über den Beleg führen.'); return }
     z.stop = true
     if (window.speechSynthesis) window.speechSynthesis.cancel()
     if (navigator.vibrate) navigator.vibrate([40, 60, 40])
@@ -183,7 +184,7 @@ export default function VideoScan({ uebersicht, onFertig, onFoto, onAbbrechen })
         onFertig(bild, spur.current.anzahl(), spur.current.kiAbschnitte(10))
       } catch (err) {
         setBusy('')
-        alert('Zusammensetzen fehlgeschlagen: ' + (err && err.message ? err.message : err))
+        melden('Zusammensetzen fehlgeschlagen: ' + (err && err.message ? err.message : err))
         onAbbrechen()
       }
     }, 30)
