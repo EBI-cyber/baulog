@@ -22,6 +22,7 @@ import ProjektSheet from '../components/ProjektSheet'
 import BelegScanner from '../components/BelegScanner'
 import Vollbild from '../components/Vollbild'
 import BelegeSheet, { belegeAus } from '../components/BelegeSheet'
+import { belegEintraege } from '../lib/belegEintraege'
 import { useCloudRefresh } from '../lib/useCloudRefresh'
 import { standortVon, standortSpeichern, aktuellePosition, wetterText, ortAusName } from '../lib/baustelle'
 import FotoMarkieren from '../components/FotoMarkieren'
@@ -225,7 +226,7 @@ function MaschineCombo({ s, value, onChange, inp, wrapClass = '' }) {
   )
 }
 
-function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEntry, projektName, projektToken }) {
+function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEntry, projektName, projektToken, vorhandene }) {
   const gewerkeOpts = gewerkeList && gewerkeList.length ? gewerkeList : s.gewerke
   const [gewerk, setGewerk] = useState((editEntry && editEntry.gewerk) || defaultGewerk)
   const leistungen = leistungenFor(s, gewerk)
@@ -353,40 +354,12 @@ function AddSheet({ s, type, defaultGewerk, gewerkeList, onClose, onSave, editEn
           </div>
         )}
         {type === 'material' && scan && (
-          <BelegScanner key={scanNr} sofortKamera={scanNr > 0} gewerke={gewerkeOpts} projekt={projektName} verschleissProzent={s.verschleissProzent ?? 25} onAbbrechen={() => (editEntry ? setScan(false) : onClose())} onOhneBeleg={editEntry ? null : () => { setScan(false); setManuell(true) }} onFertig={(b, opt) => {
-            // jede Belegposition wird ein eigener Material-Eintrag; der erste trägt das Belegbild
-            const createdAt = b.datum ? new Date(b.datum + 'T12:00:00').toISOString() : new Date().toISOString()
-            const fmt = (n) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
-            const notiz = 'Beleg' + (b.lieferant ? ' ' + b.lieferant : '') + (b.datum ? ' vom ' + new Date(b.datum + 'T12:00:00').toLocaleDateString('de-DE') : '') +
-              ' · ' + fmt(b.betrag) + (b.privat > 0 ? ' (davon privat ' + fmt(b.privat) + ', nicht verrechnet)' : '')
-            // rein privater Beleg: trotzdem ablegen (nur als Dokumentation, nichts wird berechnet)
-            const nurPrivat = !b.positionen.length && (b.privatPositionen || []).length > 0 && b.betrag - (b.privat || 0) <= 0.01
-            const pos = b.positionen.length || nurPrivat ? [...b.positionen] : [{ bezeichnung: b.lieferant || 'Materialbeleg', menge: 1, gesamt: b.betrag - (b.privat || 0), gewerk }]
-            if (!nurPrivat && pos.reduce((a, p) => a + p.gesamt, 0) <= 0) { melden('Der Beleg hat keinen Betrag, es gibt nichts zu verrechnen.'); return }
-            const summe = pos.reduce((a, p) => a + p.gesamt, 0)
-            // Privatanteil gehört nicht zur Baustelle: Differenz nur gegen den Baustellenanteil rechnen
-            const baustelle = b.betrag - (b.privat || 0)
-            if (b.positionen.length && Math.abs(summe - baustelle) > 0.01) pos.push({ bezeichnung: 'Differenz laut Beleg', menge: 1, gesamt: Math.round((baustelle - summe) * 100) / 100, gewerk: pos[0].gewerk || gewerk })
-            // private Positionen dokumentieren: als Eintrag ohne Kosten, damit der Abzug im Leistungsnachweis steht
-            for (const p of (b.privatPositionen || [])) pos.push({ ...p, privatDoku: true })
-            // je Position eine Millisekunde später: so bleibt die Reihenfolge wie auf dem Beleg erhalten
-            const zeitpunkt = (i) => new Date(Date.parse(createdAt) + i).toISOString()
-            const liste = pos.map((p, i) => {
-              if (p.privatDoku) return {
-                type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt: zeitpunkt(i), note: notiz, qty: 1, unitCost: 0, dataUrl: '', belegRoh: null,
-                label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung + ' (privat, nicht berechnet: ' + fmt(p.gesamt) + ')',
-              }
-              // Verschleißteil: nur der Anteil wird berechnet, der volle Preis steht in der Bezeichnung
-              const anteil = p.anteil != null && p.anteil < 100 ? p.anteil : 100
-              const berechnet = p.gesamt * anteil / 100
-              return {
-              type: 'material', gewerk: p.gewerk || gewerk, leistung: '', createdAt: zeitpunkt(i), note: notiz,
-              label: (b.lieferant ? b.lieferant + ': ' : '') + p.bezeichnung + (anteil < 100 ? ' (Verschleißanteil ' + anteil + ' % von ' + fmt(p.gesamt) + ')' : ''),
-              qty: p.menge > 0 ? p.menge : 1, unitCost: Math.round((berechnet / (p.menge > 0 ? p.menge : 1)) * 10000) / 10000,
-              dataUrl: '', belegRoh: null,
-            } })
-            // der erste Eintrag trägt das Belegbild (auch wenn er privat ist)
-            liste[0] = { ...liste[0], dataUrl: b.dataUrl, belegRoh: b.roh }
+          <BelegScanner key={scanNr} sofortKamera={scanNr > 0} gewerke={gewerkeOpts} projekt={projektName} verschleissProzent={s.verschleissProzent ?? 25} onAbbrechen={() => (editEntry ? setScan(false) : onClose())} onOhneBeleg={editEntry ? null : () => { setScan(false); setManuell(true) }} onFertig={async (b, opt) => {
+            let liste
+            try { liste = belegEintraege(b, gewerk) } catch (err) { melden(err.message); return }
+            // derselbe Beleg (gleicher Lieferant, Datum und Betrag) ist schon erfasst: sonst stehen die Positionen doppelt drin
+            if ((vorhandene || []).some((e) => e.type === 'material' && e.note === liste[0].note) &&
+              !await frage('Dieser Beleg (' + liste[0].note.replace(/^Beleg\s*/, '') + ') ist schon erfasst.\n\nTrotzdem noch einmal speichern? Dann stehen die Positionen doppelt drin.')) return
             onSave(liste, { weiter: opt && opt.weiter })
             // Serienscan: Scanner für den nächsten Beleg frisch starten
             if (opt && opt.weiter) setScanNr((n) => n + 1)
@@ -1439,7 +1412,7 @@ export default function ProjektDetail() {
       </div>
 
       {sheet && (
-        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} editEntry={editingEntry} projektName={projekt.name} projektToken={projekt.token}
+        <AddSheet s={s} type={sheet} defaultGewerk={gewerk} gewerkeList={gewerkeList} editEntry={editingEntry} projektName={projekt.name} projektToken={projekt.token} vorhandene={eintraege}
           onClose={() => { setSheet(null); setEditingEntry(null) }}
           onSave={async (data, opt) => {
             const arr = Array.isArray(data) ? data : [data]
@@ -1471,7 +1444,16 @@ export default function ProjektDetail() {
             await addEintrag({ ...rest, projektId: Number(id) })
             setEintraege(await listEintraege(id))
           }}
-          verschleissProzent={s.verschleissProzent ?? 25}
+          verschleissProzent={s.verschleissProzent ?? 25} gewerke={gewerkeList && gewerkeList.length ? gewerkeList : s.gewerke}
+          onErsetzen={async (alt, neu) => {
+            // Beleg neu eingelesen: erst die alten Positionen löschen (sonst wandert das Belegbild auf eine neue Position), dann die neuen anlegen
+            await sicherungAnlegen('Vor dem Neu-Einlesen eines Belegs')
+            for (const e of alt) await deleteEintrag(e.id)
+            const ids = []
+            for (const e of neu) ids.push(await addEintrag({ ...e, projektId: Number(id) }))
+            setEintraege(await listEintraege(id))
+            toast('Beleg neu eingelesen: ' + neu.length + ' Positionen', { rueckgaengig: async () => { for (const i of ids) await deleteEintrag(i); await wiederherstellen(alt) } })
+          }}
           onUpdate={async (e, patch) => { await updateEintrag(e.id, patch); setEintraege(await listEintraege(id)) }} onClose={() => setBelegeOffen(false)} onDelete={async (liste) => {
           await sicherungAnlegen('Vor dem Löschen eines Belegs')
           for (const e of liste) await deleteEintrag(e.id)

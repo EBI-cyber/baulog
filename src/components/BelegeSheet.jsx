@@ -6,6 +6,7 @@ import BelegScanner from './BelegScanner'
 import { privatPruefen, positionFinden, materialZuordnen } from '../lib/ai'
 import { listeSicherungen, sicherungLesen } from '../lib/backup'
 import { melden, frage, toast } from '../ui/Hinweise'
+import { belegEintraege } from '../lib/belegEintraege'
 
 // Belegnotiz ohne Datum vergleichen (das Datum kann nachträglich geändert worden sein)
 const ohneDatum = (n) => String(n || '').replace(/\s*vom \d{1,2}\.\d{1,2}\.\d{4}/, '').trim()
@@ -57,7 +58,7 @@ export function belegeAus(eintraege) {
     const g = gruppen.get(key)
     g.eintraege.push(e)
     g.betrag += (Number(e.qty) || 0) * (Number(e.unitCost) || 0)
-    if (e.dataUrl) g.bild = e.dataUrl
+    if (e.dataUrl) { g.bild = g.bild || e.dataUrl; g.bilder = (g.bilder || 0) + 1 }
   }
   const liste = [...gruppen.values()].sort((a, b) => String(a.datum).localeCompare(String(b.datum)))
   // mögliche Doppelte: gleicher Betrag am selben Tag (Lieferantenname kann unterschiedlich gelesen sein)
@@ -80,14 +81,17 @@ export function belegeAus(eintraege) {
     // Jahr vermutlich falsch gelesen: Beleg älter als 18 Monate oder in der Zukunft
     const alter = (Date.now() - new Date(g.datum).getTime()) / 86400000
     g.datumPruefen = !(alter >= -1 && alter <= 548)
+    // derselbe Beleg zweimal gescannt: beide Scans landen in derselben Gruppe (gleiche Notiz, gleiches Datum)
+    g.mehrfach = (g.bilder || 0) > 1
   })
   return liste
 }
 
-export default function BelegeSheet({ eintraege, projektName, projektToken, verschleissProzent = 25, onUpdate, onRestore, onClose, onDelete }) {
+export default function BelegeSheet({ eintraege, projektName, projektToken, verschleissProzent = 25, gewerke = [], onUpdate, onRestore, onErsetzen, onClose, onDelete }) {
   const [gross, setGross] = useState('') // Bild-URL oder { src, markierung, titel }
   const [suche, setSuche] = useState('')
   const [nachscan, setNachscan] = useState(null) // Beleg, dessen Bild neu fotografiert wird
+  const [neuLesen, setNeuLesen] = useState(null) // Beleg, dessen Positionen die KI neu einliest
   const [offen, setOffen] = useState('') // key des Belegs, dessen Positionen gerade angezeigt werden
   // Löschabfrage in der App statt confirm(): Browser können native Abfragen unterdrücken, dann passierte beim Klick nichts
   const [loeschFrage, setLoeschFrage] = useState(null) // { titel, text, liste, busy, fehler }
@@ -289,6 +293,7 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                 )}
                 {b.eintraege.some(istDifferenz) && <div className="text-ember text-xs font-semibold">Summe passt nicht – Positionen prüfen</div>}
                 {b.doppelt && <div className="text-ember text-xs font-semibold">möglicherweise doppelt</div>}
+                {b.mehrfach && <div className="text-ember text-xs font-semibold">{b.bilder}× gescannt – Positionen doppelt, bitte neu einlesen</div>}
                 {b.datumPruefen && <div className="text-amber text-xs font-semibold">Datum prüfen – Jahr weicht ab (Datum antippen zum Ändern)</div>}
               </div>
               <div className="font-bold text-sm shrink-0">{eur(b.betrag)}</div>
@@ -408,6 +413,11 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
                   )
                 })}
               </div>
+              {b.bild && onErsetzen && (
+                <button onClick={() => { setOffen(''); setNeuLesen(b) }} className={'w-full rounded-2xl py-2.5 text-sm font-semibold inline-flex items-center justify-center gap-2 ' + (diff || b.mehrfach ? 'btn-grad' : 'bg-white/10')}>
+                  <Sparkles className="w-4 h-4" /> Positionen von der KI neu einlesen
+                </button>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => { setOffen(''); setDatumEdit(b.key) }} className="rounded-2xl py-2 text-sm bg-white/10 inline-flex items-center justify-center gap-2"><CalendarDays className="w-4 h-4" /> Datum ändern</button>
                 <button onClick={() => { setOffen(''); setNachscan(b) }} className="rounded-2xl py-2 text-sm bg-white/10 inline-flex items-center justify-center gap-2"><Camera className="w-4 h-4" /> Bild neu fotografieren</button>
@@ -419,6 +429,21 @@ export default function BelegeSheet({ eintraege, projektName, projektToken, vers
           </div>
         )
       })()}
+      {neuLesen && (
+        <div className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-40" onClick={(e) => e.stopPropagation()}>
+          <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[92dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
+            <div className="text-lg font-bold">Beleg neu einlesen</div>
+            <div className="text-white/70 text-xs">Die KI liest das gespeicherte Belegbild noch einmal. Prüfe die Positionen; „Positionen ersetzen“ tauscht alle bisherigen Positionen dieses Belegs aus (vorher wird gesichert).</div>
+            <BelegScanner neuLesen={neuLesen.bild} gewerke={gewerke} projekt={projektName} verschleissProzent={verschleissProzent} onAbbrechen={() => setNeuLesen(null)} onFertig={async (r) => {
+              // das Originalbild bleibt, nur die Positionen werden ersetzt
+              const altRoh = (neuLesen.eintraege.find((e) => e.belegRoh) || {}).belegRoh || null
+              let neu
+              try { neu = belegEintraege({ ...r, dataUrl: neuLesen.bild, roh: altRoh }, neuLesen.eintraege[0].gewerk || gewerke[0]) } catch (err) { melden(err.message); return }
+              try { await onErsetzen(neuLesen.eintraege, neu); setNeuLesen(null) } catch (err) { melden('Ersetzen fehlgeschlagen: ' + (err && err.message ? err.message : String(err))) }
+            }} />
+          </div>
+        </div>
+      )}
       {nachscan && (
         <div className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-40" onClick={(e) => { e.stopPropagation(); setNachscan(null) }}>
           <div className="glass w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 space-y-3 max-h-[92dvh] overflow-y-auto m-0 md:m-4" onClick={(e) => e.stopPropagation()}>
