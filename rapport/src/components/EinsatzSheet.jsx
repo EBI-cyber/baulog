@@ -1,0 +1,200 @@
+import { useRef, useState } from 'react'
+import { Briefcase, Camera, Sparkles, Trash2, X, Loader2, AlertTriangle } from 'lucide-react'
+import Sheet from './Sheet'
+import { db } from '../lib/db'
+import { useEinstellungen, zahl } from '../lib/settings'
+import { KANTONE } from '../lib/feiertage'
+import { LOHN_STANDARD, ABZUEGE, stundenlohnTotal } from '../lib/lohn'
+import { verkleinern } from '../lib/bild'
+import { einsatzvertragLesen, kiVerfuegbar } from '../lib/ki'
+
+const NEU = { firma: '', buero: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
+  gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
+
+const ZAHLEN = ['stundenlohn', 'wochenstunden', 'feiertagProzent', 'ferienProzent', 'dreizehnterProzent', 'ueberstundenZuschlag',
+  'nachtZuschlag', 'sonntagZuschlag', 'krankFaktor', 'ahv', 'alv', 'nbu', 'ktg', 'bvg', 'gav', 'quellensteuer']
+
+function Feld({ label, einheit, breit, ...rest }) {
+  return (
+    <div className={breit ? 'col-span-2' : ''}>
+      <label className="block text-xs text-white/50 mb-1">{label}</label>
+      <div className="relative">
+        <input className={'eingabe ' + (einheit ? 'pr-12' : '')} {...rest} />
+        {einheit && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-white/35">{einheit}</span>}
+      </div>
+    </div>
+  )
+}
+
+const Titel = ({ children }) => <div className="text-xs font-semibold uppercase tracking-wider text-white/40 pt-3">{children}</div>
+
+export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
+  const [einst, setEinst] = useEinstellungen()
+  const [f, setF] = useState(() => ({ ...NEU, buero: einst.buero, ...(vorgabe || {}), ...(einsatz || {}) }))
+  const [ki, setKi] = useState({ laeuft: false, fehler: '', erkannt: null })
+  const datei = useRef()
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const zahlFeld = (k) => ({ value: f[k] ?? '', onChange: set(k), inputMode: 'decimal' })
+  const w = einst.waehrung
+
+  async function fotosDazu(e) {
+    const dateien = [...(e.target.files || [])]
+    e.target.value = ''
+    const neu = []
+    for (const d of dateien) neu.push(await verkleinern(d))
+    setF((x) => ({ ...x, fotos: [...(x.fotos || []), ...neu].slice(0, 6) }))
+  }
+
+  async function auslesen() {
+    setKi({ laeuft: true, fehler: '', erkannt: null })
+    try {
+      const r = await einsatzvertragLesen(f.fotos)
+      const erkannt = []
+      setF((x) => {
+        const y = { ...x }
+        const nimm = (k, quelle = k) => {
+          const v = r[quelle]
+          if (v === null || v === undefined || v === '') return
+          y[k] = ZAHLEN.includes(k) ? String(v) : String(v).trim()
+          erkannt.push(k)
+        }
+        ;['firma', 'buero', 'einsatzort', 'funktion', 'beginn', 'ende', 'gavName', 'kuendigungsfrist', 'bemerkungen', ...ZAHLEN].forEach((k) => nimm(k))
+        nimm('spesenInfo', 'spesen'); nimm('stundenlohnTotalVertrag', 'stundenlohnTotal')
+        if (r.kanton && KANTONE[String(r.kanton).toUpperCase()]) { y.kanton = String(r.kanton).toUpperCase(); erkannt.push('kanton') }
+        return y
+      })
+      setKi({ laeuft: false, fehler: '', erkannt })
+    } catch (err) {
+      setKi({ laeuft: false, fehler: err.message, erkannt: null })
+    }
+  }
+
+  async function sichern() {
+    const firma = f.firma.trim()
+    if (!firma) return setKi((k) => ({ ...k, fehler: 'Bitte den Einsatzbetrieb (Firma) eintragen.' }))
+    const daten = { ...f, firma }
+    const alt = einsatz?.firma
+    await db.transaction('rw', db.einsaetze, db.schichten, db.absenzen, async () => {
+      await db.einsaetze.put(daten)
+      if (alt && alt !== firma) { // umbenannt: Einträge mitnehmen
+        await db.schichten.filter((s) => s.firma === alt).modify({ firma })
+        await db.absenzen.filter((a) => a.firma === alt).modify({ firma })
+      }
+    })
+    const firmen = einst.firmen.map((x) => (x === alt ? firma : x))
+    setEinst({
+      firmen: firmen.includes(firma) ? firmen : [...firmen, firma],
+      firma: !einst.firma || einst.firma === alt ? firma : einst.firma,
+      buero: einst.buero || f.buero,
+    })
+    onClose()
+  }
+
+  async function loeschen() {
+    if (!confirm('Einsatzvertrag löschen? Die erfassten Zeiten bleiben erhalten.')) return
+    await db.einsaetze.delete(einsatz.id); onClose()
+  }
+
+  const totalBerechnet = stundenlohnTotal(f)
+  const totalVertrag = zahl(f.stundenlohnTotalVertrag)
+  const abweichung = totalVertrag && zahl(f.stundenlohn) && Math.abs(totalBerechnet - totalVertrag) > 0.05
+
+  return (
+    <Sheet titel={einsatz ? 'Einsatz bearbeiten' : 'Neuer Einsatz'} icon={Briefcase} onClose={onClose}>
+      {/* Vertrag fotografieren */}
+      <div className="rounded-2xl bg-aqua/[0.07] border border-aqua/25 p-3 space-y-3">
+        <div className="text-sm text-white/70">Einsatzvertrag fotografieren (alle Seiten), die KI füllt die Felder aus.</div>
+        {f.fotos?.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {f.fotos.map((src, i) => (
+              <div key={i} className="relative shrink-0">
+                <a href={src} target="_blank" rel="noreferrer"><img src={src} alt={`Seite ${i + 1}`} className="h-20 w-16 object-cover rounded-lg border border-white/15" /></a>
+                <button onClick={() => setF((x) => ({ ...x, fotos: x.fotos.filter((_, j) => j !== i) }))}
+                  className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-black/80 border border-white/20 flex items-center justify-center" aria-label="Foto entfernen">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => datei.current?.click()} className="rounded-xl py-2.5 bg-white/10 text-sm font-semibold inline-flex items-center justify-center gap-2">
+            <Camera className="w-4 h-4" /> {f.fotos?.length ? 'Seite dazu' : 'Foto machen'}
+          </button>
+          <button onClick={auslesen} disabled={!f.fotos?.length || ki.laeuft || !kiVerfuegbar}
+            className="rounded-xl py-2.5 btn-grad text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-40">
+            {ki.laeuft ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} {ki.laeuft ? 'Lese …' : 'KI auslesen'}
+          </button>
+        </div>
+        <input ref={datei} type="file" accept="image/*" multiple className="hidden" onChange={fotosDazu} />
+        {ki.erkannt && <div className="text-sm rounded-xl px-3 py-2 bg-lime/15 border border-lime/30 text-lime">
+          {ki.erkannt.length} Angaben übernommen — bitte kurz prüfen.
+        </div>}
+        {ki.fehler && <div className="text-sm rounded-xl px-3 py-2 bg-ember/15 border border-ember/30 text-ember">{ki.fehler}</div>}
+      </div>
+
+      <Titel>Einsatz</Titel>
+      <div className="grid grid-cols-2 gap-3">
+        <Feld breit label="Einsatzbetrieb (Firma) *" value={f.firma} onChange={set('firma')} />
+        <Feld breit label="Temporärbüro" value={f.buero} onChange={set('buero')} />
+        <Feld label="Einsatzort" value={f.einsatzort} onChange={set('einsatzort')} />
+        <div>
+          <label className="block text-xs text-white/50 mb-1">Kanton (Feiertage)</label>
+          <select value={f.kanton} onChange={set('kanton')} className="eingabe">
+            <option value="">–</option>
+            {Object.entries(KANTONE).map(([k, n]) => <option key={k} value={k}>{k} – {n}</option>)}
+          </select>
+        </div>
+        <Feld breit label="Funktion / Tätigkeit" value={f.funktion} onChange={set('funktion')} />
+        <Feld label="Beginn" type="date" value={f.beginn} onChange={set('beginn')} />
+        <Feld label="Ende" type="date" value={f.ende} onChange={set('ende')} />
+      </div>
+
+      <Titel>Lohn</Titel>
+      <div className="grid grid-cols-2 gap-3">
+        <Feld label="Grundlohn / Std." einheit={w} {...zahlFeld('stundenlohn')} />
+        <Feld label="Wochenstunden" einheit="h" {...zahlFeld('wochenstunden')} />
+        <Feld label="Feiertagsentsch." einheit="%" {...zahlFeld('feiertagProzent')} />
+        <Feld label="Ferienentsch." einheit="%" {...zahlFeld('ferienProzent')} />
+        <Feld label="13. Monatslohn" einheit="%" {...zahlFeld('dreizehnterProzent')} />
+        <Feld label="Total / Std. laut Vertrag" einheit={w} {...zahlFeld('stundenlohnTotalVertrag')} />
+      </div>
+      {zahl(f.stundenlohn) > 0 && (
+        <div className={'text-sm rounded-xl px-3 py-2 border flex gap-2 ' + (abweichung ? 'bg-amber-400/10 border-amber-400/30 text-amber-300' : 'bg-white/[0.04] border-white/10 text-white/60')}>
+          {abweichung && <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />}
+          <span>Berechnet: <b className="text-white">{w} {totalBerechnet.toFixed(2)}</b> / Std. inkl. Entschädigungen
+            {abweichung ? ` — Vertrag sagt ${w} ${totalVertrag.toFixed(2)}. Bitte Prozente prüfen.` : ''}</span>
+        </div>
+      )}
+
+      <Titel>Zuschläge</Titel>
+      <div className="grid grid-cols-2 gap-3">
+        <Feld label="Überstunden" einheit="%" {...zahlFeld('ueberstundenZuschlag')} />
+        <Feld label="Nacht (23–6 Uhr)" einheit="%" {...zahlFeld('nachtZuschlag')} />
+        <Feld label="Sonntag" einheit="%" {...zahlFeld('sonntagZuschlag')} />
+        <Feld label="Lohn bei Krankheit" einheit="%" {...zahlFeld('krankFaktor')} />
+      </div>
+
+      <Titel>Abzüge (Arbeitnehmer)</Titel>
+      <div className="grid grid-cols-2 gap-3">
+        {ABZUEGE.map(([k, label]) => <Feld key={k} label={label} einheit="%" {...zahlFeld(k)} />)}
+      </div>
+      <div className="text-xs text-white/35">AHV/IV/EO 5,3 % und ALV 1,1 % sind gesetzlich. Die übrigen Sätze stehen im Vertrag oder auf der ersten Lohnabrechnung.</div>
+
+      <Titel>Weitere Angaben</Titel>
+      <div className="grid grid-cols-2 gap-3">
+        <Feld breit label="GAV" value={f.gavName} onChange={set('gavName')} />
+        <Feld breit label="Kündigungsfrist" value={f.kuendigungsfrist} onChange={set('kuendigungsfrist')} />
+        <Feld breit label="Spesen / Zulagen" value={f.spesenInfo} onChange={set('spesenInfo')} />
+        <Feld breit label="Bemerkungen" value={f.bemerkungen} onChange={set('bemerkungen')} />
+      </div>
+
+      <button onClick={sichern} className="w-full rounded-2xl py-3 font-bold btn-grad mt-2">Speichern</button>
+      {einsatz && (
+        <button onClick={loeschen} className="w-full py-2 text-sm text-white/35 hover:text-ember inline-flex items-center justify-center gap-1.5">
+          <Trash2 className="w-4 h-4" /> Einsatz löschen
+        </button>
+      )}
+    </Sheet>
+  )
+}

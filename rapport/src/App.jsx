@@ -3,6 +3,7 @@ import Nav from './components/Nav'
 import Heute from './screens/Heute'
 import Woche from './screens/Woche'
 import Einstellungen from './screens/Einstellungen'
+import Lohn from './screens/Lohn'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
               <Route path="/" element={<Heute />} />
               <Route path="/woche" element={<Woche />} />
               <Route path="/woche/:key" element={<Woche />} />
+              <Route path="/lohn" element={<Lohn />} />
               <Route path="/einstellungen" element={<Einstellungen />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

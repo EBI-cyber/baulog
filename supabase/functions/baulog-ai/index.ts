@@ -1,4 +1,4 @@
-// Supabase Edge Function: KI-Texte für BauLog (DIN-Text, Setup, Abschluss).
+// Supabase Edge Function: KI-Texte für BauLog (DIN-Text, Setup, Abschluss) und die Rapport-App (Einsatzvertrag).
 // Der OpenAI-Key liegt NUR hier als Secret (OPENAI_KEY) — nie im Client/auf den Geräten.
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -128,11 +128,32 @@ Deno.serve(async (req) => {
         { role: 'system', content: sys },
         { role: 'user', content: `Kontext: Gewerk ${ctx.gewerk}, Leistung ${ctx.leistung}, Einheit ${ctx.einheit}.\nGesprochen: "${body.transcript || ''}"` },
       ]
+    } else if (task === 'einsatzvertrag') {
+      // Rapport-App: Einsatzvertrag eines Temporärbüros (Schweiz) lesen
+      jsonMode = true
+      const bilder = (Array.isArray(body.bilder) ? body.bilder : [body.bild]).filter(Boolean).slice(0, 6)
+      if (!bilder.length) return out({ error: 'Kein Foto übergeben.' }, 400)
+      messages = [
+        { role: 'system', content: 'Du liest Fotos eines Einsatzvertrags (Temporärarbeit/Personalverleih, Schweiz; mehrere Fotos = mehrere Seiten). ' +
+          'Übernimm nur Werte, die wirklich im Vertrag stehen, Zahlen Ziffer für Ziffer; was fehlt oder unlesbar ist, ist null. Prozentsätze als Zahl ohne %-Zeichen (z. B. 8.33), Beträge als Zahl in CHF. ' +
+          'Felder: firma (Einsatzbetrieb/Kunde, nicht das Temporärbüro), einsatzort (Ort/Adresse des Arbeitsorts), kanton (zweistelliges Kürzel des Arbeitsorts, z. B. ZH, AG, BE; aus PLZ/Ort ableiten), ' +
+          'buero (Name des Temporärbüros/Personalverleihers), beginn und ende (YYYY-MM-DD, ende null wenn unbefristet), funktion (Tätigkeit/Beruf), ' +
+          'stundenlohn (GRUNDLOHN pro Stunde OHNE Ferien-, Feiertagsentschädigung und 13. Monatslohn), stundenlohnTotal (Stundenlohn inkl. aller Entschädigungen, falls angegeben), ' +
+          'wochenstunden (vereinbarte/betriebsübliche Wochenarbeitszeit), feiertagProzent, ferienProzent, dreizehnterProzent (Entschädigungen in % des Grundlohns), ' +
+          'ueberstundenZuschlag, nachtZuschlag, sonntagZuschlag (Zuschläge in %), krankFaktor (Lohnfortzahlung bei Krankheit in %, z. B. 80), ' +
+          'ahv, alv, nbu, ktg, bvg, gav, quellensteuer (Arbeitnehmer-Abzüge in % vom Bruttolohn: AHV/IV/EO, ALV, Nichtberufsunfall, Krankentaggeld, Pensionskasse, GAV-Weiterbildung/Vollzug, Quellensteuer), ' +
+          'gavName (anwendbarer GAV), kuendigungsfrist (Text), spesen (Text zu Spesen/Zulagen/Pauschalen), bemerkungen (weitere wichtige Punkte, kurz). ' +
+          'Antworte NUR als JSON mit genau diesen Feldern.' },
+        { role: 'user', content: [
+          { type: 'text', text: bilder.length > 1 ? `Einsatzvertrag, ${bilder.length} Seiten:` : 'Einsatzvertrag:' },
+          ...bilder.map((url: string) => ({ type: 'image_url', image_url: { url, detail: 'high' } })),
+        ] },
+      ]
     } else {
       return out({ error: 'unbekannter task' }, 400)
     }
 
-    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen'].includes(task) ? 'gpt-4o' : 'gpt-4o-mini'
+    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen', 'einsatzvertrag'].includes(task) ? 'gpt-4o' : 'gpt-4o-mini'
     const temperature = task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2
     const ask = async (msgs, temp) => {
       const payload = { model, temperature: temp, messages: msgs }
@@ -188,6 +209,16 @@ Deno.serve(async (req) => {
           JSON.parse(neu) // nur gültiges JSON übernehmen
           content = neu
         }
+      } catch { /* erste Antwort behalten */ }
+    }
+    if (task === 'einsatzvertrag' && content.trim()) {
+      try {
+        const neu = await ask([
+          ...messages,
+          { role: 'assistant', content },
+          { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen die Fotos. Ist stundenlohn wirklich der Grundlohn ohne Ferien/Feiertag/13. ML (nicht der Total-Stundenlohn)? Passt der Kanton zum Arbeitsort (nicht zum Sitz des Büros)? Nichts erfinden — fehlende Werte bleiben null. Antworte NUR mit dem vollständigen korrigierten JSON.' },
+        ], 0)
+        JSON.parse(neu); content = neu
       } catch { /* erste Antwort behalten */ }
     }
     if (jsonMode) { try { return out(JSON.parse(content)) } catch { return out({}) } }

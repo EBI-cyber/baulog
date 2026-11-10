@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { Clock, CalendarDays, Settings, Timer } from 'lucide-react'
+import { Clock, CalendarDays, Settings, Timer, Banknote } from 'lucide-react'
 
 const LINKS = [
   { to: '/', label: 'Heute', icon: Clock, end: true },
   { to: '/woche', label: 'Woche', icon: CalendarDays },
+  { to: '/lohn', label: 'Lohn', icon: Banknote },
   { to: '/einstellungen', label: 'Einstellungen', icon: Settings },
 ]
 
@@ -23,7 +24,7 @@ export default function Nav() {
         ))}
       </aside>
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 glass border-x-0 border-b-0 rounded-none pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-        <div className="max-w-md mx-auto grid grid-cols-3">
+        <div className="max-w-md mx-auto grid grid-cols-4">
           {LINKS.map(({ to, label, icon: I, end }) => (
             <NavLink key={to} to={to} end={end} className={({ isActive }) =>
               'flex flex-col items-center gap-1 text-[11px] font-medium py-1 ' + (isActive ? 'text-white' : 'text-white/45')}>

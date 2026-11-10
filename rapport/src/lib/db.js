@@ -15,6 +15,10 @@ db.version(2).stores({
   // Spesen: { datum, wocheKey, art, betrag, km, notiz }
   spesen: '++id, datum, wocheKey',
 })
+db.version(3).stores({
+  // Einsatz (aus dem Einsatzvertrag): { firma, kanton, einsatzort, stundenlohn, …Prozente, fotos:[dataUrl] }
+  einsaetze: '++id, firma',
+})
 
 // Browser bitten, die Daten nicht automatisch zu löschen
 navigator.storage?.persist?.().catch(() => {})
@@ -44,15 +48,15 @@ export async function wocheMarkieren(key, feld) {
 }
 
 export async function exportieren() {
-  return { app: 'rapport', version: 2, exportiertAm: new Date().toISOString(),
+  return { app: 'rapport', version: 3, exportiertAm: new Date().toISOString(),
     schichten: await db.schichten.toArray(), wochen: await db.wochen.toArray(),
-    absenzen: await db.absenzen.toArray(), spesen: await db.spesen.toArray() }
+    absenzen: await db.absenzen.toArray(), spesen: await db.spesen.toArray(), einsaetze: await db.einsaetze.toArray() }
 }
 
 export async function importieren(daten) {
   if (daten?.app !== 'rapport') throw new Error('Keine Rapport-Sicherung')
-  await db.transaction('rw', [db.schichten, db.wochen, db.absenzen, db.spesen], async () => {
-    for (const t of ['schichten', 'wochen', 'absenzen', 'spesen']) {
+  await db.transaction('rw', [db.schichten, db.wochen, db.absenzen, db.spesen, db.einsaetze], async () => {
+    for (const t of ['schichten', 'wochen', 'absenzen', 'spesen', 'einsaetze']) {
       await db[t].clear(); await db[t].bulkAdd(daten[t] || [])
     }
   })

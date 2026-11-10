@@ -151,3 +151,48 @@ export function rapportPdf({ einst, woche, schichten, absenzen = [], spesen = []
 
   return doc.output('blob')
 }
+
+/** Lohnabrechnung (Schätzung) als PDF — nur für mich, nicht für das Büro */
+export function lohnPdf({ einst, lohn, titel, von, bis }) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const L = 15, R = 195, w = einst.waehrung
+  const geld = (n) => `${w} ${(n || 0).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  let y = 22
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Lohnabrechnung (Schätzung)', L, y)
+  doc.setFontSize(12); doc.text(titel, R, y, { align: 'right' })
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
+  y += 7; doc.text(`${einst.name || ''} · ${datumLang(new Date(von + 'T12:00'))} – ${datumLang(new Date(bis + 'T12:00'))}`, L, y)
+  y += 6
+  const neu = (p = 10) => { if (y > 280 - p) { doc.addPage(); y = 20 } }
+  const zeile = (label, betrag, { info, fett, minus } = {}) => {
+    neu()
+    doc.setFont('helvetica', fett ? 'bold' : 'normal'); doc.setFontSize(fett ? 10.5 : 9.5); doc.setTextColor(0)
+    doc.text(label, L + 2, y)
+    if (info) { doc.setFontSize(8.5); doc.setTextColor(120); doc.text(info, L + 95, y); doc.setTextColor(0); doc.setFontSize(fett ? 10.5 : 9.5) }
+    doc.text((minus ? '- ' : '') + geld(betrag), R, y, { align: 'right' })
+    y += fett ? 7 : 5.5
+  }
+  for (const p of lohn.posten) {
+    y += 5; neu(30)
+    doc.setFillColor(235, 245, 248); doc.rect(L, y - 5, R - L, 8, 'F')
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+    doc.text(`${p.firma}${p.einsatz?.kanton ? ' (' + p.einsatz.kanton + ')' : ''}`, L + 2, y)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
+    if (p.stundenlohn) doc.text(`Grundlohn ${geld(p.stundenlohn)} / Std.`, R - 2, y, { align: 'right' })
+    y += 8
+    for (const x of p.zeilen) zeile(x.art ? `${absenzArt(x.art).label} (Lohnfortzahlung)` : x.label, x.betrag, { info: x.info })
+    doc.setDrawColor(200); doc.line(L, y - 3.5, R, y - 3.5)
+    zeile('Bruttolohn', p.brutto, { fett: true })
+    for (const a of p.abzuege) zeile(`${a.label} ${a.prozent} %`, a.betrag, { minus: true })
+    doc.line(L, y - 3.5, R, y - 3.5)
+    zeile('Nettolohn', p.netto, { fett: true })
+  }
+  y += 4; neu(25)
+  doc.setDrawColor(120); doc.line(L, y - 3.5, R, y - 3.5)
+  zeile('Total Nettolohn', lohn.netto)
+  zeile('Spesen', lohn.spesen)
+  zeile('Auszahlung', w === 'CHF' ? Math.round(lohn.auszahlung * 20) / 20 : lohn.auszahlung, { fett: true })
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(140)
+  doc.text(doc.splitTextToSize('Eigene Schätzung nach Schema GAV Personalverleih, ohne Gewähr. Massgebend ist die Lohnabrechnung des Temporärbüros.', R - L), L, 285)
+  return doc.output('blob')
+}

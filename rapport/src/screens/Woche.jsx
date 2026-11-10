@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, Send, CloudUpload, FileText, Plus, CheckCircle2, MessageCircle, AlertTriangle, CalendarOff, Wallet } from 'lucide-react'
-import { db, wocheMarkieren } from '../lib/db'
+import { ChevronLeft, ChevronRight, Send, CloudUpload, FileText, Plus, CheckCircle2, MessageCircle, AlertTriangle, CalendarOff, Wallet, PartyPopper, Banknote } from 'lucide-react'
+import { db, wocheMarkieren, speichereAbsenz } from '../lib/db'
+import { feiertagAm } from '../lib/feiertage'
+import { kantonFuer } from '../lib/kanton'
+import { tagesSoll } from '../lib/settings'
+import { useLohn } from '../lib/useLohn'
+import { chf } from '../lib/lohn'
+import { Link } from 'react-router-dom'
 import { useEinstellungen } from '../lib/settings'
 import { isoWoche, wochenKey, ausKey, wocheVersetzt, wochenTage, isoDatum, TAGE_LANG, datumKurz, datumLang, arbeitMs, hm, dezimal, uhr } from '../lib/zeit'
 import { rapportPdf, dateiName } from '../lib/pdf'
@@ -25,6 +31,7 @@ export default function Woche() {
   const absenzen = useLiveQuery(() => db.absenzen.where('wocheKey').equals(wKey).toArray(), [wKey], null)
   const spesen = useLiveQuery(() => db.spesen.where('wocheKey').equals(wKey).toArray(), [wKey], null)
   const status = useLiveQuery(() => db.wochen.get(wKey), [wKey], null)
+  const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], [])
   const [sheet, setSheet] = useState(null)
   const [meldung, setMeldung] = useState(null)
   const tage = wochenTage(woche)
@@ -32,20 +39,26 @@ export default function Woche() {
 
   const fertig = (schichten || []).filter((s) => s.ende != null)
   const laeuftNoch = (schichten || []).some((s) => s.ende == null)
-  const r = wochenRechnung({ schichten: fertig, absenzen: absenzen || [], spesen: spesen || [], einst })
+  // Soll aus dem Einsatzvertrag der Woche, sonst aus den Einstellungen
+  const einsatzSoll = (einsaetze || []).find((e) => (schichten || []).some((x) => x.firma === e.firma) && +e.wochenstunden)?.wochenstunden
+  const einstW = einsatzSoll ? { ...einst, wochenSoll: einsatzSoll } : einst
+  const r = wochenRechnung({ schichten: fertig, absenzen: absenzen || [], spesen: spesen || [], einst: einstW })
   const hatDaten = fertig.length > 0 || (absenzen || []).length > 0
   const heuteIso = isoDatum(new Date())
+  const kanton = kantonFuer([...new Set((schichten || []).map((s) => s.firma))], einsaetze, einst)
+  const lohn = useLohn(isoDatum(tage[0]), isoDatum(tage[6]), einst)
+  const feiertagEintragen = (d, name) => speichereAbsenz({ datum: d, art: 'feiertag', firma: einst.firma, halbtag: false, stunden: tagesSoll(einst), zeugnis: false, notiz: name })
   // Vergangene Werktage ohne Eintrag (Rapport soll vollständig sein)
   const luecken = schichten && absenzen ? tage.filter((t) => {
     const d = isoDatum(t)
-    return t.getDay() !== 0 && t.getDay() !== 6 && d < heuteIso &&
+    return t.getDay() !== 0 && t.getDay() !== 6 && d < heuteIso && !feiertagAm(kanton, d) &&
       !schichten.some((s) => s.datum === d) && !absenzen.some((a) => a.datum === d)
   }) : []
 
   // PDF vorab erzeugen: iOS erlaubt das Teilen-Menü nur direkt im Klick (ohne Warten davor)
-  const pdf = useMemo(() => (hatDaten ? rapportPdf({ einst, woche, schichten: fertig, absenzen: absenzen || [], spesen: spesen || [] }) : null),
+  const pdf = useMemo(() => (hatDaten ? rapportPdf({ einst: einstW, woche, schichten: fertig, absenzen: absenzen || [], spesen: spesen || [] }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [schichten, absenzen, spesen, einst, wKey])
+    [schichten, absenzen, spesen, einst, einsaetze, wKey])
   const name = dateiName(einst, woche)
   const [pdfUrl, setPdfUrl] = useState(null)
   useEffect(() => {
@@ -111,6 +124,11 @@ export default function Woche() {
             {Object.entries(r.nachArt).map(([k, v]) => `${k} ${v}`).join(' · ')}
           </div>}
         </div>
+        {lohn && lohn.brutto > 0 && <Link to="/lohn" className="glass rounded-3xl p-4 col-span-2 flex items-center justify-between card-hover">
+          <div className="text-white/40 text-xs inline-flex items-center gap-1.5"><Banknote className="w-4 h-4" /> Lohn (geschätzt)</div>
+          <div className="text-right tabular-nums"><div className="text-lg font-bold">{chf(lohn.netto, einst.waehrung)} <span className="text-xs font-normal text-white/40">netto</span></div>
+            <div className="text-xs text-white/40">brutto {chf(lohn.brutto, einst.waehrung)}</div></div>
+        </Link>}
         {r.spesen > 0 && <div className="glass rounded-3xl p-4 col-span-2 flex items-center justify-between">
           <div className="text-white/40 text-xs inline-flex items-center gap-1.5"><Wallet className="w-4 h-4" /> Spesen</div>
           <div className="text-lg font-bold tabular-nums">{einst.waehrung} {r.spesen.toFixed(2)}</div>
@@ -193,6 +211,13 @@ export default function Woche() {
                   </button>
                 </div>
               </div>
+              {feiertagAm(kanton, d) && !abw.length && (
+                <div className="rounded-2xl px-4 py-2.5 flex items-center gap-3 border border-dashed border-violet-400/40 text-violet-300">
+                  <PartyPopper className="w-5 h-5 shrink-0" strokeWidth={1.9} />
+                  <div className="min-w-0 flex-1 text-sm"><b>{feiertagAm(kanton, d)}</b> <span className="opacity-70">· Feiertag {kanton}</span></div>
+                  <button onClick={() => feiertagEintragen(d, feiertagAm(kanton, d))} className="shrink-0 rounded-xl px-3 py-1.5 bg-white/10 text-white text-sm font-semibold">Eintragen</button>
+                </div>
+              )}
               {abw.map((a) => <AbsenzZeile key={'a' + a.id} a={a} onClick={() => setSheet({ typ: 'absenz', objekt: a })} />)}
               {liste.map((s) => <SchichtZeile key={s.id} s={s} onClick={() => setSheet({ typ: 'zeit', objekt: s })} />)}
               {sp.map((x) => <SpesenZeile key={'s' + x.id} s={x} waehrung={einst.waehrung} onClick={() => setSheet({ typ: 'spesen', objekt: x })} />)}

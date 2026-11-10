@@ -10,7 +10,8 @@ const STANDARD = {
   wochenSoll: '',    // Soll-Stunden pro Woche (leer = keine Über-/Minusstunden)
   arbeitstage: 5,    // Arbeitstage pro Woche → Tagessoll = wochenSoll / arbeitstage
   waehrung: 'CHF',
-  kmSatz: '0.70',    // Entschädigung pro km (für Spesen „Fahrt")
+  kmSatz: '0.70',
+  kanton: '',        // Kanton für Feiertage, wenn kein Einsatz zugeordnet ist    // Entschädigung pro km (für Spesen „Fahrt")
 }
 
 /** Tagessoll in Stunden (Vorschlag für bezahlte Abwesenheiten), Standard 8 */

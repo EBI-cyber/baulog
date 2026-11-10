@@ -36,7 +36,7 @@ export default function AbsenzSheet({ absenz, datum, onClose }) {
     if (!f.von) return setFehler('Bitte ein Datum wählen.')
     if (!absenz && f.bis < f.von) return setFehler('„Bis" liegt vor „Von".')
     if (!tage.length) return setFehler('Im Zeitraum liegen keine Arbeitstage.')
-    const basis = { art: f.art, halbtag: f.halbtag, stunden: zahl(f.stunden), zeugnis: !!(art.zeugnis && f.zeugnis), notiz: f.notiz.trim() }
+    const basis = { firma: absenz?.firma || einst.firma || '', art: f.art, halbtag: f.halbtag, stunden: zahl(f.stunden), zeugnis: !!(art.zeugnis && f.zeugnis), notiz: f.notiz.trim() }
     if (absenz) await speichereAbsenz({ ...absenz, ...basis, datum: f.von })
     else for (const d of tage) await speichereAbsenz({ ...basis, datum: d })
     onClose()
