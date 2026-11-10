@@ -53,11 +53,16 @@ async function versenden(g, wKey, status, wunsch, mehrere) {
   const cc = einst.kopieAnMich ? msLaden().konto : ''
   try {
     // Durchschlag an den Einsatzbetrieb: per E-Mail; für WhatsApp ein OneDrive-Link (nur ansehen)
-    const k = status.kopieEmail ? {
-      an: status.kopieEmail,
+    // Bei Vertretung bekommt der Haupt-Unterzeichner (z.B. Polier) eine Kopie zur Kenntnis
+    const an = status.kopieEmail || (status.vertretungFuer && status.kopieCc) || ''
+    const cc = status.kopieEmail && status.vertretungFuer ? status.kopieCc : ''
+    const vertretungText = status.vertretungFuer
+      ? `\n\nUnterschrieben von ${status.firmaName}${status.firmaFunktion ? ' (' + status.firmaFunktion + ')' : ''} in Vertretung von ${status.vertretungFuer}.` : ''
+    const k = an ? {
+      an, cc,
       betreff: `Durchschlag Rapport KW ${woche.kw}/${woche.jahr} – ${einst.name || ''}`,
-      text: `Guten Tag${status.firmaName ? ' ' + status.firmaName : ''}\n\nIm Anhang Ihr Durchschlag des unterschriebenen Rapports für KW ${woche.kw}/${woche.jahr} ` +
-        `(${einst.name || ''}, Einsatz bei ${g.firma}).\n\nFreundliche Grüsse\n${einst.name || ''}`,
+      text: `Guten Tag\n\nIm Anhang der Durchschlag des unterschriebenen Rapports für KW ${woche.kw}/${woche.jahr} ` +
+        `(${einst.name || ''}, Einsatz bei ${g.firma}).${vertretungText}\n\nFreundliche Grüsse\n${einst.name || ''}`,
     } : null
     const r = await msVersand({
       datei,

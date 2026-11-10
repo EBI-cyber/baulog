@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Briefcase, Camera, Sparkles, Trash2, X, Loader2, AlertTriangle } from 'lucide-react'
+import { Briefcase, Camera, Sparkles, Trash2, X, Loader2, AlertTriangle, Star, UserPlus } from 'lucide-react'
 import Sheet from './Sheet'
 import { db } from '../lib/db'
 import { useEinstellungen, zahl } from '../lib/settings'
@@ -8,6 +8,7 @@ import { LOHN_STANDARD, ABZUEGE, stundenlohnTotal } from '../lib/lohn'
 import { verkleinern } from '../lib/bild'
 import { einsatzvertragLesen, kiVerfuegbar } from '../lib/ki'
 import { BRANCHEN, branche, brancheAnwenden } from '../lib/branchen'
+import { liste, FUNKTIONEN } from '../lib/unterschreiber'
 
 const NEU = { firma: '', branche: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
   gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
@@ -32,7 +33,8 @@ const Titel = ({ children }) => <div className="text-xs font-semibold uppercase 
 
 export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
   const [einst, setEinst] = useEinstellungen()
-  const [f, setF] = useState(() => ({ ...NEU, ...(vorgabe || {}), ...(einsatz || {}) }))
+  const [f, setF] = useState(() => ({ ...NEU, ...(vorgabe || {}), ...(einsatz || {}), unterschreiber: liste(einsatz) }))
+  const setU = (fn) => setF((x) => ({ ...x, unterschreiber: fn(x.unterschreiber || []) }))
   const br = branche(f.branche)
   const [ki, setKi] = useState({ laeuft: false, fehler: '', erkannt: null })
   const datei = useRef()
@@ -76,7 +78,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
   async function sichern() {
     const firma = f.firma.trim()
     if (!firma) return setKi((k) => ({ ...k, fehler: 'Bitte den Einsatzbetrieb (Firma) eintragen.' }))
-    const daten = { ...f, firma }
+    const daten = { ...f, firma, unterschreiber: (f.unterschreiber || []).filter((x) => x.name?.trim()) }
     const alt = einsatz?.firma
     await db.transaction('rw', db.einsaetze, db.schichten, db.absenzen, async () => {
       await db.einsaetze.put(daten)
@@ -180,6 +182,30 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         <Feld label="WhatsApp / Telefon" inputMode="tel" value={f.bueroTel} onChange={set('bueroTel')} placeholder="+41 …" />
         <Feld label="Kontaktperson / Agent" value={f.bueroKontakt} onChange={set('bueroKontakt')} />
         <Feld breit label="E-Mail (Rapporte gehen automatisch hierhin)" type="email" value={f.bueroEmail} onChange={set('bueroEmail')} />
+      </div>
+
+      <Titel>Unterschrift Einsatzbetrieb — berechtigt</Titel>
+      <div className="text-xs text-white/45">Wer den Rapport unterschreiben darf. <Star className="w-3 h-3 inline" /> = Standard (z.B. Polier). Unterschreibt jemand anderes, steht „i.V.“ im Rapport und der Standard bekommt eine Kopie. Neue Personen kommen nach deiner Bestätigung automatisch dazu.</div>
+      <div className="space-y-2">
+        {(f.unterschreiber || []).map((p, i) => (
+          <div key={p.id || i} className="rounded-2xl bg-white/[0.04] border border-white/10 p-2.5 space-y-2">
+            <div className="flex items-center gap-2">
+              <button type="button" aria-label="Als Standard setzen" onClick={() => setU((l) => l.map((x, j) => ({ ...x, standard: j === i })))}
+                className={'shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ' + (p.standard ? 'btn-grad' : 'bg-white/10 text-white/40')}><Star className="w-4 h-4" /></button>
+              <input className="eingabe py-1.5" placeholder="Name" value={p.name} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+              <button type="button" aria-label="Entfernen" onClick={() => setU((l) => l.filter((_, j) => j !== i))} className="shrink-0 text-white/30 hover:text-ember p-1"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <select className="eingabe py-1.5 text-sm" value={p.funktion} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, funktion: e.target.value } : x)))}>
+                {FUNKTIONEN.map((fn) => <option key={fn}>{fn}</option>)}
+              </select>
+              <input className="eingabe py-1.5 text-sm" type="email" placeholder="E-Mail" value={p.email || ''} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
+              <input className="eingabe py-1.5 text-sm" type="tel" placeholder="WhatsApp" value={p.tel || ''} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, tel: e.target.value } : x)))} />
+            </div>
+          </div>
+        ))}
+        <button type="button" onClick={() => setU((l) => [...l, { id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), name: '', funktion: l.length ? 'Vorarbeiter' : 'Polier', email: '', tel: '', standard: !l.some((x) => x.standard) }])}
+          className="w-full rounded-xl py-2 border border-dashed border-white/20 text-white/60 text-sm inline-flex items-center justify-center gap-1.5"><UserPlus className="w-4 h-4" /> Person hinzufügen</button>
       </div>
 
       <Titel>Lohn</Titel>

@@ -31,7 +31,7 @@ export default function QrSignatur({ g, woche, ma, onUnterschrift }) {
         const s = await signaturStatus(token, true).catch(() => null)
         if (!s || s.status === 'offen') continue
         setAntwort(s)
-        if (s.status === 'unterschrieben') { onUnterschrift({ bild: s.bild, name: s.name, am: Date.parse(s.beantwortet) || Date.now(), email: s.email || '', tel: s.tel || '' }); setZustand(null) }
+        if (s.status === 'unterschrieben') { onUnterschrift({ bild: s.bild, name: s.name, funktion: s.funktion || '', id: s.unterschreiberId || null, am: Date.parse(s.beantwortet) || Date.now(), email: s.email || '', tel: s.tel || '' }); setZustand(null) }
         return
       }
     } catch (e) { setFehler(e.message); setZustand(null) }

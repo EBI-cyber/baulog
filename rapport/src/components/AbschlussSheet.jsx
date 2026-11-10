@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Send, Mail, CloudUpload, Loader2, AlertTriangle, Share2, Building2, Phone, MessageCircle, Copy } from 'lucide-react'
+import { CheckCircle2, Send, Mail, CloudUpload, Loader2, AlertTriangle, Share2, Building2, Phone, MessageCircle, Copy, ShieldAlert, UserPlus } from 'lucide-react'
 import Sheet from './Sheet'
 import Unterschrift from './Unterschrift'
 import QrSignatur from './QrSignatur'
@@ -11,6 +11,7 @@ import { abschliessen, gruppenPdf, ordnerPfad } from '../lib/versand'
 import { useMs } from '../lib/microsoft'
 import { teileDatei, whatsappLink } from '../lib/teilen'
 import { db } from '../lib/db'
+import { liste, standardPerson, finde, merken, FUNKTIONEN } from '../lib/unterschreiber'
 import { wochenRechnung, std } from '../lib/woche'
 import { ausKey } from '../lib/zeit'
 
@@ -40,35 +41,42 @@ export default function AbschlussSheet({ wKey, onClose }) {
 
 function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
   const status = useLiveQuery(() => rapportStatus(wKey, g.firma, !mehrere), [wKey, g.firma, mehrere], undefined)
-  const [ma, setMa] = useState(null), [fi, setFi] = useState(null), [fiName, setFiName] = useState(''), [fiAm, setFiAm] = useState(null)
+  // Einsatz live (die Liste der Unterschriftsberechtigten ändert sich beim Bestätigen)
+  const einsatz = useLiveQuery(() => (g.einsatz?.id ? db.einsaetze.get(g.einsatz.id) : null), [g.einsatz?.id], g.einsatz) || g.einsatz
+  const personen = liste(einsatz), haupt = standardPerson(einsatz)
+  const [ma, setMa] = useState(null), [fi, setFi] = useState(null), [fiAm, setFiAm] = useState(null)
+  // wer unterschreibt für den Einsatzbetrieb: { id?, name, funktion, email, tel, neu?, bestaetigt? }
+  const [wer, setWer] = useState({ name: '', funktion: '', email: '', tel: '' })
   const [wunsch, setWunsch] = useState({ mail: true, onedrive: true })
-  const [kopie, setKopie] = useState({ email: '', tel: '' }) // Durchschlag an den Einsatzbetrieb
   const [laeuft, setLaeuft] = useState(false), [ergebnis, setErgebnis] = useState(null)
   useEffect(() => {
     if (status === undefined) return
     setMa(status?.maBild || einst.unterschrift?.bild || null)
     setFi(status?.firmaBild || null)
-    setFiName(status?.firmaName || g.einsatz?.polierName || g.einsatz?.meldenBei || '')
-    setKopie({ email: status?.kopieEmail || g.einsatz?.polierEmail || '', tel: status?.kopieTel || g.einsatz?.polierTel || '' })
+    if (status?.firmaName) setWer({ id: status.firmaId, name: status.firmaName, funktion: status.firmaFunktion || '', email: status.kopieEmail || '', tel: status.kopieTel || '', bestaetigt: true })
+    else if (haupt) setWer({ ...haupt, bestaetigt: true })
   }, [status === undefined]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const waehle = (p) => setWer(p ? { ...p, bestaetigt: true } : { name: '', funktion: '', email: '', tel: '', neu: true, bestaetigt: true })
+  // Vertretung: jemand anderes als der Haupt-Unterzeichner → steht im Rapport, Haupt-Unterzeichner bekommt Kopie
+  const vertretung = haupt && wer.name && (wer.id ? wer.id !== haupt.id : wer.name.trim().toLowerCase() !== haupt.name.trim().toLowerCase()) ? haupt : null
+  const unbestaetigt = fi && wer.neu && !wer.bestaetigt
 
   const total = wochenRechnung({ schichten: g.schichten, absenzen: g.absenzen, einst: g.einst }).total
   const jetzt = Date.now()
   const unterschriften = { maBild: ma, maAm: ma ? (status?.maBild === ma ? status.maAm : jetzt) : null,
-    firmaBild: fi, firmaName: fiName, firmaAm: fi ? (fiAm || (status?.firmaBild === fi ? status.firmaAm : jetzt)) : null,
-    kopieEmail: kopie.email.trim(), kopieTel: kopie.tel.trim() }
+    firmaBild: fi, firmaName: wer.name.trim(), firmaFunktion: wer.funktion, firmaId: wer.id || null,
+    firmaAm: fi ? (fiAm || (status?.firmaBild === fi ? status.firmaAm : jetzt)) : null,
+    vertretungFuer: vertretung?.name || null, kopieCc: vertretung?.email || '',
+    kopieEmail: (wer.email || '').trim(), kopieTel: (wer.tel || '').trim() }
   // PDF vorab (für das Teilen-Menü ohne Microsoft — iOS verlangt den direkten Klick)
-  const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, fiName, fiAm, g]) // eslint-disable-line react-hooks/exhaustive-deps
+  const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, wer, fiAm, g]) // eslint-disable-line react-hooks/exhaustive-deps
   const email = g.einsatz?.bueroEmail
-
-  // Kontakt des Poliers im Einsatz merken — nächste Woche vorausgefüllt
-  async function polierMerken(name, k) {
-    if (g.einsatz?.id) await db.einsaetze.update(g.einsatz.id, { polierName: name || g.einsatz.polierName || '', polierEmail: k.email, polierTel: k.tel })
-  }
 
   async function los() {
     setLaeuft(true); setErgebnis(null)
-    await polierMerken(fiName, kopie)
+    // bestätigte Person in die Liste der Unterschriftsberechtigten (nächstes Mal bekannt)
+    if (fi && wer.name.trim()) { const p = await merken(einsatz, wer); if (p) unterschriften.firmaId = p.id }
     try {
       const r = await abschliessen({ g, wKey, unterschriften, wunsch, mehrere })
       setErgebnis(r)
@@ -91,19 +99,56 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
         <Unterschrift wert={ma} onChange={setMa} hoehe={130} />
       </div>
       <div className="space-y-1.5">
-        <div className="text-xs text-white/50">Unterschrift Einsatzbetrieb (Vorarbeiter / Polier)</div>
+        <div className="text-xs text-white/50">Unterschrift Einsatzbetrieb</div>
+        {/* Wer unterschreibt? Bekannte Berechtigte oder neue Person */}
+        <div className="flex flex-wrap gap-1.5">
+          {personen.map((p) => (
+            <button key={p.id} type="button" onClick={() => waehle(p)}
+              className={'px-2.5 py-1.5 rounded-xl text-xs border text-left ' + (wer.id === p.id ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/70')}>
+              {p.name}<span className="block text-[10px] opacity-70">{p.funktion}{p.standard ? ' · Standard' : ''}</span>
+            </button>
+          ))}
+          <button type="button" onClick={() => waehle(null)}
+            className={'px-2.5 py-1.5 rounded-xl text-xs border inline-flex items-center gap-1 ' + (wer.neu && !wer.id ? 'btn-grad border-transparent font-semibold' : 'border-dashed border-white/25 text-white/60')}>
+            <UserPlus className="w-3.5 h-3.5" /> Andere Person
+          </button>
+        </div>
+        {(wer.neu || !personen.length) && !wer.id && <>
+          <input className="eingabe" placeholder="Name des Unterzeichners" value={wer.name} onChange={(e) => setWer({ ...wer, name: e.target.value, neu: true })} />
+          <div className="flex flex-wrap gap-1.5">
+            {FUNKTIONEN.map((fn) => (
+              <button key={fn} type="button" onClick={() => setWer({ ...wer, funktion: fn, neu: true })}
+                className={'px-2.5 py-1 rounded-full text-xs border ' + (wer.funktion === fn ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{fn}</button>
+            ))}
+          </div>
+        </>}
+        {vertretung && <div className="text-xs rounded-xl px-3 py-2 bg-amber-400/10 border border-amber-400/30 text-amber-200">
+          Vertretung: unterschreibt für <b>{vertretung.name}</b> ({vertretung.funktion}). Im Rapport steht „i.V.“{vertretung.email ? `, ${vertretung.name} bekommt eine Kopie` : ''}.
+        </div>}
         <Unterschrift wert={fi} onChange={(b) => { setFi(b); setFiAm(null) }} hoehe={150} />
-        <input className="eingabe" placeholder="Name des Unterzeichners" value={fiName} onChange={(e) => setFiName(e.target.value)} />
-        {!fi && <QrSignatur g={g} woche={woche} ma={{ bild: ma, am: unterschriften.maAm }} onUnterschrift={({ bild, name, am, email, tel }) => {
-          setFi(bild); setFiName(name || ''); setFiAm(am)
-          const k = { email: email || kopie.email, tel: tel || kopie.tel }
-          setKopie(k); polierMerken(name, k)
+        {!fi && <QrSignatur g={g} woche={woche} ma={{ bild: ma, am: unterschriften.maAm }} onUnterschrift={({ bild, name, funktion, id, am, email, tel }) => {
+          setFi(bild); setFiAm(am)
+          const p = finde(einsatz, { id, email, name })
+          // bekannte Person → direkt; neue Person → erst bestätigen
+          setWer(p ? { ...p, email: email || p.email, tel: tel || p.tel, bestaetigt: true }
+            : { name: name || '', funktion: funktion || '', email: email || '', tel: tel || '', neu: true, bestaetigt: false })
         }} />}
+        {unbestaetigt && (
+          <div className="rounded-2xl p-3 bg-amber-400/10 border border-amber-400/40 space-y-2">
+            <div className="text-sm text-amber-200 flex gap-2"><ShieldAlert className="w-5 h-5 shrink-0" />
+              <span><b>{wer.name}</b>{wer.funktion ? ` (${wer.funktion})` : ''} unterschreibt zum ersten Mal für {g.firma}. Ist die Person berechtigt?</span></div>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setWer({ ...wer, bestaetigt: true })} className="rounded-xl py-2 btn-grad text-sm font-bold">Ja, berechtigt</button>
+              <button type="button" onClick={() => { setFi(null); haupt ? waehle(haupt) : setWer({ name: '', funktion: '', email: '', tel: '' }) }}
+                className="rounded-xl py-2 bg-white/10 text-sm font-semibold">Nein, verwerfen</button>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
-            <input className="eingabe pl-9 text-sm" type="email" placeholder="Durchschlag E-Mail" value={kopie.email} onChange={(e) => setKopie({ ...kopie, email: e.target.value })} /></div>
+            <input className="eingabe pl-9 text-sm" type="email" placeholder="Durchschlag E-Mail" value={wer.email || ''} onChange={(e) => setWer({ ...wer, email: e.target.value })} /></div>
           <div className="relative"><Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
-            <input className="eingabe pl-9 text-sm" type="tel" placeholder="Durchschlag WhatsApp" value={kopie.tel} onChange={(e) => setKopie({ ...kopie, tel: e.target.value })} /></div>
+            <input className="eingabe pl-9 text-sm" type="tel" placeholder="Durchschlag WhatsApp" value={wer.tel || ''} onChange={(e) => setWer({ ...wer, tel: e.target.value })} /></div>
         </div>
       </div>
 
@@ -117,23 +162,24 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
             <input type="checkbox" className="w-5 h-5 accent-cyan-400" checked={wunsch.onedrive} onChange={(e) => setWunsch({ ...wunsch, onedrive: e.target.checked })} />
             <CloudUpload className="w-4 h-4 text-white/50" /> <span className="min-w-0 truncate">OneDrive: {ordnerPfad(einst.onedriveOrdner, woche, g)}</span>
           </label>
-          <button onClick={los} disabled={laeuft || (!wunsch.mail && !wunsch.onedrive)}
+          <button onClick={los} disabled={laeuft || unbestaetigt || (fi && !wer.name.trim()) || (!wunsch.mail && !wunsch.onedrive)}
             className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50">
             {laeuft ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />} Bestätigen & senden
           </button>
         </>
       ) : (
-        <button onClick={async () => {
+        <button disabled={unbestaetigt} onClick={async () => {
+          if (fi && wer.name.trim()) await merken(einsatz, wer)
           const r = await teileDatei(datei.blob, datei.name).catch(() => 'fehler')
           if (r === 'geteilt' || r === 'heruntergeladen') await abschliessen({ g, wKey, unterschriften, wunsch, mehrere })
-        }} className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2">
+        }} className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50">
           <Share2 className="w-5 h-5" /> Unterschreiben & teilen
         </button>
       )}
 
       {s?.gesendetAm && <div className="text-sm text-lime flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> Gesendet an {s.gesendetAn || 'Büro'}</div>}
       {s?.gespeichertAm && <div className="text-sm text-lime flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> In OneDrive gespeichert{s.onedrivePfad ? `: ${s.onedrivePfad}` : ''}</div>}
-      {s?.kopieGesendetAm && <div className="text-sm text-lime flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> Durchschlag per E-Mail an {s.kopieEmail}</div>}
+      {s?.kopieGesendetAm && <div className="text-sm text-lime flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> Durchschlag per E-Mail an {[s.kopieEmail, s.vertretungFuer && s.kopieCc].filter(Boolean).join(' und ')}</div>}
       {(s?.gesendetAm || s?.abgeschlossenAm) && s?.kopieTel && (
         s.kopieLink
           ? <a href={whatsappLink(s.kopieTel, `Guten Tag${s.firmaName ? ' ' + s.firmaName : ''}, hier Ihr Durchschlag vom Rapport KW ${woche.kw}/${woche.jahr} (${einst.name}): ${s.kopieLink}`)}

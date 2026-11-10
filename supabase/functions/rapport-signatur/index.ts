@@ -42,9 +42,12 @@ Deno.serve(async (req) => {
       const ok = b.einverstanden !== false
       const bild = ok ? String(b.bild || '') : null
       if (ok && (!bild.startsWith('data:image/png;base64,') || bild.length > 200_000)) return out({ error: 'Unterschrift fehlt' }, 400)
+      if (!String(b.name || '').trim()) return out({ error: 'Name fehlt' }, 400)
       const { error: e2 } = await db.from(T).update({
         status: ok ? 'unterschrieben' : 'abgelehnt', bild, name: String(b.name || '').slice(0, 120),
         bemerkung: String(b.bemerkung || '').slice(0, 2000), beantwortet: new Date().toISOString(),
+        funktion: String(b.funktion || '').slice(0, 60) || null,
+        unterschreiber_id: String(b.unterschreiberId || '').slice(0, 60) || null,
         // Durchschlag: E-Mail und/oder WhatsApp-Nummer des Unterzeichners
         kopie_email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.email || '').trim()) ? String(b.email).trim().slice(0, 200) : null,
         kopie_tel: String(b.tel || '').replace(/[^\d+]/g, '').slice(0, 20) || null,
@@ -54,7 +57,7 @@ Deno.serve(async (req) => {
     }
 
     if (b.task === 'status') {
-      const antwort = { status: z.status, bild: z.bild, name: z.name, bemerkung: z.bemerkung, beantwortet: z.beantwortet, email: z.kopie_email, tel: z.kopie_tel }
+      const antwort = { status: z.status, bild: z.bild, name: z.name, bemerkung: z.bemerkung, beantwortet: z.beantwortet, email: z.kopie_email, tel: z.kopie_tel, funktion: z.funktion, unterschreiberId: z.unterschreiber_id }
       // abgeholt → löschen (die Unterschrift liegt jetzt beim Mitarbeiter)
       if (z.status !== 'offen' && b.abholen) await db.from(T).delete().eq('token', b.token)
       return out(antwort)

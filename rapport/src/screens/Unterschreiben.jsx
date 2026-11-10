@@ -8,25 +8,37 @@ import { wochenTage, isoDatum, TAGE, datumKurz, datumLang, uhr, pauseMs, arbeitM
 import { absenzArt } from '../lib/arten'
 import { wochenRechnung, std } from '../lib/woche'
 import { zahl } from '../lib/settings'
+import { FUNKTIONEN, unterzeichnerText } from '../lib/unterschreiber'
 
 /** Öffentliche Seite für den Polier/Vorarbeiter (per QR-Code): Rapport ansehen und unterschreiben — ohne Konto */
 export default function Unterschreiben() {
   const { token } = useParams()
+  // neuer Link → alles frisch (kein alter Zustand aus einem vorherigen Rapport)
+  return <Inhalt key={token} token={token} />
+}
+
+function Inhalt({ token }) {
   const [d, setD] = useState(null), [fehler, setFehler] = useState('')
   const [bild, setBild] = useState(null), [name, setName] = useState('')
   const [nein, setNein] = useState(false), [bemerkung, setBemerkung] = useState('')
   const [sende, setSende] = useState(false), [fertig, setFertig] = useState(null)
   const [email, setEmail] = useState(''), [tel, setTel] = useState('')
+  const [wer, setWer] = useState(null) // id einer bekannten Person | 'neu'
+  const [funktion, setFunktion] = useState('')
   const [durchschlag, setDurchschlag] = useState(null) // Blob-URL des PDFs mit beiden Unterschriften
 
   useEffect(() => {
     signaturLesen(token).then((r) => {
       setD(r.daten)
       if (r.status !== 'offen') setFertig(r.status)
-      const p = r.daten?.polier || {}
-      setName(p.name || ''); setEmail(p.email || ''); setTel(p.tel || '')
+      if (!(r.daten?.unterschreiber || []).length) setWer('neu')
     }).catch((e) => setFehler(e.message))
   }, [token])
+
+  const bekannte = d?.unterschreiber || []
+  const haupt = bekannte.find((x) => x.standard) || null
+  const gewaehlt = bekannte.find((x) => x.id === wer)
+  const nameOk = gewaehlt || (wer === 'neu' && name.trim() && funktion)
 
   const pdfUrl = useMemo(() => {
     if (!d) return null
@@ -36,11 +48,16 @@ export default function Unterschreiben() {
   async function senden(einverstanden) {
     setSende(true); setFehler('')
     try {
-      await signaturAntworten(token, einverstanden ? { einverstanden: true, bild, name, email, tel } : { einverstanden: false, name, bemerkung })
+      const person = bekannte.find((x) => x.id === wer)
+      const n = person ? person.name : name.trim(), fn = person ? person.funktion : funktion
+      await signaturAntworten(token, einverstanden
+        ? { einverstanden: true, bild, name: n, funktion: fn, unterschreiberId: person?.id || null, email, tel }
+        : { einverstanden: false, name: n, funktion: fn, bemerkung })
       if (einverstanden) {
         // Durchschlag sofort: PDF mit beiden Unterschriften, hier auf dem Handy erzeugt
         const blob = rapportPdf({ einst: d.einst, woche: d.woche, schichten: d.schichten, absenzen: d.absenzen, spesen: d.spesen, einsatz: d.einsatz,
-          unterschriften: { maBild: d.ma?.bild, maAm: d.ma?.am, firmaBild: bild, firmaName: name, firmaAm: Date.now() } })
+          unterschriften: { maBild: d.ma?.bild, maAm: d.ma?.am, firmaBild: bild, firmaName: n, firmaFunktion: fn, firmaAm: Date.now(),
+            vertretungFuer: haupt && haupt.id !== person?.id ? haupt.name : null } })
         setDurchschlag(URL.createObjectURL(blob))
       }
       setFertig(einverstanden ? 'unterschrieben' : 'abgelehnt')
@@ -108,17 +125,44 @@ export default function Unterschreiben() {
       {!nein ? (
         <section className="glass rounded-3xl p-5 space-y-3">
           <div className="font-bold flex items-center gap-2"><PenLine className="w-5 h-5 text-aqua" /> Unterschrift Einsatzbetrieb</div>
-          <input className="eingabe" placeholder="Ihr Name (z.B. Polier, Vorarbeiter)" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+          <div className="text-sm text-white/60">Wer unterschreibt?</div>
+          <div className="flex flex-wrap gap-2">
+            {bekannte.map((x) => (
+              <button key={x.id} type="button" onClick={() => setWer(x.id)}
+                className={'px-3 py-2 rounded-xl text-sm border text-left ' + (wer === x.id ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/75')}>
+                {x.name}<span className="block text-[11px] opacity-70">{x.funktion}</span>
+              </button>
+            ))}
+            <button type="button" onClick={() => setWer('neu')}
+              className={'px-3 py-2 rounded-xl text-sm border ' + (wer === 'neu' ? 'btn-grad border-transparent font-semibold' : 'border-dashed border-white/25 text-white/60')}>
+              {bekannte.length ? 'Jemand anderes' : 'Name eingeben'}
+            </button>
+          </div>
+          {wer === 'neu' && <>
+            <input className="eingabe" placeholder="Vor- und Nachname" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+            <div className="flex flex-wrap gap-1.5">
+              {FUNKTIONEN.map((fn) => (
+                <button key={fn} type="button" onClick={() => setFunktion(fn)}
+                  className={'px-2.5 py-1 rounded-full text-xs border ' + (funktion === fn ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{fn}</button>
+              ))}
+            </div>
+          </>}
+          {haupt && wer && wer !== haupt.id && (
+            <div className="text-xs rounded-xl px-3 py-2 bg-amber-400/10 border border-amber-400/30 text-amber-200">
+              Sie unterschreiben in Vertretung von <b>{haupt.name}</b> ({haupt.funktion}). {haupt.name} erhält eine Kopie.
+            </div>
+          )}
           <Unterschrift wert={bild} onChange={setBild} hoehe={170} />
           <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
             <div className="text-sm font-semibold">Durchschlag für Sie — wohin?</div>
+            {gewaehlt && (gewaehlt.hatEmail || gewaehlt.hatTel) && <div className="text-xs text-white/45">Bereits hinterlegt ({[gewaehlt.hatEmail && 'E-Mail', gewaehlt.hatTel && 'WhatsApp'].filter(Boolean).join(' + ')}). Nur ausfüllen, wenn es sich geändert hat.</div>}
             <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
               <input className="eingabe pl-9" type="email" inputMode="email" autoComplete="email" placeholder="E-Mail (optional)" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
             <div className="relative"><Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
               <input className="eingabe pl-9" type="tel" inputMode="tel" autoComplete="tel" placeholder="WhatsApp-Nummer (optional)" value={tel} onChange={(e) => setTel(e.target.value)} /></div>
             <div className="text-xs text-white/35">{d.einst.name} merkt sich diese Angaben für den nächsten Rapport.</div>
           </div>
-          <button onClick={() => senden(true)} disabled={!bild || !name.trim() || sende}
+          <button onClick={() => senden(true)} disabled={!bild || !nameOk || sende}
             className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-40">
             {sende ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} Rapport bestätigen & unterschreiben
           </button>

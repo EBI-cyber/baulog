@@ -1,4 +1,5 @@
 import { supabase } from './ki'
+import { liste } from './unterschreiber'
 
 // Unterschrift des Einsatzbetriebs per QR-Code — über die Edge Function „rapport-signatur".
 async function aufruf(body) {
@@ -25,8 +26,8 @@ export function schnappschuss(g, woche, ma = null) {
     absenzen: g.absenzen.map((a) => ({ datum: a.datum, wocheKey: a.wocheKey, art: a.art, stunden: a.stunden, halbtag: a.halbtag, zeugnis: a.zeugnis, notiz: a.notiz })),
     spesen: g.spesen.map((x) => ({ datum: x.datum, art: x.art, betrag: x.betrag, km: x.km, notiz: x.notiz })),
     ma: ma?.bild ? { bild: ma.bild, am: ma.am || Date.now() } : null,
-    // bekannte Angaben des Poliers vorausfüllen (aus dem letzten Mal)
-    polier: { name: g.einsatz?.polierName || '', email: g.einsatz?.polierEmail || '', tel: g.einsatz?.polierTel || '' },
+    // bekannte Unterschriftsberechtigte zur Auswahl — ohne Kontaktdaten (nur ob welche hinterlegt sind)
+    unterschreiber: liste(g.einsatz).map((x) => ({ id: x.id, name: x.name, funktion: x.funktion, standard: !!x.standard, hatEmail: !!x.email, hatTel: !!x.tel })),
   }
 }
 

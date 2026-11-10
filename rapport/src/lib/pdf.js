@@ -3,6 +3,7 @@ import { TAGE, wochenTage, isoDatum, datumLang, datumKurz, uhr, pauseMs, arbeitM
 import { absenzArt, spesenArt } from './arten'
 import { zahl } from './settings'
 import { wochenRechnung, std } from './woche'
+import { unterzeichnerText } from './unterschreiber'
 
 const sauber = (t) => String(t || '').trim().replace(/\s+/g, '_').replace(/[^\wäöüÄÖÜß-]/g, '')
 export function dateiName(einst, w, firma) {
@@ -164,7 +165,7 @@ export function rapportPdf({ einst, woche, schichten, absenzen = [], spesen = []
   const am = (ts) => (ts ? `${datumLang(new Date(ts))} ${uhr(ts)}` : 'Datum')
   doc.text(`${am(u.maAm)} / Unterschrift Mitarbeiter`, L, y + 5)
   doc.text(`${am(u.firmaAm)} / Unterschrift Einsatzbetrieb`, R - 75, y + 5)
-  if (u.firmaName) { doc.setFontSize(8.5); doc.text(u.firmaName, R - 75, y + 9.5) }
+  if (u.firmaName) { doc.setFontSize(8.5); doc.text(doc.splitTextToSize(unterzeichnerText(u), 75), R - 75, y + 9.5) }
   if (u.maBild || u.firmaBild) { doc.setFontSize(7); doc.setTextColor(150); doc.text('Elektronisch unterschrieben in der Rapport-App.', L, y + 9.5) }
   doc.setFontSize(7.5); doc.setTextColor(150)
   doc.text(`Erstellt am ${datumLang(new Date())} ${uhr(Date.now())} mit Rapport`, L, 289)
