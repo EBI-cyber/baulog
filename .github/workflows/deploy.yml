@@ -40,9 +40,26 @@ jobs:
       # Verbindung über den Supabase-Pooler (GitHub-Runner haben kein IPv6).
       - name: Datenbank-Verbindung ermitteln
         run: |
-          POOLER=$(curl -sf -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             "https://api.supabase.com/v1/projects/$PROJECT_REF/config/database/pooler")
-          HOST=$(echo "$POOLER" | jq -r '[.[] | select(.database_type=="PRIMARY")][0].db_host')
-          DBUSER=$(echo "$POOLER" | jq -r '[.[] | select(.database_type=="PRIMARY")][0].db_user')
+          RES=$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/config/database/pooler")
+          CODE=$(echo "$RES" | tail -n1); POOLER=$(echo "$RES" | sed '$d')
+          echo "Supabase-API: HTTP $CODE"
+          if [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; then
+            echo "::error::Supabase lehnt den Zugang ab (HTTP $CODE): Das Repo-Secret SUPABASE_ACCESS_TOKEN ist abgelaufen oder ungültig. Neuen Token unter https://supabase.com/dashboard/account/tokens erzeugen und unter GitHub → Settings → Secrets → Actions → SUPABASE_ACCESS_TOKEN eintragen."
+            exit 1
+          fi
+          if [ "$CODE" != "200" ]; then
+            echo "::error::Supabase-API antwortet mit HTTP $CODE (Projekt $PROJECT_REF): $(echo "$POOLER" | head -c 300)"
+            exit 1
+          fi
+          # Antwort kann eine Liste (mehrere Pooler) oder ein einzelnes Objekt sein
+          WAHL='if type=="array" then (([.[] | select(.database_type=="PRIMARY")][0]) // .[0]) else . end'
+          HOST=$(echo "$POOLER" | jq -r "$WAHL | .db_host // empty")
+          DBUSER=$(echo "$POOLER" | jq -r "$WAHL | .db_user // empty")
+          if [ -z "$HOST" ] || [ -z "$DBUSER" ]; then
+            echo "::error::Pooler-Adresse nicht gefunden. Aufbau der Antwort: $(echo "$POOLER" | jq -c 'if type=="array" then map(keys) else keys end' 2>/dev/null || echo "$POOLER" | head -c 200)"
+            exit 1
+          fi
           PW=$(jq -rn --arg p "$SUPABASE_DB_PASSWORD" '$p|@uri')
           echo "::add-mask::$PW"
           echo "DB_URL=postgresql://$DBUSER:$PW@$HOST:5432/postgres" >> "$GITHUB_ENV"
