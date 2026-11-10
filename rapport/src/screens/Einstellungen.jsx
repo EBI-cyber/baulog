@@ -9,6 +9,7 @@ import { profilFertig, quellensteuerPflichtig, tarif, STATUS } from '../lib/prof
 import { chf } from '../lib/lohn'
 import { anmelden, abmelden, angemeldetAls, kiVerfuegbar } from '../lib/ki'
 import EinsatzSheet from '../components/EinsatzSheet'
+import { vertragPruefen } from '../lib/vertragscheck'
 import MicrosoftKarte from '../components/MicrosoftKarte'
 import KurzbefehlKarte from '../components/KurzbefehlKarte'
 import { inOneDriveSichern, tageSeitSicherung } from '../lib/sicherung'
@@ -111,7 +112,8 @@ export default function Einstellungen() {
                 <button onClick={() => setEinsatz(e ? { e } : { vorgabe: { firma: f } })}
                   className="flex-1 min-w-0 text-left rounded-2xl px-3 py-2.5 bg-white/[0.04] border border-white/10 flex items-center gap-3 card-hover">
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold truncate">{f}{einst.firma === f && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-aqua/15 text-aqua align-middle">aktuell</span>}</div>
+                    <div className="font-semibold truncate">{f}{einst.firma === f && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-aqua/15 text-aqua align-middle">aktuell</span>}
+                      {e && (e.angaben || +e.stundenlohn > 0) && (() => { const u = vertragPruefen(e, einst).urteil; return <span className={'ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full align-middle ' + (u === 'gut' ? 'bg-lime/15 text-lime' : u === 'pruefenswert' ? 'bg-amber-400/15 text-amber-300' : 'bg-ember/15 text-ember')}>Vertrag {u === 'gut' ? 'ok' : u === 'pruefenswert' ? 'prüfen' : 'Mängel'}</span> })()}</div>
                     <div className="text-xs text-white/45 truncate">
                       {e ? [e.kanton, e.einsatzort, e.stundenlohn && `${chf(+e.stundenlohn, einst.waehrung)}/Std.`].filter(Boolean).join(' · ') || 'Vertrag ohne Angaben' : 'Kein Vertrag erfasst — antippen'}
                     </div>

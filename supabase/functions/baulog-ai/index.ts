@@ -149,7 +149,10 @@ Deno.serve(async (req) => {
           'krankFaktor (Lohnfortzahlung bei Krankheit in %, z. B. 80), schlechtwetterFaktor (Lohn bei Schlechtwetter in %), ' +
           'ahv, alv, nbu, ktg, bvg, gav, far, parifonds, quellensteuer (Arbeitnehmer-Abzüge in % vom Bruttolohn: AHV/IV/EO, ALV, Nichtberufsunfall, Krankentaggeld, Pensionskasse, GAV-Weiterbildung/Vollzug, FAR-Frühpensionierung Bau, Parifonds/Berufsbeitrag, Quellensteuer), ' +
           'einsatznummer, arbeitsbeginn (HH:MM), qualifikation, meldenBei (Person/Funktion), einsatzdauerTage (Zahl, wenn eine Dauer wie „maximal 14 Kalendertage“ angegeben ist), ' +
-          'gavName (anwendbarer GAV), kuendigungsfrist (Text), spesen (Text zu Spesen/Zulagen/Pauschalen), bemerkungen (weitere wichtige Punkte kurz, z. B. Treffpunkt, Einsatzdauer). ' +
+          'gavName (anwendbarer GAV), kuendigungsfrist (Text), spesen (Text zu Spesen/Zulagen/Pauschalen), bemerkungen (weitere wichtige Punkte kurz, z. B. Treffpunkt, Einsatzdauer), ' +
+          'karenztage (Wartetage ohne Lohn bei Krankheit, Zahl), lohnzahlung (Termin der Lohnzahlung, Text, z. B. „monatlich am 10.“), ' +
+          'angaben: welche Pflichtangaben der Vertrag enthält, als Objekt mit true/false: {taetigkeit, arbeitsort, beginn, dauerOderKuendigung, arbeitszeit, lohn, spesenZulagen, sozialabzuege, ueberstunden, krankheit, unfall, ferien, lohnzahlungstermin} — true nur, wenn im Vertrag (inkl. ausdrücklichem Verweis auf GAV/Rahmenvertrag) dazu etwas steht; ' +
+          'klauseln: Liste auffälliger Vertragsklauseln als {art, zitat} mit art aus gebuehr (Gebühren/Kosten zulasten des Arbeitnehmers, z. B. Vermittlungs-, Verwaltungs-, Ausrüstungsgebühr), lohnrueckbehalt (Kaution, Lohnrückbehalt, Vorleistung), uebertrittsverbot (Verbot/Entschädigung beim späteren Übertritt in den Einsatzbetrieb), konventionalstrafe, kuendigungKurz (kürzere Kündigungsfrist als 2 Tage), sonstiges — zitat wörtlich, nur was wirklich dasteht; leer, wenn nichts auffällt. ' +
           'Antworte NUR als JSON mit genau diesen Feldern.' },
         { role: 'user', content: [
           { type: 'text', text: bilder.length > 1 ? `Einsatzvertrag, ${bilder.length} Seiten:` : 'Einsatzvertrag:' },
