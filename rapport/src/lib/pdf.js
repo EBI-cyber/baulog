@@ -1,5 +1,8 @@
 import { jsPDF } from 'jspdf'
 import { TAGE, wochenTage, isoDatum, datumLang, datumKurz, uhr, pauseMs, arbeitMs, hm, dezimal } from './zeit'
+import { absenzArt, spesenArt } from './arten'
+import { zahl } from './settings'
+import { wochenRechnung, std } from './woche'
 
 export function dateiName(einst, w) {
   const name = (einst.name || 'Mitarbeiter').trim().replace(/\s+/g, '_').replace(/[^\wäöüÄÖÜß-]/g, '')
@@ -10,7 +13,7 @@ export function dateiName(einst, w) {
  * Wochenrapport als PDF (vorläufiges Layout — wird später an die Vorlage angepasst).
  * Gibt einen Blob zurück.
  */
-export function rapportPdf({ einst, woche, schichten }) {
+export function rapportPdf({ einst, woche, schichten, absenzen = [], spesen = [] }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const tage = wochenTage(woche)
   const L = 15, R = 195
@@ -48,8 +51,10 @@ export function rapportPdf({ einst, woche, schichten }) {
   y += 8
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
 
-  let summe = 0, summePause = 0
+  let summePause = 0
+  const neueSeiteWennNoetig = (platz = 12) => { if (y > 285 - platz) { doc.addPage(); y = 20 } }
   const zeile = (werte, grau) => {
+    neueSeiteWennNoetig()
     doc.setTextColor(grau ? 160 : 0)
     werte.forEach((v, i) => {
       const t = doc.splitTextToSize(String(v ?? ''), sp[i].w - 2)[0] || ''
@@ -59,11 +64,17 @@ export function rapportPdf({ einst, woche, schichten }) {
     y += 8
   }
   for (const tag of tage) {
-    const s = schichten.filter((x) => x.datum === isoDatum(tag) && x.ende != null).sort((a, b) => a.start - b.start)
-    if (!s.length) { zeile([TAGE[tag.getDay()], datumKurz(tag), '–', '', '', '', '', ''], true); continue }
+    const d = isoDatum(tag)
+    const s = schichten.filter((x) => x.datum === d && x.ende != null).sort((a, b) => a.start - b.start)
+    const abw = absenzen.filter((x) => x.datum === d)
+    if (!s.length && !abw.length) { zeile([TAGE[tag.getDay()], datumKurz(tag), '–', '', '', '', '', ''], true); continue }
+    for (const x of abw) {
+      const h = zahl(x.stunden) * 3600000
+      zeile([TAGE[tag.getDay()], datumKurz(tag), absenzArt(x.art).label + (x.halbtag ? ' (½ Tag)' : ''), '', '', '', hm(h), dezimal(h)])
+    }
     for (const x of s) {
       const a = arbeitMs(x), p = pauseMs(x)
-      summe += a; summePause += p
+      summePause += p
       zeile([TAGE[tag.getDay()], datumKurz(tag), x.firma, uhr(x.start), uhr(x.ende), hm(p), hm(a), dezimal(a)])
     }
   }
@@ -75,23 +86,60 @@ export function rapportPdf({ einst, woche, schichten }) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
   doc.text('Total Woche', L + 1.5, y + 0.5)
   doc.text(hm(summePause), sp[5].x + 1.5, y + 0.5)
-  doc.text(hm(summe), sp[6].x + 1.5, y + 0.5)
-  doc.text(dezimal(summe), sp[7].x + 1.5, y + 0.5)
+  const r = wochenRechnung({ schichten, absenzen, spesen, einst })
+  doc.text(std(r.total), sp[6].x + 1.5, y + 0.5)
+  doc.text(r.total.toFixed(2), sp[7].x + 1.5, y + 0.5)
+
+  // Zusammenfassung
+  y += 12
+  doc.setFontSize(9.5)
+  const zus = [['Gearbeitet', `${std(r.arbeit)} h`], ['Abwesenheiten', `${std(r.absenzStd)} h`
+    + (Object.keys(r.nachArt).length ? `  (${Object.entries(r.nachArt).map(([k, v]) => `${k}: ${v} Tg.`).join(', ')})` : '')]]
+  if (r.soll) zus.push(['Soll', `${std(r.soll)} h`], [r.differenz >= 0 ? 'Überstunden' : 'Minusstunden', `${r.differenz >= 0 ? '+' : ''}${std(r.differenz)} h`])
+  for (const [k, v] of zus) {
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(90); doc.text(k, L, y)
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(0); doc.text(v, L + 38, y)
+    y += 5.5
+  }
+
+  // Spesen
+  if (spesen.length) {
+    y += 5; neueSeiteWennNoetig(20)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text('Spesen', L, y); y += 6
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
+    for (const x of [...spesen].sort((a, b) => a.datum.localeCompare(b.datum))) {
+      neueSeiteWennNoetig()
+      const art = spesenArt(x.art).label + (x.km ? ` (${x.km} km)` : '')
+      doc.text(datumKurz(new Date(x.datum + 'T12:00')), L, y)
+      doc.text(doc.splitTextToSize(`${art}${x.notiz ? ' – ' + x.notiz : ''}`, 120)[0], L + 16, y)
+      doc.text(`${einst.waehrung} ${zahl(x.betrag).toFixed(2)}`, R, y, { align: 'right' })
+      y += 5
+    }
+    doc.setFont('helvetica', 'bold')
+    doc.text('Total Spesen', L + 16, y + 1); doc.text(`${einst.waehrung} ${r.spesen.toFixed(2)}`, R, y + 1, { align: 'right' })
+    y += 6
+  }
 
   // Bemerkungen
-  const notizen = schichten.filter((x) => x.notiz?.trim()).sort((a, b) => a.start - b.start)
-  y += 14
+  const notizen = [
+    ...schichten.filter((x) => x.notiz?.trim()).map((x) => ({ d: isoDatum(new Date(x.start)), t: x.notiz.trim() })),
+    ...absenzen.filter((x) => x.notiz?.trim() || x.zeugnis).map((x) => ({ d: x.datum,
+      t: [absenzArt(x.art).label, x.zeugnis ? 'Arztzeugnis vorhanden' : '', x.notiz?.trim()].filter(Boolean).join(' – ') })),
+  ].sort((a, b) => a.d.localeCompare(b.d))
+  y += 8
   if (notizen.length) {
-    doc.setFontSize(10); doc.text('Bemerkungen', L, y); y += 6
+    neueSeiteWennNoetig(20)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(0); doc.text('Bemerkungen', L, y); y += 6
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
     for (const n of notizen) {
-      const zeilen = doc.splitTextToSize(`${datumKurz(new Date(n.start))}: ${n.notiz.trim()}`, R - L)
-      doc.text(zeilen, L, y); y += zeilen.length * 4.5 + 1
+      const zeilen = doc.splitTextToSize(`${datumKurz(new Date(n.d + 'T12:00'))}: ${n.t}`, R - L)
+      neueSeiteWennNoetig(); doc.text(zeilen, L, y); y += zeilen.length * 4.5 + 1
     }
     y += 4
   }
 
   // Unterschriften
+  if (y > 262) { doc.addPage(); y = 40 }
   y = Math.max(y + 16, 250)
   doc.setDrawColor(120)
   doc.line(L, y, L + 75, y); doc.line(R - 75, y, R, y)

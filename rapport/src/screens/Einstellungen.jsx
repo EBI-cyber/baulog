@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import { User, Building2, Factory, X, Download, Upload, Smartphone, Info } from 'lucide-react'
-import { useEinstellungen } from '../lib/settings'
+import { User, Building2, Factory, X, Download, Upload, Smartphone, Info, FileSignature } from 'lucide-react'
+import { useEinstellungen, tagesSoll } from '../lib/settings'
 import { exportieren, importieren } from '../lib/db'
 import { teileDatei } from '../lib/teilen'
 import { isoDatum } from '../lib/zeit'
@@ -79,6 +79,29 @@ export default function Einstellungen() {
             ))}
           </div>
         )}
+      </Karte>
+
+      <Karte icon={FileSignature} titel="Arbeitsvertrag">
+        <div className="grid grid-cols-2 gap-3">
+          <Feld label="Soll-Stunden / Woche" value={einst.wochenSoll} inputMode="decimal" placeholder="z.B. 42"
+            onChange={(e) => setEinst({ wochenSoll: e.target.value })} />
+          <Feld label="Arbeitstage / Woche" value={einst.arbeitstage} inputMode="numeric"
+            onChange={(e) => setEinst({ arbeitstage: parseInt(e.target.value, 10) || '' })} />
+        </div>
+        <div className="text-xs text-white/40">Tagessoll: <b className="text-white/70">{String(tagesSoll(einst)).replace('.', ',')} h</b> — wird bei Ferien, Krankheit, Feiertag usw. als Vorschlag angerechnet.</div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-white/50 mb-1">Währung</label>
+            <div className="flex gap-2">
+              {['CHF', 'EUR'].map((w) => (
+                <button key={w} onClick={() => setEinst({ waehrung: w })}
+                  className={'flex-1 rounded-xl py-2.5 text-sm border ' + (einst.waehrung === w ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/65')}>{w}</button>
+              ))}
+            </div>
+          </div>
+          <Feld label={`Kilometer-Satz (${einst.waehrung}/km)`} value={einst.kmSatz} inputMode="decimal"
+            onChange={(e) => setEinst({ kmSatz: e.target.value })} />
+        </div>
       </Karte>
 
       <Karte icon={Smartphone} titel="Auf dem iPhone einrichten">

@@ -9,6 +9,12 @@ db.version(1).stores({
   // Woche: { key, gesendetAm?, gespeichertAm? }
   wochen: 'key',
 })
+db.version(2).stores({
+  // Abwesenheit: { datum, wocheKey, art, stunden (angerechnet), halbtag, zeugnis, notiz }
+  absenzen: '++id, datum, wocheKey',
+  // Spesen: { datum, wocheKey, art, betrag, km, notiz }
+  spesen: '++id, datum, wocheKey',
+})
 
 // Browser bitten, die Daten nicht automatisch zu löschen
 navigator.storage?.persist?.().catch(() => {})
@@ -18,6 +24,13 @@ export function mitSchluessel(s) {
   const d = new Date(s.start)
   return { ...s, datum: isoDatum(d), wocheKey: wochenKey(isoWoche(d)) }
 }
+
+/** für Abwesenheiten/Spesen: wocheKey aus dem Datum (YYYY-MM-DD) */
+export function mitWoche(x) {
+  return { ...x, wocheKey: wochenKey(isoWoche(new Date(x.datum + 'T12:00'))) }
+}
+export const speichereAbsenz = (a) => db.absenzen.put(mitWoche(a))
+export const speichereSpesen = (x) => db.spesen.put(mitWoche(x))
 
 export const speichern = (s) => (s.id ? db.schichten.put(mitSchluessel(s)) : db.schichten.add(mitSchluessel(s)))
 
@@ -31,14 +44,16 @@ export async function wocheMarkieren(key, feld) {
 }
 
 export async function exportieren() {
-  return { app: 'rapport', version: 1, exportiertAm: new Date().toISOString(),
-    schichten: await db.schichten.toArray(), wochen: await db.wochen.toArray() }
+  return { app: 'rapport', version: 2, exportiertAm: new Date().toISOString(),
+    schichten: await db.schichten.toArray(), wochen: await db.wochen.toArray(),
+    absenzen: await db.absenzen.toArray(), spesen: await db.spesen.toArray() }
 }
 
 export async function importieren(daten) {
   if (daten?.app !== 'rapport') throw new Error('Keine Rapport-Sicherung')
-  await db.transaction('rw', db.schichten, db.wochen, async () => {
-    await db.schichten.clear(); await db.wochen.clear()
-    await db.schichten.bulkAdd(daten.schichten || []); await db.wochen.bulkAdd(daten.wochen || [])
+  await db.transaction('rw', [db.schichten, db.wochen, db.absenzen, db.spesen], async () => {
+    for (const t of ['schichten', 'wochen', 'absenzen', 'spesen']) {
+      await db[t].clear(); await db[t].bulkAdd(daten[t] || [])
+    }
   })
 }

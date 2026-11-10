@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Play, Pause, Square, Coffee, Plus, Send, Settings, Building2, Pencil } from 'lucide-react'
+import { Play, Pause, Square, Coffee, Plus, Send, Settings, Building2, Pencil, CalendarOff, Wallet } from 'lucide-react'
 import { db, speichern, laufendeSchicht } from '../lib/db'
 import { useEinstellungen, fertigEingerichtet } from '../lib/settings'
 import { isoWoche, isoDatum, wochenKey, wocheVersetzt, TAGE_LANG, datumLang, uhr, pauseMs, arbeitMs, istPausiert, hms, hm } from '../lib/zeit'
 import FirmaWahl from '../components/FirmaWahl'
-import SchichtSheet from '../components/SchichtSheet'
+import Erfassen from '../components/Erfassen'
+import { AbsenzZeile, SpesenZeile } from '../components/Zeilen'
+import { zahl } from '../lib/settings'
 import SchichtZeile from '../components/SchichtZeile'
 import IconChip from '../ui/IconChip'
 
@@ -27,18 +29,22 @@ export default function Heute() {
   const heute = new Date()
   const woche = isoWoche(heute)
   const laufend = useLiveQuery(laufendeSchicht, [], null)
-  const heuteListe = useLiveQuery(() => db.schichten.where('datum').equals(isoDatum(heute)).sortBy('start'), [isoDatum(heute)], [])
+  const tag = isoDatum(heute)
+  const heuteListe = useLiveQuery(() => db.schichten.where('datum').equals(tag).sortBy('start'), [tag], [])
+  const absenzen = useLiveQuery(() => db.absenzen.where('datum').equals(tag).toArray(), [tag], [])
+  const spesen = useLiveQuery(() => db.spesen.where('datum').equals(tag).toArray(), [tag], [])
   const vorwoche = wocheVersetzt(woche, -1)
   const offen = useLiveQuery(async () => {
     const key = wochenKey(vorwoche)
-    const n = await db.schichten.where('wocheKey').equals(key).count()
+    const n = await db.schichten.where('wocheKey').equals(key).count() + await db.absenzen.where('wocheKey').equals(key).count()
     const w = await db.wochen.get(key)
     return n > 0 && !w?.gesendetAm ? key : null
   }, [wochenKey(vorwoche)], null)
 
   const jetzt = useJetzt(!!laufend)
   const pausiert = istPausiert(laufend)
-  const [bearbeiten, setBearbeiten] = useState(null) // Schicht | 'neu'
+  const [sheet, setSheet] = useState(null)
+  const bearbeite = (s) => setSheet({ typ: 'zeit', objekt: s })
   const [stoppFrage, setStoppFrage] = useState(false)
   const stoppTimer = useRef()
 
@@ -68,6 +74,7 @@ export default function Heute() {
 
   const fertig = (heuteListe || []).filter((s) => s.ende != null)
   const summeHeute = (heuteListe || []).reduce((a, s) => a + arbeitMs(s, jetzt), 0)
+    + (absenzen || []).reduce((a, x) => a + zahl(x.stunden) * 3600000, 0)
 
   return (
     <div className="space-y-5">
@@ -120,7 +127,7 @@ export default function Heute() {
           </>
         ) : (
           <>
-            <button onClick={() => setBearbeiten(laufend)} className="inline-flex items-center gap-1.5 text-sm text-white/60">
+            <button onClick={() => bearbeite(laufend)} className="inline-flex items-center gap-1.5 text-sm text-white/60">
               <Building2 className="w-4 h-4" /> {laufend.firma} · seit {uhr(laufend.start)} <Pencil className="w-3.5 h-3.5 text-white/35" />
             </button>
             <div>
@@ -159,14 +166,21 @@ export default function Heute() {
           <h2 className="font-bold">Heute erfasst</h2>
           <div className="text-sm text-white/60 tabular-nums">Total <span className="font-bold text-white">{hm(summeHeute)} h</span></div>
         </div>
-        {fertig.map((s) => <SchichtZeile key={s.id} s={s} onClick={() => setBearbeiten(s)} />)}
-        {!fertig.length && <div className="text-sm text-white/40">Noch nichts abgeschlossen.</div>}
-        <button onClick={() => setBearbeiten('neu')} className="w-full rounded-2xl py-3 bg-white/[0.06] border border-dashed border-white/15 text-white/60 inline-flex items-center justify-center gap-2">
-          <Plus className="w-4 h-4" /> Zeit nachtragen
-        </button>
+        {(absenzen || []).map((a) => <AbsenzZeile key={'a' + a.id} a={a} onClick={() => setSheet({ typ: 'absenz', objekt: a })} />)}
+        {fertig.map((s) => <SchichtZeile key={s.id} s={s} onClick={() => bearbeite(s)} />)}
+        {(spesen || []).map((x) => <SpesenZeile key={'s' + x.id} s={x} waehrung={einst.waehrung} onClick={() => setSheet({ typ: 'spesen', objekt: x })} />)}
+        {!fertig.length && !absenzen?.length && <div className="text-sm text-white/40">Noch nichts abgeschlossen.</div>}
+        <div className="grid grid-cols-3 gap-2">
+          {[['zeit', Plus, 'Zeit'], ['absenz', CalendarOff, 'Abwesend'], ['spesen', Wallet, 'Spesen']].map(([t, I, l]) => (
+            <button key={t} onClick={() => setSheet({ typ: t, datum: tag })}
+              className="rounded-2xl py-3 bg-white/[0.06] border border-dashed border-white/15 text-white/65 text-sm inline-flex flex-col items-center gap-1">
+              <I className="w-5 h-5" strokeWidth={1.9} /> {l}
+            </button>
+          ))}
+        </div>
       </section>
 
-      {bearbeiten && <SchichtSheet schicht={bearbeiten === 'neu' ? null : bearbeiten} onClose={() => setBearbeiten(null)} />}
+      <Erfassen wert={sheet} setWert={setSheet} />
     </div>
   )
 }
