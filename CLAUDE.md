@@ -83,4 +83,5 @@ Folgt dem Skill **`baulog-design`** (dunkles Glas, lucide-Icons, IconChips, resp
 - **Einsatzende** (`lib/einsatzende.js`): Ende = `ende` oder `beginn + maxDauerTage − 1` (KI liest „maximal X Kalendertage“ als `einsatzdauerTage`); Hinweis auf „Heute“ ab 2 Tagen vorher mit +1/+2 Wochen, unbefristet, „ist beendet“.
 - **Feierabend vergessen**: läuft die Uhr > 12 h, fragt „Heute“ nach der Endzeit (danach Pausenfrage).
 - Tests: Dexie 4 cached Live-Queries — wer in Tests direkt in IndexedDB schreibt, muss die Seite neu laden.
+- **Quellensteuer automatisch**: offizielle ESTV-Tabellen (Löhne) werden beim Deploy von `rapport/scripts/qst-tarife.py` nach `rapport/public/qst/<jahr>/<kt>/<CODE>.json` erzeugt (nicht eingecheckt, nur Tarife A/B/C/H; Quelle www.estv2.admin.ch, Format „Recordformate ab 2025 (Löhne)“, Recordart 06). `lib/quellensteuer.js` lädt den Tarif des Wohnkantons, `useLohn` bestimmt den Satz aus dem (hochgerechneten) Monatslohn. Ein Satz im Fragebogen gilt nur als Korrektur.
 - Rapport-Layout (`rapport/src/lib/pdf.js`) ist vorläufig — wird an die Vorlage des Nutzers angepasst.

@@ -165,10 +165,10 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     const brutto = zeilen.reduce((a, x) => a + x.betrag, 0)
     // Quellensteuer hängt von der Person ab (Fragebogen), nicht vom Einsatz
     const p = einst?.profil
-    const qst = quellensteuerPflichtig(p) ? zahl(p.qstSatz) : p?.status ? 0 : wert(e, 'quellensteuer')
+    const qst = quellensteuerPflichtig(p) ? (zahl(p.qstSatz) || zahl(einst?.qstAuto?.satz)) : p?.status ? 0 : wert(e, 'quellensteuer')
     const abzuege = ABZUEGE.map(([k, label]) => {
       const pr = k === 'quellensteuer' ? qst : wert(e, k)
-      return { k, label: k === 'quellensteuer' && quellensteuerPflichtig(p) ? `${label} (${tarif(p)}, ${p.wohnkanton || '?'})` : label, prozent: pr, betrag: brutto * pr / 100 }
+      return { k, label: k === 'quellensteuer' && quellensteuerPflichtig(p) ? `${label} (${tarif(p)}, ${p.wohnkanton || '?'}${!zahl(p.qstSatz) && einst?.qstAuto ? `, Tabelle ${einst.qstAuto.jahr}` : ''})` : label, prozent: pr, betrag: brutto * pr / 100 }
     }).filter((a) => a.prozent > 0)
     const abzugTotal = abzuege.reduce((a, x) => a + x.betrag, 0)
     // nicht AHV-pflichtig, kommt zur Auszahlung
@@ -184,7 +184,8 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     posten, brutto, abzuege, netto: brutto - abzuege, spesen: spesenSumme, mittag,
     auszahlung: brutto - abzuege + spesenSumme + mittag,
     fehlendeLoehne: posten.filter((p) => !p.stundenlohn).map((p) => p.firma),
-    qstFehlt: quellensteuerPflichtig(einst?.profil) && !zahl(einst?.profil?.qstSatz) && brutto > 0,
+    qstFehlt: quellensteuerPflichtig(einst?.profil) && !zahl(einst?.profil?.qstSatz) && !einst?.qstAuto && brutto > 0,
+    qstAuto: einst?.qstAuto || null,
   }
 }
 

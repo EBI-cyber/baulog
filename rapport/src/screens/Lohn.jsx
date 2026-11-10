@@ -105,8 +105,14 @@ export default function Lohn() {
 
           {lohn.qstFehlt && (
             <Link to="/fragebogen" className="block text-sm rounded-2xl px-4 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-300">
-              Quellensteuer wird noch nicht abgezogen — Satz von der Lohnabrechnung im Fragebogen eintragen. Das Netto ist bis dahin zu hoch.
+              Quellensteuer wird noch nicht abgezogen — die offizielle Tabelle ist gerade nicht erreichbar (oder der Wohnkanton fehlt im Fragebogen). Das Netto ist bis dahin zu hoch.
             </Link>
+          )}
+
+          {lohn.qstAuto && lohn.brutto > 0 && (
+            <div className="text-xs text-white/45 px-1">
+              Quellensteuer {lohn.qstAuto.satz.toFixed(2)} % — offizielle Tabelle {lohn.qstAuto.kanton} {lohn.qstAuto.jahr}, Tarif {lohn.qstAuto.code}, Monatslohn {chf(lohn.qstAuto.monatsBrutto, w)}{lohn.qstAuto.monatsBrutto > lohn.brutto + 1 ? ' (hochgerechnet)' : ''}.
+            </div>
           )}
 
           {einst.profil?.rav && modus === 'monat' && lohn.posten.length > 0 && (
@@ -167,7 +173,7 @@ export default function Lohn() {
           <div className="text-xs text-white/40 flex gap-2">
             <Info className="w-4 h-4 shrink-0" />
             Schätzung nach dem Schema des GAV Personalverleih (Grundlohn, Zuschläge, Feiertags- und Ferienentschädigung, 13. Monatslohn, Sozialabzüge).
-            Karenztage, Lohnobergrenzen und Quellensteuer-Tarife werden nicht genau abgebildet. Massgebend ist die Abrechnung des Temporärbüros.
+            Quellensteuer nach der offiziellen Tabelle der Steuerverwaltung (Wohnkanton, Tarif, Monatslohn). Karenztage und Lohnobergrenzen werden nicht abgebildet. Massgebend ist die Abrechnung des Temporärbüros.
           </div>
         </>
       )}

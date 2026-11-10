@@ -139,6 +139,16 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      # Offizielle Quellensteuer-Tabellen der ESTV (Löhne) für die Rapport-App — nicht fatal:
+      # fehlen sie, lädt die App die zuletzt gespeicherte Tabelle bzw. weist auf den fehlenden Satz hin.
+      - name: Quellensteuer-Tabellen holen
+        continue-on-error: true
+        run: |
+          J=$(date +%Y)
+          python3 rapport/scripts/qst-tarife.py "$J" || echo "::warning::Quellensteuer-Tabellen $J konnten nicht geladen werden"
+          # ab Dezember sind meist schon die Tabellen fürs neue Jahr veröffentlicht
+          python3 rapport/scripts/qst-tarife.py "$((J + 1))" >/dev/null 2>&1 && echo "Tabellen $((J + 1)) ebenfalls geladen" || echo "Tabellen $((J + 1)) noch nicht veröffentlicht"
+          du -sh rapport/public/qst 2>/dev/null || true
       # Zweite App „Rapport" (Arbeitszeit/Wochenrapport) → /baulog/rapport/
       - name: Rapport-App bauen
         env:
