@@ -11,6 +11,7 @@ import { BRANCHEN, branche, brancheAnwenden } from '../lib/branchen'
 import { liste, FUNKTIONEN } from '../lib/unterschreiber'
 import { ferienMindestProzent, alter } from '../lib/profil'
 import { einsatzEnde } from '../lib/einsatzende'
+import OrtSuche from './OrtSuche'
 
 const NEU = { firma: '', branche: '', wegKm: '', maxDauerTage: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
   gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
@@ -72,6 +73,11 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         if (r.kanton && KANTONE[String(r.kanton).toUpperCase()]) { y.kanton = String(r.kanton).toUpperCase(); erkannt.push('kanton') }
         return y
       })
+      if (!r.kanton && r.einsatzort) {
+        const { kantonZu } = await import('../lib/plz')
+        const kt = await kantonZu(String(r.einsatzort))
+        if (kt) setF((x) => (x.kanton ? x : { ...x, kanton: kt }))
+      }
       setKi({ laeuft: false, fehler: '', erkannt })
     } catch (err) {
       setKi({ laeuft: false, fehler: err.message, erkannt: null })
@@ -156,7 +162,10 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
       <Titel>Einsatz</Titel>
       <div className="grid grid-cols-2 gap-3">
         <Feld breit label="Einsatzbetrieb (Firma) *" value={f.firma} onChange={set('firma')} />
-        <Feld label="Einsatzort" value={f.einsatzort} onChange={set('einsatzort')} />
+        <div className="col-span-2">
+          <label className="block text-xs text-white/50 mb-1">Einsatzort (setzt den Kanton für die Feiertage)</label>
+          <OrtSuche wert={f.einsatzort} onWahl={(t) => setF((x) => ({ ...x, einsatzort: `${t.plz} ${t.ort}`, kanton: t.kanton }))} />
+        </div>
         <div>
           <label className="block text-xs text-white/50 mb-1">Kanton (Feiertage)</label>
           <select value={f.kanton} onChange={set('kanton')} className="eingabe">
@@ -222,6 +231,18 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         <Feld label="Ferienentsch." einheit="%" {...zahlFeld('ferienProzent')} />
         <Feld label="13. Monatslohn" einheit="%" {...zahlFeld('dreizehnterProzent')} />
         <Feld label="Total / Std. laut Vertrag" einheit={w} {...zahlFeld('stundenlohnTotalVertrag')} />
+      </div>
+      <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
+        <div className="text-xs text-white/55">Wie zahlt das Büro die Entschädigungen aus? (steht auf der Lohnabrechnung — „Guthaben“/„Saldo“ heisst angespart)</div>
+        {[['ferien', 'Ferien'], ['feiertag', 'Feiertage'], ['dreizehnter', '13. Monatslohn']].map(([k, l]) => (
+          <div key={k} className="flex items-center gap-2 text-sm">
+            <span className="w-28 shrink-0 text-white/70">{l}</span>
+            {[['laufend', 'mit jedem Lohn'], ['konto', 'angespart']].map(([m, ml]) => (
+              <button key={m} type="button" onClick={() => setF((x) => ({ ...x, [`${k}Modus`]: m }))}
+                className={'flex-1 px-2 py-1.5 rounded-lg text-xs border ' + ((f[`${k}Modus`] || 'laufend') === m ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{ml}</button>
+            ))}
+          </div>
+        ))}
       </div>
       {zahl(f.stundenlohn) > 0 && (
         <div className={'text-sm rounded-xl px-3 py-2 border flex gap-2 ' + (abweichung ? 'bg-amber-400/10 border-amber-400/30 text-amber-300' : 'bg-white/[0.04] border-white/10 text-white/60')}>

@@ -156,11 +156,33 @@ Deno.serve(async (req) => {
           ...bilder.map((url: string) => ({ type: 'image_url', image_url: { url, detail: 'high' } })),
         ] },
       ]
+    } else if (task === 'lohnabrechnung') {
+      // Rapport-App: Lohnabrechnung eines Temporärbüros (Schweiz) lesen und vereinheitlichen
+      jsonMode = true
+      const bilder = (Array.isArray(body.bilder) ? body.bilder : [body.bild]).filter(Boolean).slice(0, 6)
+      if (!bilder.length) return out({ error: 'Kein Foto übergeben.' }, 400)
+      messages = [
+        { role: 'system', content: 'Du liest Fotos einer Lohnabrechnung (Temporärarbeit/Personalverleih, Schweiz; mehrere Fotos = mehrere Seiten; Foto kann gedreht sein). ' +
+          'Übernimm jede Zeile genau so, wie sie dasteht — Zahlen Ziffer für Ziffer, nichts erfinden, nichts zusammenfassen; Unlesbares = null. Beträge als Zahl in CHF (positiv), Prozente als Zahl ohne %. ' +
+          'Felder: buero (Temporärbüro), firma (Einsatzbetrieb, falls genannt), mitarbeiter, periodeVon, periodeBis (Abrechnungsperiode YYYY-MM-DD), auszahlungsdatum, ' +
+          'positionen: jede Lohnart-Zeile vor den Abzügen als {text, art, menge (Stunden/Anzahl), ansatz (Satz pro Einheit), betrag}; ' +
+          'art ist eine von: grundlohn (Stundenlohn/Normalstunden), ueberstunden (Überstunden/Überzeit, auch Zuschlag), nacht, samstag, sonntag, feiertagarbeit, zulage (Schicht-/Schmutz-/Höhenzulage u.ä.), ' +
+          'ferien (Ferienentschädigung ausbezahlt), feiertag (Feiertagsentschädigung ausbezahlt), dreizehnter (13. Monatslohn/Gratifikation ausbezahlt), ferienbezug (Ferienlohn bei bezogenen Ferien/Auszahlung Ferienguthaben), ' +
+          'feiertagbezug (bezahlte Feiertage aus Guthaben), absenz (Krankheit, Unfall, Militär, Arzt, Schlechtwetter u.ä.), spesen (nicht AHV-pflichtige Spesen/Pauschalen), mittag (Mittags-/Verpflegungszulage), sonstiges; ' +
+          'brutto (AHV-pflichtiger Bruttolohn), abzuege: jede Abzugszeile als {text, art, prozent, basis, betrag} mit art aus ahv (AHV/IV/EO), alv, nbu, ktg, bvg (Pensionskasse/BVG), gav (Vollzugskosten/VZK/Weiterbildung), far, parifonds, quellensteuer, sonstiges; ' +
+          'netto (Nettolohn), auszahlung (ausbezahlter Betrag), stundenTotal (gesamte Stunden, falls angegeben), ' +
+          'guthaben: {ferien (Saldo Ferienguthaben in CHF), ferienStunden, feiertag (Saldo CHF), dreizehnter (Saldo angesparter 13. ML in CHF)} — nur wenn auf der Abrechnung ein Saldo/Guthaben steht. ' +
+          'Antworte NUR als JSON mit genau diesen Feldern.' },
+        { role: 'user', content: [
+          { type: 'text', text: bilder.length > 1 ? `Lohnabrechnung, ${bilder.length} Seiten:` : 'Lohnabrechnung:' },
+          ...bilder.map((url: string) => ({ type: 'image_url', image_url: { url, detail: 'high' } })),
+        ] },
+      ]
     } else {
       return out({ error: 'unbekannter task' }, 400)
     }
 
-    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen', 'einsatzvertrag'].includes(task) ? 'gpt-4o' : 'gpt-4o-mini'
+    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen', 'einsatzvertrag', 'lohnabrechnung'].includes(task) ? 'gpt-4o' : 'gpt-4o-mini'
     const temperature = task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2
     const ask = async (msgs, temp) => {
       const payload = { model, temperature: temp, messages: msgs }
@@ -224,6 +246,16 @@ Deno.serve(async (req) => {
           ...messages,
           { role: 'assistant', content },
           { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen die Fotos. Ist stundenlohn wirklich der Grundlohn ohne Ferien/Feiertag/13. ML (nicht der Total-Stundenlohn)? Passt der Kanton zum Arbeitsort (nicht zum Sitz des Büros)? Nichts erfinden — fehlende Werte bleiben null. Antworte NUR mit dem vollständigen korrigierten JSON.' },
+        ], 0)
+        JSON.parse(neu); content = neu
+      } catch { /* erste Antwort behalten */ }
+    }
+    if (task === 'lohnabrechnung' && content.trim()) {
+      try {
+        const neu = await ask([
+          ...messages,
+          { role: 'assistant', content },
+          { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen die Fotos. Kontrolliere: Summe der AHV-pflichtigen Positionen = brutto; brutto − Summe abzuege = netto; netto + spesen/mittag ± Sonstiges = auszahlung. Geht etwas nicht auf, hast du dich verlesen oder eine Zeile übersehen — lies erneut. Stimmt die Zuordnung jeder Zeile zu art? Nichts erfinden. Antworte NUR mit dem vollständigen korrigierten JSON.' },
         ], 0)
         JSON.parse(neu); content = neu
       } catch { /* erste Antwort behalten */ }

@@ -49,11 +49,20 @@ export function stundenSaetze(e) {
 /** Stundenlohn inkl. Ferien, Feiertag, 13. ML (im Vertrag „Total AHV-pflichtiger Bruttolohn pro Stunde") */
 export const stundenlohnTotal = (e) => stundenSaetze(e).total
 
+/**
+ * Auszahlungsart der Entschädigungen pro Einsatz: 'laufend' (mit jedem Lohn) oder 'konto'
+ * (Büro spart sie an — Ferien-/Feiertagskonto, 13. ML). Felder ferienModus, feiertagModus, dreizehnterModus.
+ */
+export const modus = (e, k) => (e?.[`${k}Modus`] === 'konto' ? 'konto' : 'laufend')
+export const KONTEN = [['ferien', 'Ferien'], ['feiertag', 'Feiertage'], ['dreizehnter', '13. Monatslohn']]
+
 /** Lohnfaktor einer Abwesenheit (Anteil des Stundenlohns) */
 export function absenzFaktor(art, e) {
   switch (art) {
-    case 'ferien': return wert(e, 'ferienProzent') > 0 ? 0 : 1 // bereits als Zuschlag bezahlt
-    case 'feiertag': return wert(e, 'feiertagProzent') > 0 ? 0 : 1
+    // laufend ausbezahlt → Ferien/Feiertage sind schon im Stundenlohn bezahlt (0 %);
+    // auf Konto angespart → beim Bezug wird der Grundlohn aus dem Konto bezahlt (100 %)
+    case 'ferien': return modus(e, 'ferien') === 'konto' || !(wert(e, 'ferienProzent') > 0) ? 1 : 0
+    case 'feiertag': return modus(e, 'feiertag') === 'konto' || !(wert(e, 'feiertagProzent') > 0) ? 1 : 0
     case 'krank': case 'unfall': return wert(e, 'krankFaktor') / 100
     case 'schlechtwetter': return wert(e, 'schlechtwetterFaktor') / 100
     case 'militaer': case 'eltern': return 0.8 // EO
@@ -152,17 +161,28 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     z(`Sonntagszuschlag ${wert(e, 'sonntagZuschlag')} %`, t.sonntagStd * g * prozent(e, 'sonntagZuschlag'), { text: std(t.sonntagStd) })
     z(`Feiertagsarbeit ${wert(e, 'feiertagArbeitZuschlag')} %`, t.feiertagStd * g * prozent(e, 'feiertagArbeitZuschlag'), { text: std(t.feiertagStd) })
     z('Zulage pro Stunde', t.grundStd * wert(e, 'zulageStunde'), { text: `${std(t.grundStd)} × ${wert(e, 'zulageStunde').toFixed(2)}` })
+    // Konten: Gutschrift (angespart) und Bezug (Ferien/Feiertage aus dem Konto bezahlt)
+    const konten = Object.fromEntries(KONTEN.map(([k]) => [k, { gutschrift: 0, bezug: 0 }]))
     for (const [art, a] of Object.entries(t.absenzen)) {
-      zeilen.push({ art, label: art, betrag: a.betrag, info: `${std(a.std)} × ${Math.round(a.faktor * 100)} %` })
+      const ausKonto = (art === 'ferien' || art === 'feiertag') && modus(e, art) === 'konto'
+      if (ausKonto) konten[art].bezug += a.betrag
+      zeilen.push({ art, label: art, betrag: a.betrag, ausKonto, info: `${std(a.std)} × ${Math.round(a.faktor * 100)} %${ausKonto ? ' · aus dem Konto' : ''}` })
     }
-    // Entschädigungen wie im Vertrag: pro gearbeitete Stunde, Satz auf den Rappen gerundet
+    // Entschädigungen wie im Vertrag: pro gearbeitete Stunde; laufend → im Bruttolohn, Konto → angespart
     const sz = stundenSaetze(e), h = t.grundStd.toFixed(2)
-    z(`Ferienentschädigung ${wert(e, 'ferienProzent')} %`, t.grundStd * sz.ferien, { text: `${h} h × ${sz.ferien.toFixed(2)}` })
-    z(`Feiertagsentschädigung ${wert(e, 'feiertagProzent')} %`, t.grundStd * sz.feiertag, { text: `${h} h × ${sz.feiertag.toFixed(2)}` })
     // Rest so, dass Grundlohn + Entschädigungen = Stunden × Total-Stundenlohn (wie abgerechnet wird)
     const dz = t.grundStd * sz.total - grund - t.grundStd * sz.ferien - t.grundStd * sz.feiertag
-    z(`13. Monatslohn ${wert(e, 'dreizehnterProzent')} %`, dz, { text: `${h} h × ${sz.dreizehnter.toFixed(2)}` })
-    const brutto = zeilen.reduce((a, x) => a + x.betrag, 0)
+    for (const [k, label, betrag, satz] of [
+      ['ferien', `Ferienentschädigung ${wert(e, 'ferienProzent')} %`, t.grundStd * sz.ferien, sz.ferien],
+      ['feiertag', `Feiertagsentschädigung ${wert(e, 'feiertagProzent')} %`, t.grundStd * sz.feiertag, sz.feiertag],
+      ['dreizehnter', `13. Monatslohn ${wert(e, 'dreizehnterProzent')} %`, dz, sz.dreizehnter],
+    ]) {
+      if (Math.abs(betrag) < 0.005) continue
+      const konto = modus(e, k) === 'konto'
+      if (konto) konten[k].gutschrift += betrag
+      zeilen.push({ k, label, betrag, konto, info: `${h} h × ${satz.toFixed(2)}${konto ? ' · angespart, nicht ausbezahlt' : ''}` })
+    }
+    const brutto = zeilen.reduce((a, x) => a + (x.konto ? 0 : x.betrag), 0)
     // Quellensteuer hängt von der Person ab (Fragebogen), nicht vom Einsatz
     const p = einst?.profil
     const qst = quellensteuerPflichtig(p) ? (zahl(p.qstSatz) || zahl(einst?.qstAuto?.satz)) : p?.status ? 0 : wert(e, 'quellensteuer')
@@ -173,7 +193,7 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     const abzugTotal = abzuege.reduce((a, x) => a + x.betrag, 0)
     // nicht AHV-pflichtig, kommt zur Auszahlung
     const mittag = t.tage.size * wert(e, 'mittagszulage')
-    return { ...t, tage: t.tage.size, zeilen, brutto, abzuege, abzugTotal, netto: brutto - abzugTotal, mittag }
+    return { ...t, tage: t.tage.size, zeilen, brutto, abzuege, abzugTotal, netto: brutto - abzugTotal, mittag, konten }
   }).filter((p) => p.grundStd > 0 || p.zeilen.length > 1)
 
   const spesenSumme = spesen.filter((x) => imZeitraum(x.datum)).reduce((a, x) => a + zahl(x.betrag), 0)
