@@ -107,7 +107,12 @@ jobs:
             supabase link --project-ref "$PROJECT_REF" -p "$SUPABASE_DB_PASSWORD"
             supabase db push --linked --include-all -p "$SUPABASE_DB_PASSWORD"
           else
-            supabase db push --db-url "$DB_URL" --include-all
+            # direkt nach dem Aufwecken weist die Datenbank Verbindungen kurz ab → bis zu 5 Versuche
+            for i in 1 2 3 4 5; do
+              supabase db push --db-url "$DB_URL" --include-all && exit 0
+              echo "Versuch $i fehlgeschlagen — warte 20 s"; sleep 20
+            done
+            exit 1
           fi
       - name: Edge Function baulog-ai ausliefern
         run: supabase functions deploy baulog-ai --project-ref "$PROJECT_REF" --use-api
