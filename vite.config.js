@@ -8,6 +8,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // /baulog/rapport/ ist eine eigene App mit eigenem Service Worker
+      workbox: { navigateFallbackDenylist: [/^\/baulog\/rapport\//] },
       manifest: {
         name: 'BauLog — Bautagebuch & Stunden-Tracker',
         short_name: 'BauLog',

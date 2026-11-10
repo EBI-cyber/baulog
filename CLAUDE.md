@@ -61,3 +61,9 @@ Folgt dem Skill **`baulog-design`** (dunkles Glas, lucide-Icons, IconChips, resp
 - Optional: vollautomatische Einladungs-Mail via funktionierendes SMTP (dann `invite-worker` + `SetPassword` reaktivieren).
 - Bundle ist groß (~1 MB) — bei Bedarf Code-Splitting.
 - Nacherfassung ausstehender Arbeitszeiten (24./26.08.2026) über "Zeiten nachtragen (KI)" — Details in `HANDOFF.md`.
+
+## Zweite App: Rapport (`rapport/`)
+- Eigenständige PWA (eigenes `package.json`) für einfache Arbeitszeiterfassung beim Temporäreinsatz: Start/Pause/Feierabend, Einsatzbetrieb, Temporärbüro, KW, Wochenrapport-PDF.
+- Live unter **https://ebi-cyber.github.io/baulog/rapport/** (wird im Deploy-Job `build` mitgebaut und nach `dist/rapport` kopiert). BauLogs Service Worker schließt `/baulog/rapport/` aus.
+- Daten nur lokal (Dexie, DB `rapport`), Einstellungen im localStorage. Senden/Sichern über das iOS-Teilen-Menü (WhatsApp / „In Dateien sichern" → OneDrive). PDF wird vorab erzeugt, weil iOS `navigator.share` nur direkt im Klick erlaubt.
+- Rapport-Layout (`rapport/src/lib/pdf.js`) ist vorläufig — wird an die Vorlage des Nutzers angepasst.
