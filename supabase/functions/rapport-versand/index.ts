@@ -74,9 +74,35 @@ Deno.serve(async (req) => {
         })
         const r = await res.json().catch(() => ({}))
         ergebnis.onedrive = res.ok ? { ok: true, url: r.webUrl, pfad: decodeURIComponent(ziel) } : { ok: false, fehler: r.error?.message || res.status }
+        // Freigabelink (nur ansehen) — z.B. für den Durchschlag per WhatsApp
+        if (res.ok && b.onedrive.link && r.id) {
+          const l = await fetch(`${GRAPH}/me/drive/items/${r.id}/createLink`, {
+            method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'view', scope: 'anonymous' }),
+          })
+          const lj = await l.json().catch(() => ({}))
+          if (l.ok) (ergebnis.onedrive as Record<string, unknown>).link = lj.link?.webUrl
+        }
       }
 
-      // 2) E-Mail ans Büro
+      // 2) E-Mails: ans Büro (mail) und Durchschlag an den Einsatzbetrieb (kopie)
+      const senden = async (m: Record<string, unknown>) => {
+        const an = String(m.an || '').split(/[,;\s]+/).filter(Boolean)
+        const cc = String(m.cc || '').split(/[,;\s]+/).filter(Boolean)
+        if (!an.length) return { ok: false, fehler: 'Keine E-Mail-Adresse' }
+        const res = await fetch(`${GRAPH}/me/sendMail`, {
+          method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: {
+              subject: String(m.betreff || b.datei.name), body: { contentType: 'Text', content: String(m.text || '') },
+              toRecipients: an.map((address) => ({ emailAddress: { address } })), ccRecipients: cc.map((address) => ({ emailAddress: { address } })),
+              attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: b.datei.name, contentType: b.datei.typ || 'application/pdf', contentBytes: String(b.datei.base64).replace(/^data:[^,]+,/, '') }],
+            },
+            saveToSentItems: true,
+          }),
+        })
+        return res.ok ? { ok: true, an } : { ok: false, fehler: (await res.json().catch(() => ({}))).error?.message || res.status }
+      }
+      if (b.kopie && b.datei) ergebnis.kopie = await senden(b.kopie)
       if (b.mail && b.datei) {
         const an = String(b.mail.an || '').split(/[,;\s]+/).filter(Boolean)
         const cc = String(b.mail.cc || '').split(/[,;\s]+/).filter(Boolean)

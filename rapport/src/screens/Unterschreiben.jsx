@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { FileText, Loader2, CheckCircle2, AlertTriangle, Timer, PenLine, MessageSquareWarning } from 'lucide-react'
+import { FileText, Loader2, CheckCircle2, AlertTriangle, Timer, PenLine, MessageSquareWarning, Download, Mail, Phone } from 'lucide-react'
 import Unterschrift from '../components/Unterschrift'
 import { signaturLesen, signaturAntworten } from '../lib/signatur'
 import { rapportPdf } from '../lib/pdf'
@@ -16,11 +16,15 @@ export default function Unterschreiben() {
   const [bild, setBild] = useState(null), [name, setName] = useState('')
   const [nein, setNein] = useState(false), [bemerkung, setBemerkung] = useState('')
   const [sende, setSende] = useState(false), [fertig, setFertig] = useState(null)
+  const [email, setEmail] = useState(''), [tel, setTel] = useState('')
+  const [durchschlag, setDurchschlag] = useState(null) // Blob-URL des PDFs mit beiden Unterschriften
 
   useEffect(() => {
     signaturLesen(token).then((r) => {
       setD(r.daten)
       if (r.status !== 'offen') setFertig(r.status)
+      const p = r.daten?.polier || {}
+      setName(p.name || ''); setEmail(p.email || ''); setTel(p.tel || '')
     }).catch((e) => setFehler(e.message))
   }, [token])
 
@@ -32,7 +36,13 @@ export default function Unterschreiben() {
   async function senden(einverstanden) {
     setSende(true); setFehler('')
     try {
-      await signaturAntworten(token, einverstanden ? { einverstanden: true, bild, name } : { einverstanden: false, name, bemerkung })
+      await signaturAntworten(token, einverstanden ? { einverstanden: true, bild, name, email, tel } : { einverstanden: false, name, bemerkung })
+      if (einverstanden) {
+        // Durchschlag sofort: PDF mit beiden Unterschriften, hier auf dem Handy erzeugt
+        const blob = rapportPdf({ einst: d.einst, woche: d.woche, schichten: d.schichten, absenzen: d.absenzen, spesen: d.spesen, einsatz: d.einsatz,
+          unterschriften: { maBild: d.ma?.bild, maAm: d.ma?.am, firmaBild: bild, firmaName: name, firmaAm: Date.now() } })
+        setDurchschlag(URL.createObjectURL(blob))
+      }
       setFertig(einverstanden ? 'unterschrieben' : 'abgelehnt')
     } catch (e) { setFehler(e.message) } finally { setSende(false) }
   }
@@ -53,7 +63,10 @@ export default function Unterschreiben() {
     <div className="glass rounded-3xl p-6 text-center space-y-3">
       <CheckCircle2 className="w-12 h-12 mx-auto text-mint" />
       <div className="text-xl font-bold">{fertig === 'unterschrieben' ? 'Danke, der Rapport ist unterschrieben.' : 'Danke, Ihre Bemerkung wurde übermittelt.'}</div>
-      <div className="text-sm text-white/55">{d.einst.name} erhält die Antwort automatisch. Sie können diese Seite schliessen.</div>
+      <div className="text-sm text-white/55">{d.einst.name} erhält die Antwort automatisch.
+        {fertig === 'unterschrieben' && (email || tel) ? ` Ihr Durchschlag kommt ${[email && 'per E-Mail', tel && 'per WhatsApp'].filter(Boolean).join(' und ')}, sobald ${d.einst.name} den Rapport abschliesst.` : ''}</div>
+      {durchschlag && <a href={durchschlag} download={`Rapport_KW${d.woche.kw}_${d.woche.jahr}_${d.einst.name || ''}.pdf`.replace(/\s+/g, '_')}
+        className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2"><Download className="w-5 h-5" /> Durchschlag jetzt speichern (PDF)</a>}
     </div>,
   )
 
@@ -97,6 +110,14 @@ export default function Unterschreiben() {
           <div className="font-bold flex items-center gap-2"><PenLine className="w-5 h-5 text-aqua" /> Unterschrift Einsatzbetrieb</div>
           <input className="eingabe" placeholder="Ihr Name (z.B. Polier, Vorarbeiter)" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
           <Unterschrift wert={bild} onChange={setBild} hoehe={170} />
+          <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
+            <div className="text-sm font-semibold">Durchschlag für Sie — wohin?</div>
+            <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+              <input className="eingabe pl-9" type="email" inputMode="email" autoComplete="email" placeholder="E-Mail (optional)" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+            <div className="relative"><Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+              <input className="eingabe pl-9" type="tel" inputMode="tel" autoComplete="tel" placeholder="WhatsApp-Nummer (optional)" value={tel} onChange={(e) => setTel(e.target.value)} /></div>
+            <div className="text-xs text-white/35">{d.einst.name} merkt sich diese Angaben für den nächsten Rapport.</div>
+          </div>
           <button onClick={() => senden(true)} disabled={!bild || !name.trim() || sende}
             className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-40">
             {sende ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} Rapport bestätigen & unterschreiben

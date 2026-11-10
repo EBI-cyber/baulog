@@ -8,7 +8,7 @@ import { kiVerfuegbar } from '../lib/ki'
  * QR-Code, den der Polier mit seinem Handy scannt: Er sieht den Rapport und unterschreibt dort.
  * Die Unterschrift kommt automatisch zurück (onUnterschrift({ bild, name, am })).
  */
-export default function QrSignatur({ g, woche, onUnterschrift }) {
+export default function QrSignatur({ g, woche, ma, onUnterschrift }) {
   const [zustand, setZustand] = useState(null) // { token, qr, link } | 'laedt'
   const [antwort, setAntwort] = useState(null)
   const [fehler, setFehler] = useState('')
@@ -19,7 +19,7 @@ export default function QrSignatur({ g, woche, onUnterschrift }) {
   async function starten() {
     setFehler(''); setAntwort(null); setZustand('laedt')
     try {
-      const token = await signaturAnlegen(schnappschuss(g, woche))
+      const token = await signaturAnlegen(schnappschuss(g, woche, ma))
       const link = signaturLink(token)
       const qr = await QRCode.toDataURL(link, { margin: 1, width: 520, errorCorrectionLevel: 'M' })
       setZustand({ token, qr, link })
@@ -31,7 +31,7 @@ export default function QrSignatur({ g, woche, onUnterschrift }) {
         const s = await signaturStatus(token, true).catch(() => null)
         if (!s || s.status === 'offen') continue
         setAntwort(s)
-        if (s.status === 'unterschrieben') { onUnterschrift({ bild: s.bild, name: s.name, am: Date.parse(s.beantwortet) || Date.now() }); setZustand(null) }
+        if (s.status === 'unterschrieben') { onUnterschrift({ bild: s.bild, name: s.name, am: Date.parse(s.beantwortet) || Date.now(), email: s.email || '', tel: s.tel || '' }); setZustand(null) }
         return
       }
     } catch (e) { setFehler(e.message); setZustand(null) }
@@ -40,11 +40,12 @@ export default function QrSignatur({ g, woche, onUnterschrift }) {
   if (!kiVerfuegbar) return null
   return (
     <div className="space-y-2">
-      {!zustand && (
-        <button type="button" onClick={starten} className="w-full rounded-2xl py-2.5 bg-white/10 font-semibold text-sm inline-flex items-center justify-center gap-2">
+      {!zustand && (<>
+        <button type="button" onClick={starten} disabled={!ma?.bild} className="w-full rounded-2xl py-2.5 bg-white/10 font-semibold text-sm inline-flex items-center justify-center gap-2 disabled:opacity-40">
           <QrCode className="w-4 h-4" /> Polier unterschreibt auf seinem Handy (QR-Code)
         </button>
-      )}
+        {!ma?.bild && <div className="text-xs text-white/40 text-center">Zuerst selbst unterschreiben — dann bekommt der Polier einen vollständigen Durchschlag.</div>}
+      </>)}
       {zustand === 'laedt' && <div className="text-sm text-white/50 inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> QR-Code wird erstellt …</div>}
       {zustand?.qr && (
         <div ref={qrBox} className="rounded-2xl bg-white p-4 text-center space-y-2 relative">

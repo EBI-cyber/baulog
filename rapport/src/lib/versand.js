@@ -52,15 +52,25 @@ async function versenden(g, wKey, status, wunsch, mehrere) {
   const m = mailText(g, woche, einst)
   const cc = einst.kopieAnMich ? msLaden().konto : ''
   try {
+    // Durchschlag an den Einsatzbetrieb: per E-Mail; für WhatsApp ein OneDrive-Link (nur ansehen)
+    const k = status.kopieEmail ? {
+      an: status.kopieEmail,
+      betreff: `Durchschlag Rapport KW ${woche.kw}/${woche.jahr} – ${einst.name || ''}`,
+      text: `Guten Tag${status.firmaName ? ' ' + status.firmaName : ''}\n\nIm Anhang Ihr Durchschlag des unterschriebenen Rapports für KW ${woche.kw}/${woche.jahr} ` +
+        `(${einst.name || ''}, Einsatz bei ${g.firma}).\n\nFreundliche Grüsse\n${einst.name || ''}`,
+    } : null
     const r = await msVersand({
       datei,
-      onedrive: wunsch.onedrive ? { ordner: ordnerPfad(einst.onedriveOrdner, woche, g) } : null,
+      onedrive: wunsch.onedrive || status.kopieTel ? { ordner: ordnerPfad(einst.onedriveOrdner, woche, g), link: !!status.kopieTel } : null,
       mail: wunsch.mail && mailAn ? { an: mailAn, cc, ...m } : null,
+      kopie: k,
     })
     const neu = { ...status, versandOffen: null, fehler: null }
     if (r.mail?.ok) neu.gesendetAm = Date.now(), neu.gesendetAn = r.mail.an.join(', ')
     if (r.onedrive?.ok) neu.gespeichertAm = Date.now(), neu.onedrivePfad = r.onedrive.pfad, neu.onedriveUrl = r.onedrive.url
-    const fehler = [r.mail && !r.mail.ok && `E-Mail: ${r.mail.fehler}`, r.onedrive && !r.onedrive.ok && `OneDrive: ${r.onedrive.fehler}`].filter(Boolean)
+    if (r.onedrive?.link) neu.kopieLink = r.onedrive.link
+    if (r.kopie?.ok) neu.kopieGesendetAm = Date.now()
+    const fehler = [r.kopie && !r.kopie.ok && `Durchschlag: ${r.kopie.fehler}`, r.mail && !r.mail.ok && `E-Mail: ${r.mail.fehler}`, r.onedrive && !r.onedrive.ok && `OneDrive: ${r.onedrive.fehler}`].filter(Boolean)
     if (wunsch.mail && !mailAn) fehler.push('E-Mail: Im Einsatz ist keine E-Mail des Büros eingetragen')
     if (fehler.length) neu.fehler = fehler.join(' · ')
     await db.wochen.put(neu)

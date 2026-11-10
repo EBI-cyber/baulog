@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Send, Mail, CloudUpload, Loader2, AlertTriangle, Share2, Building2 } from 'lucide-react'
+import { CheckCircle2, Send, Mail, CloudUpload, Loader2, AlertTriangle, Share2, Building2, Phone, MessageCircle, Copy } from 'lucide-react'
 import Sheet from './Sheet'
 import Unterschrift from './Unterschrift'
 import QrSignatur from './QrSignatur'
@@ -9,7 +9,8 @@ import { useEinstellungen } from '../lib/settings'
 import { gruppenLaden, rapportStatus } from '../lib/rapporte'
 import { abschliessen, gruppenPdf, ordnerPfad } from '../lib/versand'
 import { useMs } from '../lib/microsoft'
-import { teileDatei } from '../lib/teilen'
+import { teileDatei, whatsappLink } from '../lib/teilen'
+import { db } from '../lib/db'
 import { wochenRechnung, std } from '../lib/woche'
 import { ausKey } from '../lib/zeit'
 
@@ -41,24 +42,33 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
   const status = useLiveQuery(() => rapportStatus(wKey, g.firma, !mehrere), [wKey, g.firma, mehrere], undefined)
   const [ma, setMa] = useState(null), [fi, setFi] = useState(null), [fiName, setFiName] = useState(''), [fiAm, setFiAm] = useState(null)
   const [wunsch, setWunsch] = useState({ mail: true, onedrive: true })
+  const [kopie, setKopie] = useState({ email: '', tel: '' }) // Durchschlag an den Einsatzbetrieb
   const [laeuft, setLaeuft] = useState(false), [ergebnis, setErgebnis] = useState(null)
   useEffect(() => {
     if (status === undefined) return
     setMa(status?.maBild || einst.unterschrift?.bild || null)
     setFi(status?.firmaBild || null)
-    setFiName(status?.firmaName || g.einsatz?.meldenBei || '')
+    setFiName(status?.firmaName || g.einsatz?.polierName || g.einsatz?.meldenBei || '')
+    setKopie({ email: status?.kopieEmail || g.einsatz?.polierEmail || '', tel: status?.kopieTel || g.einsatz?.polierTel || '' })
   }, [status === undefined]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const total = wochenRechnung({ schichten: g.schichten, absenzen: g.absenzen, einst: g.einst }).total
   const jetzt = Date.now()
   const unterschriften = { maBild: ma, maAm: ma ? (status?.maBild === ma ? status.maAm : jetzt) : null,
-    firmaBild: fi, firmaName: fiName, firmaAm: fi ? (fiAm || (status?.firmaBild === fi ? status.firmaAm : jetzt)) : null }
+    firmaBild: fi, firmaName: fiName, firmaAm: fi ? (fiAm || (status?.firmaBild === fi ? status.firmaAm : jetzt)) : null,
+    kopieEmail: kopie.email.trim(), kopieTel: kopie.tel.trim() }
   // PDF vorab (für das Teilen-Menü ohne Microsoft — iOS verlangt den direkten Klick)
   const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, fiName, fiAm, g]) // eslint-disable-line react-hooks/exhaustive-deps
   const email = g.einsatz?.bueroEmail
 
+  // Kontakt des Poliers im Einsatz merken — nächste Woche vorausgefüllt
+  async function polierMerken(name, k) {
+    if (g.einsatz?.id) await db.einsaetze.update(g.einsatz.id, { polierName: name || g.einsatz.polierName || '', polierEmail: k.email, polierTel: k.tel })
+  }
+
   async function los() {
     setLaeuft(true); setErgebnis(null)
+    await polierMerken(fiName, kopie)
     try {
       const r = await abschliessen({ g, wKey, unterschriften, wunsch, mehrere })
       setErgebnis(r)
@@ -84,7 +94,17 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
         <div className="text-xs text-white/50">Unterschrift Einsatzbetrieb (Vorarbeiter / Polier)</div>
         <Unterschrift wert={fi} onChange={(b) => { setFi(b); setFiAm(null) }} hoehe={150} />
         <input className="eingabe" placeholder="Name des Unterzeichners" value={fiName} onChange={(e) => setFiName(e.target.value)} />
-        {!fi && <QrSignatur g={g} woche={woche} onUnterschrift={({ bild, name, am }) => { setFi(bild); setFiName(name || ''); setFiAm(am) }} />}
+        {!fi && <QrSignatur g={g} woche={woche} ma={{ bild: ma, am: unterschriften.maAm }} onUnterschrift={({ bild, name, am, email, tel }) => {
+          setFi(bild); setFiName(name || ''); setFiAm(am)
+          const k = { email: email || kopie.email, tel: tel || kopie.tel }
+          setKopie(k); polierMerken(name, k)
+        }} />}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+            <input className="eingabe pl-9 text-sm" type="email" placeholder="Durchschlag E-Mail" value={kopie.email} onChange={(e) => setKopie({ ...kopie, email: e.target.value })} /></div>
+          <div className="relative"><Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+            <input className="eingabe pl-9 text-sm" type="tel" placeholder="Durchschlag WhatsApp" value={kopie.tel} onChange={(e) => setKopie({ ...kopie, tel: e.target.value })} /></div>
+        </div>
       </div>
 
       {verbunden ? (
@@ -113,6 +133,16 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
 
       {s?.gesendetAm && <div className="text-sm text-lime flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> Gesendet an {s.gesendetAn || 'Büro'}</div>}
       {s?.gespeichertAm && <div className="text-sm text-lime flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> In OneDrive gespeichert{s.onedrivePfad ? `: ${s.onedrivePfad}` : ''}</div>}
+      {s?.kopieGesendetAm && <div className="text-sm text-lime flex gap-2"><CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> Durchschlag per E-Mail an {s.kopieEmail}</div>}
+      {(s?.gesendetAm || s?.abgeschlossenAm) && s?.kopieTel && (
+        s.kopieLink
+          ? <a href={whatsappLink(s.kopieTel, `Guten Tag${s.firmaName ? ' ' + s.firmaName : ''}, hier Ihr Durchschlag vom Rapport KW ${woche.kw}/${woche.jahr} (${einst.name}): ${s.kopieLink}`)}
+              target="_blank" rel="noreferrer" className="w-full rounded-2xl py-3 bg-[#25D366]/15 border border-[#25D366]/40 text-[#7ee2a8] font-semibold inline-flex items-center justify-center gap-2">
+              <MessageCircle className="w-5 h-5" /> Durchschlag per WhatsApp an {s.firmaName || s.kopieTel}</a>
+          : <button onClick={() => teileDatei(datei.blob, datei.name).catch(() => {})}
+              className="w-full rounded-2xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2">
+              <Copy className="w-5 h-5" /> Durchschlag teilen (WhatsApp {s.kopieTel})</button>
+      )}
       {s?.versandOffen && <div className="text-sm text-amber-300 flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> Kein Netz — wird automatisch nachgesendet.</div>}
       {s?.fehler && !s?.versandOffen && <div className="text-sm text-ember flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {s.fehler}</div>}
     </section>

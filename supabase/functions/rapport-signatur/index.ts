@@ -45,13 +45,16 @@ Deno.serve(async (req) => {
       const { error: e2 } = await db.from(T).update({
         status: ok ? 'unterschrieben' : 'abgelehnt', bild, name: String(b.name || '').slice(0, 120),
         bemerkung: String(b.bemerkung || '').slice(0, 2000), beantwortet: new Date().toISOString(),
+        // Durchschlag: E-Mail und/oder WhatsApp-Nummer des Unterzeichners
+        kopie_email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.email || '').trim()) ? String(b.email).trim().slice(0, 200) : null,
+        kopie_tel: String(b.tel || '').replace(/[^\d+]/g, '').slice(0, 20) || null,
       }).eq('token', b.token).eq('status', 'offen')
       if (e2) return out({ error: e2.message }, 500)
       return out({ ok: true })
     }
 
     if (b.task === 'status') {
-      const antwort = { status: z.status, bild: z.bild, name: z.name, bemerkung: z.bemerkung, beantwortet: z.beantwortet }
+      const antwort = { status: z.status, bild: z.bild, name: z.name, bemerkung: z.bemerkung, beantwortet: z.beantwortet, email: z.kopie_email, tel: z.kopie_tel }
       // abgeholt → löschen (die Unterschrift liegt jetzt beim Mitarbeiter)
       if (z.status !== 'offen' && b.abholen) await db.from(T).delete().eq('token', b.token)
       return out(antwort)

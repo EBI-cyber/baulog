@@ -14,7 +14,8 @@ async function aufruf(body) {
 }
 
 /** Schnappschuss eines Rapports ohne Lohnangaben (für den Polier) */
-export function schnappschuss(g, woche) {
+/** ma: { bild, am } — meine Unterschrift, damit der Polier einen vollständigen Durchschlag bekommt */
+export function schnappschuss(g, woche, ma = null) {
   const s = (x) => ({ start: x.start, ende: x.ende, pausen: x.pausen, pauseMin: x.pauseMin, firma: x.firma, notiz: x.notiz, datum: x.datum, wocheKey: x.wocheKey })
   return {
     v: 1, woche, firma: g.firma,
@@ -23,6 +24,9 @@ export function schnappschuss(g, woche) {
     schichten: g.schichten.map(s),
     absenzen: g.absenzen.map((a) => ({ datum: a.datum, wocheKey: a.wocheKey, art: a.art, stunden: a.stunden, halbtag: a.halbtag, zeugnis: a.zeugnis, notiz: a.notiz })),
     spesen: g.spesen.map((x) => ({ datum: x.datum, art: x.art, betrag: x.betrag, km: x.km, notiz: x.notiz })),
+    ma: ma?.bild ? { bild: ma.bild, am: ma.am || Date.now() } : null,
+    // bekannte Angaben des Poliers vorausfüllen (aus dem letzten Mal)
+    polier: { name: g.einsatz?.polierName || '', email: g.einsatz?.polierEmail || '', tel: g.einsatz?.polierTel || '' },
   }
 }
 
