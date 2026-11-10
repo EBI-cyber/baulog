@@ -7,12 +7,14 @@ import { KANTONE } from '../lib/feiertage'
 import { LOHN_STANDARD, ABZUEGE, stundenlohnTotal } from '../lib/lohn'
 import { verkleinern } from '../lib/bild'
 import { einsatzvertragLesen, kiVerfuegbar } from '../lib/ki'
+import { BRANCHEN, branche, brancheAnwenden } from '../lib/branchen'
 
-const NEU = { firma: '', buero: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
+const NEU = { firma: '', branche: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
   gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
 
 const ZAHLEN = ['stundenlohn', 'wochenstunden', 'feiertagProzent', 'ferienProzent', 'dreizehnterProzent', 'ueberstundenZuschlag',
-  'nachtZuschlag', 'sonntagZuschlag', 'krankFaktor', 'ahv', 'alv', 'nbu', 'ktg', 'bvg', 'gav', 'quellensteuer']
+  'nachtVon', 'nachtBis', 'nachtZuschlag', 'samstagZuschlag', 'sonntagZuschlag', 'feiertagArbeitZuschlag', 'zulageStunde', 'mittagszulage',
+  'krankFaktor', 'schlechtwetterFaktor', 'ahv', 'alv', 'nbu', 'ktg', 'bvg', 'gav', 'far', 'parifonds', 'quellensteuer']
 
 function Feld({ label, einheit, breit, ...rest }) {
   return (
@@ -30,7 +32,8 @@ const Titel = ({ children }) => <div className="text-xs font-semibold uppercase 
 
 export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
   const [einst, setEinst] = useEinstellungen()
-  const [f, setF] = useState(() => ({ ...NEU, buero: einst.buero, ...(vorgabe || {}), ...(einsatz || {}) }))
+  const [f, setF] = useState(() => ({ ...NEU, ...(vorgabe || {}), ...(einsatz || {}) }))
+  const br = branche(f.branche)
   const [ki, setKi] = useState({ laeuft: false, fehler: '', erkannt: null })
   const datei = useRef()
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
@@ -58,7 +61,8 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
           y[k] = ZAHLEN.includes(k) ? String(v) : String(v).trim()
           erkannt.push(k)
         }
-        ;['firma', 'buero', 'einsatzort', 'funktion', 'beginn', 'ende', 'gavName', 'kuendigungsfrist', 'bemerkungen', ...ZAHLEN].forEach((k) => nimm(k))
+        if (['bau', 'industrie', 'andere'].includes(r.branche)) Object.assign(y, brancheAnwenden(y, r.branche, LOHN_STANDARD))
+        ;['firma', 'buero', 'bueroTel', 'bueroKontakt', 'bueroEmail', 'einsatzort', 'funktion', 'beginn', 'ende', 'gavName', 'kuendigungsfrist', 'bemerkungen', ...ZAHLEN].forEach((k) => nimm(k))
         nimm('spesenInfo', 'spesen'); nimm('stundenlohnTotalVertrag', 'stundenlohnTotal')
         if (r.kanton && KANTONE[String(r.kanton).toUpperCase()]) { y.kanton = String(r.kanton).toUpperCase(); erkannt.push('kanton') }
         return y
@@ -85,7 +89,6 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
     setEinst({
       firmen: firmen.includes(firma) ? firmen : [...firmen, firma],
       firma: !einst.firma || einst.firma === alt ? firma : einst.firma,
-      buero: einst.buero || f.buero,
     })
     onClose()
   }
@@ -133,10 +136,20 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         {ki.fehler && <div className="text-sm rounded-xl px-3 py-2 bg-ember/15 border border-ember/30 text-ember">{ki.fehler}</div>}
       </div>
 
+      <Titel>Branche</Titel>
+      <div className="grid grid-cols-3 gap-2">
+        {BRANCHEN.map((b) => (
+          <button key={b.id} type="button" onClick={() => setF((x) => brancheAnwenden(x, b.id, LOHN_STANDARD))}
+            className={'rounded-xl border px-2 py-2.5 text-xs flex flex-col items-center gap-1 text-center ' + (f.branche === b.id ? 'btn-grad border-transparent font-bold' : 'border-white/10 text-white/65')}>
+            <b.icon className="w-5 h-5" strokeWidth={1.9} /> {b.kurz}
+          </button>
+        ))}
+      </div>
+      {br && <div className="text-xs text-white/45">{br.hinweis} <span className="text-white/30">Vorschläge — der Vertrag geht vor.</span></div>}
+
       <Titel>Einsatz</Titel>
       <div className="grid grid-cols-2 gap-3">
         <Feld breit label="Einsatzbetrieb (Firma) *" value={f.firma} onChange={set('firma')} />
-        <Feld breit label="Temporärbüro" value={f.buero} onChange={set('buero')} />
         <Feld label="Einsatzort" value={f.einsatzort} onChange={set('einsatzort')} />
         <div>
           <label className="block text-xs text-white/50 mb-1">Kanton (Feiertage)</label>
@@ -146,8 +159,22 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
           </select>
         </div>
         <Feld breit label="Funktion / Tätigkeit" value={f.funktion} onChange={set('funktion')} />
+        {br?.funktionen.length > 0 && <div className="col-span-2 flex flex-wrap gap-1.5 -mt-1">
+          {br.funktionen.map((fn) => (
+            <button key={fn} type="button" onClick={() => setF((x) => ({ ...x, funktion: fn }))}
+              className={'px-2.5 py-1 rounded-full text-xs border ' + (f.funktion === fn ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{fn}</button>
+          ))}
+        </div>}
         <Feld label="Beginn" type="date" value={f.beginn} onChange={set('beginn')} />
         <Feld label="Ende" type="date" value={f.ende} onChange={set('ende')} />
+      </div>
+
+      <Titel>Temporärbüro</Titel>
+      <div className="grid grid-cols-2 gap-3">
+        <Feld breit label="Name des Büros (steht im Rapport)" value={f.buero} onChange={set('buero')} placeholder={einst.buero ? `leer = ${einst.buero} (Standard)` : ''} />
+        <Feld label="WhatsApp / Telefon" inputMode="tel" value={f.bueroTel} onChange={set('bueroTel')} placeholder="+41 …" />
+        <Feld label="Kontaktperson" value={f.bueroKontakt} onChange={set('bueroKontakt')} />
+        <Feld breit label="E-Mail" type="email" value={f.bueroEmail} onChange={set('bueroEmail')} />
       </div>
 
       <Titel>Lohn</Titel>
@@ -167,17 +194,24 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         </div>
       )}
 
-      <Titel>Zuschläge</Titel>
+      <Titel>Zuschläge & Zulagen</Titel>
       <div className="grid grid-cols-2 gap-3">
         <Feld label="Überstunden" einheit="%" {...zahlFeld('ueberstundenZuschlag')} />
-        <Feld label="Nacht (23–6 Uhr)" einheit="%" {...zahlFeld('nachtZuschlag')} />
+        <Feld label="Nachtarbeit" einheit="%" {...zahlFeld('nachtZuschlag')} />
+        <Feld label="Nacht ab" einheit="Uhr" {...zahlFeld('nachtVon')} placeholder={LOHN_STANDARD.nachtVon} />
+        <Feld label="Nacht bis" einheit="Uhr" {...zahlFeld('nachtBis')} placeholder={LOHN_STANDARD.nachtBis} />
+        <Feld label="Samstag" einheit="%" {...zahlFeld('samstagZuschlag')} />
         <Feld label="Sonntag" einheit="%" {...zahlFeld('sonntagZuschlag')} />
+        <Feld label="Arbeit an Feiertagen" einheit="%" {...zahlFeld('feiertagArbeitZuschlag')} />
+        <Feld label="Zulage pro Std." einheit={w} {...zahlFeld('zulageStunde')} placeholder="Schicht, Schmutz …" />
+        <Feld label="Mittagszulage / Tag" einheit={w} {...zahlFeld('mittagszulage')} />
         <Feld label="Lohn bei Krankheit" einheit="%" {...zahlFeld('krankFaktor')} />
+        <Feld label="Lohn bei Schlechtwetter" einheit="%" {...zahlFeld('schlechtwetterFaktor')} />
       </div>
 
       <Titel>Abzüge (Arbeitnehmer)</Titel>
       <div className="grid grid-cols-2 gap-3">
-        {ABZUEGE.map(([k, label]) => <Feld key={k} label={label} einheit="%" {...zahlFeld(k)} />)}
+        {ABZUEGE.filter(([k]) => f.branche === 'bau' || !['far', 'parifonds'].includes(k) || f[k]).map(([k, label]) => <Feld key={k} label={label} einheit="%" {...zahlFeld(k)} />)}
       </div>
       <div className="text-xs text-white/35">AHV/IV/EO 5,3 % und ALV 1,1 % sind gesetzlich. Die übrigen Sätze stehen im Vertrag oder auf der ersten Lohnabrechnung.</div>
 

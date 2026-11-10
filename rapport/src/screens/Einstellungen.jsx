@@ -65,7 +65,8 @@ export default function Einstellungen() {
           onChange={(e) => setEinst({ name: e.target.value })} placeholder="Vorname Nachname" />
       </Karte>
 
-      <Karte icon={Building2} titel="Temporärbüro">
+      <Karte icon={Building2} titel="Temporärbüro (Standard)">
+        <div className="text-sm text-white/55">Jeder Einsatz hat sein eigenes Büro (unten bei den Einsätzen). Diese Angaben gelten nur, wenn im Einsatz keins steht.</div>
         <Feld label="Name des Büros" value={einst.buero} onChange={(e) => setEinst({ buero: e.target.value })} placeholder="z.B. Muster Personal AG" />
         <Feld label="WhatsApp-Nummer des Büros (optional)" value={einst.bueroTel} inputMode="tel"
           onChange={(e) => setEinst({ bueroTel: e.target.value })} placeholder="+41 79 123 45 67"

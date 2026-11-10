@@ -58,7 +58,7 @@ export default function Lohn() {
 
   const pdf = useMemo(() => (lohn && lohn.posten.length ? lohnPdf({ einst, lohn, titel: z.titel, von: z.von, bis: z.bis }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lohn && JSON.stringify([lohn.brutto, lohn.spesen]), z.titel, einst])
+    [lohn && JSON.stringify([lohn.brutto, lohn.spesen, lohn.mittag]), z.titel, einst])
 
   return (
     <div className="space-y-5">
@@ -108,7 +108,7 @@ export default function Lohn() {
                 <IconChip icon={Briefcase} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                 <div className="min-w-0">
                   <div className="font-bold truncate">{p.firma}</div>
-                  <div className="text-xs text-white/45">{p.einsatz?.kanton ? `${p.einsatz.kanton} · ` : ''}{p.stundenlohn ? `${chf(p.stundenlohn, w)} / Std. Grundlohn` : 'kein Stundenlohn'}</div>
+                  <div className="text-xs text-white/45">{p.einsatz?.funktion ? `${p.einsatz.funktion} · ` : ''}{p.einsatz?.kanton ? `${p.einsatz.kanton} · ` : ''}{p.stundenlohn ? `${chf(p.stundenlohn, w)} / Std. Grundlohn` : 'kein Stundenlohn'}</div>
                 </div>
               </div>
               {p.zeilen.map((x, i) => (
@@ -125,6 +125,7 @@ export default function Lohn() {
             <section className="glass rounded-3xl p-5">
               <Zeile label="Nettolohn" betrag={lohn.netto} w={w} />
               <Zeile label="Spesen (nicht AHV-pflichtig)" betrag={lohn.spesen} w={w} />
+              {lohn.mittag > 0 && <Zeile label="Mittagszulage" info={lohn.posten.filter((p) => p.mittag).map((p) => `${p.tage} Tage`).join(', ')} betrag={lohn.mittag} w={w} />}
               <Zeile fett label="Auszahlung" info={w === 'CHF' ? 'auf 5 Rappen gerundet' : ''} betrag={runde5(lohn.auszahlung, w)} w={w} />
             </section>
           )}

@@ -4,9 +4,9 @@ import { absenzArt, spesenArt } from './arten'
 import { zahl } from './settings'
 import { wochenRechnung, std } from './woche'
 
-export function dateiName(einst, w) {
-  const name = (einst.name || 'Mitarbeiter').trim().replace(/\s+/g, '_').replace(/[^\wäöüÄÖÜß-]/g, '')
-  return `Rapport_KW${String(w.kw).padStart(2, '0')}_${w.jahr}_${name}.pdf`
+const sauber = (t) => String(t || '').trim().replace(/\s+/g, '_').replace(/[^\wäöüÄÖÜß-]/g, '')
+export function dateiName(einst, w, firma) {
+  return `Rapport_KW${String(w.kw).padStart(2, '0')}_${w.jahr}_${sauber(einst.name) || 'Mitarbeiter'}${firma ? '_' + sauber(firma) : ''}.pdf`
 }
 
 /**
@@ -176,7 +176,7 @@ export function lohnPdf({ einst, lohn, titel, von, bis }) {
     y += 5; neu(30)
     doc.setFillColor(235, 245, 248); doc.rect(L, y - 5, R - L, 8, 'F')
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
-    doc.text(`${p.firma}${p.einsatz?.kanton ? ' (' + p.einsatz.kanton + ')' : ''}`, L + 2, y)
+    doc.text(`${p.firma}${p.einsatz?.kanton ? ' (' + p.einsatz.kanton + ')' : ''}${p.einsatz?.funktion ? ' · ' + p.einsatz.funktion : ''}`, L + 2, y)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
     if (p.stundenlohn) doc.text(`Grundlohn ${geld(p.stundenlohn)} / Std.`, R - 2, y, { align: 'right' })
     y += 8
@@ -191,6 +191,7 @@ export function lohnPdf({ einst, lohn, titel, von, bis }) {
   doc.setDrawColor(120); doc.line(L, y - 3.5, R, y - 3.5)
   zeile('Total Nettolohn', lohn.netto)
   zeile('Spesen', lohn.spesen)
+  if (lohn.mittag) zeile('Mittagszulage', lohn.mittag)
   zeile('Auszahlung', w === 'CHF' ? Math.round(lohn.auszahlung * 20) / 20 : lohn.auszahlung, { fett: true })
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(140)
   doc.text(doc.splitTextToSize('Eigene Schätzung nach Schema GAV Personalverleih, ohne Gewähr. Massgebend ist die Lohnabrechnung des Temporärbüros.', R - L), L, 285)

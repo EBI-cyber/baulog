@@ -137,11 +137,14 @@ Deno.serve(async (req) => {
         { role: 'system', content: 'Du liest Fotos eines Einsatzvertrags (Temporärarbeit/Personalverleih, Schweiz; mehrere Fotos = mehrere Seiten). ' +
           'Übernimm nur Werte, die wirklich im Vertrag stehen, Zahlen Ziffer für Ziffer; was fehlt oder unlesbar ist, ist null. Prozentsätze als Zahl ohne %-Zeichen (z. B. 8.33), Beträge als Zahl in CHF. ' +
           'Felder: firma (Einsatzbetrieb/Kunde, nicht das Temporärbüro), einsatzort (Ort/Adresse des Arbeitsorts), kanton (zweistelliges Kürzel des Arbeitsorts, z. B. ZH, AG, BE; aus PLZ/Ort ableiten), ' +
-          'buero (Name des Temporärbüros/Personalverleihers), beginn und ende (YYYY-MM-DD, ende null wenn unbefristet), funktion (Tätigkeit/Beruf), ' +
+          'branche ("bau" für Bauhauptgewerbe/LMV, z. B. Maurer, Stahlbetonbauer; "industrie" für Industrie/Produktion, z. B. Fertigteilwerk, Betonwarenwerk; sonst "andere"), ' +
+          'buero (Name des Temporärbüros/Personalverleihers), bueroTel (Telefon der Filiale), bueroKontakt (Ansprechperson/Berater), bueroEmail, beginn und ende (YYYY-MM-DD, ende null wenn unbefristet), funktion (Tätigkeit/Beruf), ' +
           'stundenlohn (GRUNDLOHN pro Stunde OHNE Ferien-, Feiertagsentschädigung und 13. Monatslohn), stundenlohnTotal (Stundenlohn inkl. aller Entschädigungen, falls angegeben), ' +
           'wochenstunden (vereinbarte/betriebsübliche Wochenarbeitszeit), feiertagProzent, ferienProzent, dreizehnterProzent (Entschädigungen in % des Grundlohns), ' +
-          'ueberstundenZuschlag, nachtZuschlag, sonntagZuschlag (Zuschläge in %), krankFaktor (Lohnfortzahlung bei Krankheit in %, z. B. 80), ' +
-          'ahv, alv, nbu, ktg, bvg, gav, quellensteuer (Arbeitnehmer-Abzüge in % vom Bruttolohn: AHV/IV/EO, ALV, Nichtberufsunfall, Krankentaggeld, Pensionskasse, GAV-Weiterbildung/Vollzug, Quellensteuer), ' +
+          'ueberstundenZuschlag, nachtZuschlag, samstagZuschlag, sonntagZuschlag, feiertagArbeitZuschlag (Zuschläge in %), nachtVon und nachtBis (Beginn/Ende der Nachtzeit als volle Stunde, z. B. 20 und 5), ' +
+          'zulageStunde (feste Zulage pro Stunde in CHF, z. B. Schicht- oder Schmutzzulage), mittagszulage (Mittags-/Verpflegungszulage pro Arbeitstag in CHF), ' +
+          'krankFaktor (Lohnfortzahlung bei Krankheit in %, z. B. 80), schlechtwetterFaktor (Lohn bei Schlechtwetter in %), ' +
+          'ahv, alv, nbu, ktg, bvg, gav, far, parifonds, quellensteuer (Arbeitnehmer-Abzüge in % vom Bruttolohn: AHV/IV/EO, ALV, Nichtberufsunfall, Krankentaggeld, Pensionskasse, GAV-Weiterbildung/Vollzug, FAR-Frühpensionierung Bau, Parifonds/Berufsbeitrag, Quellensteuer), ' +
           'gavName (anwendbarer GAV), kuendigungsfrist (Text), spesen (Text zu Spesen/Zulagen/Pauschalen), bemerkungen (weitere wichtige Punkte, kurz). ' +
           'Antworte NUR als JSON mit genau diesen Feldern.' },
         { role: 'user', content: [

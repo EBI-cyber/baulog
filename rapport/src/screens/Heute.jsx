@@ -14,6 +14,7 @@ import { chf } from '../lib/lohn'
 import { feiertagAm } from '../lib/feiertage'
 import { kantonFuer } from '../lib/kanton'
 import { speichereAbsenz } from '../lib/db'
+import { offeneRapporte } from '../lib/rapporte'
 import SchichtZeile from '../components/SchichtZeile'
 import IconChip from '../ui/IconChip'
 
@@ -41,10 +42,8 @@ export default function Heute() {
   const vorwoche = wocheVersetzt(woche, -1)
   const offen = useLiveQuery(async () => {
     const key = wochenKey(vorwoche)
-    const n = await db.schichten.where('wocheKey').equals(key).count() + await db.absenzen.where('wocheKey').equals(key).count()
-    const w = await db.wochen.get(key)
-    return n > 0 && !w?.gesendetAm ? key : null
-  }, [wochenKey(vorwoche)], null)
+    return (await offeneRapporte(key, einst)).length ? key : null
+  }, [wochenKey(vorwoche), einst.firma, einst.buero], null)
 
   const jetzt = useJetzt(!!laufend)
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], [])
