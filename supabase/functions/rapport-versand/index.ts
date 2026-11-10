@@ -93,16 +93,18 @@ Deno.serve(async (req) => {
           method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: {
-              subject: String(m.betreff || b.datei.name), body: { contentType: 'Text', content: String(m.text || '') },
+              subject: String(m.betreff || b.datei?.name || 'Rapport'), body: { contentType: 'Text', content: String(m.text || '') },
               toRecipients: an.map((address) => ({ emailAddress: { address } })), ccRecipients: cc.map((address) => ({ emailAddress: { address } })),
-              attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: b.datei.name, contentType: b.datei.typ || 'application/pdf', contentBytes: String(b.datei.base64).replace(/^data:[^,]+,/, '') }],
+              attachments: b.datei ? [{ '@odata.type': '#microsoft.graph.fileAttachment', name: b.datei.name, contentType: b.datei.typ || 'application/pdf', contentBytes: String(b.datei.base64).replace(/^data:[^,]+,/, '') }] : [],
             },
             saveToSentItems: true,
           }),
         })
         return res.ok ? { ok: true, an } : { ok: false, fehler: (await res.json().catch(() => ({}))).error?.message || res.status }
       }
-      if (b.kopie && b.datei) ergebnis.kopie = await senden(b.kopie)
+      if (b.kopie) ergebnis.kopie = await senden(b.kopie)
+      // Mail ans Büro (Anhang nur, wenn eine Datei mitkommt — z.B. Krankmeldung ohne)
+      if (b.mail && !b.datei) ergebnis.mail = await senden(b.mail)
       if (b.mail && b.datei) {
         const an = String(b.mail.an || '').split(/[,;\s]+/).filter(Boolean)
         const cc = String(b.mail.cc || '').split(/[,;\s]+/).filter(Boolean)

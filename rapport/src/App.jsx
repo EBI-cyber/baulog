@@ -5,6 +5,7 @@ import Woche from './screens/Woche'
 import Einstellungen from './screens/Einstellungen'
 import Lohn from './screens/Lohn'
 import Unterschreiben from './screens/Unterschreiben'
+import Fragebogen from './screens/Fragebogen'
 
 export default function App() {
   return (
@@ -12,6 +13,8 @@ export default function App() {
       <Routes>
         {/* Öffentliche Seite für den Polier (QR-Code) — ohne Navigation */}
         <Route path="/unterschreiben/:token" element={<Unterschreiben />} />
+        {/* mehrstufiger Ablauf ohne Navigationsleiste */}
+        <Route path="/fragebogen" element={<div className="max-w-2xl mx-auto w-full px-4 pt-5 md:pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))]"><Fragebogen /></div>} />
         <Route path="*" element={<Hauptlayout />} />
       </Routes>
     </HashRouter>

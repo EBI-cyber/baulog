@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Play, Pause, Square, Coffee, Plus, Send, Settings, Building2, Pencil, CalendarOff, Wallet, Banknote, PartyPopper } from 'lucide-react'
+import { Play, Pause, Square, Coffee, Plus, Send, Settings, Building2, Pencil, CalendarOff, Wallet, Banknote, PartyPopper, IdCard, ClipboardList, Thermometer } from 'lucide-react'
 import { db, speichern, laufendeSchicht } from '../lib/db'
 import { useEinstellungen, fertigEingerichtet } from '../lib/settings'
 import { isoWoche, isoDatum, wochenKey, wocheVersetzt, TAGE_LANG, datumLang, uhr, pauseMs, arbeitMs, istPausiert, hms, hm } from '../lib/zeit'
 import FirmaWahl from '../components/FirmaWahl'
 import Erfassen from '../components/Erfassen'
 import AbschlussSheet from '../components/AbschlussSheet'
+import KrankSheet from '../components/KrankSheet'
 import { AbsenzZeile, SpesenZeile } from '../components/Zeilen'
 import { zahl, tagesSoll } from '../lib/settings'
 import { useLohn } from '../lib/useLohn'
@@ -16,6 +17,7 @@ import { feiertagAm } from '../lib/feiertage'
 import { kantonFuer } from '../lib/kanton'
 import { speichereAbsenz } from '../lib/db'
 import { offeneRapporte } from '../lib/rapporte'
+import { profilFertig, ausweisTage, mindestPause } from '../lib/profil'
 import SchichtZeile from '../components/SchichtZeile'
 import IconChip from '../ui/IconChip'
 
@@ -60,6 +62,7 @@ export default function Heute() {
   const [stoppFrage, setStoppFrage] = useState(false)
   const [wechseln, setWechseln] = useState(false)
   const [abschluss, setAbschluss] = useState(null) // wocheKey
+  const [krank, setKrank] = useState(false)
   const stoppTimer = useRef()
 
   const firma = einst.firma || einst.firmen[0] || ''
@@ -83,7 +86,14 @@ export default function Heute() {
     }
     setStoppFrage(false)
     const n = Date.now()
-    await speichern({ ...laufend, ende: n, pausen: (laufend.pausen || []).map((p) => (p.ende == null ? { ...p, ende: n } : p)) })
+    const fertig = { ...laufend, ende: n, pausen: (laufend.pausen || []).map((p) => (p.ende == null ? { ...p, ende: n } : p)) }
+    // Arbeitsgesetz: zu kurze Pause automatisch auf die Mindestpause ergänzen (abschaltbar im Fragebogen)
+    if (einst.profil?.mindestpause !== false) {
+      const pause = pauseMs(fertig) / 60000, arbeit = (n - fertig.start) / 60000 - pause
+      const soll = mindestPause(arbeit)
+      if (pause < soll) { fertig.pauseMin = soll; fertig.pauseAuto = Math.round(pause) }
+    }
+    await speichern(fertig)
     // Letzter Arbeitstag der Woche: direkt zum Wochenabschluss (unterschreiben & senden)
     const wt = new Date().getDay() || 7
     const key = wochenKey(isoWoche(new Date()))
@@ -107,15 +117,36 @@ export default function Heute() {
         </Link>
       </header>
 
-      {!fertigEingerichtet(einst) && (
+      {!profilFertig(einst.profil) ? (
+        <Link to="/fragebogen" className="rounded-3xl p-4 flex items-center gap-3 card-hover bg-aqua/10 border border-aqua/30">
+          <IconChip icon={ClipboardList} variant="grad" />
+          <div className="min-w-0">
+            <div className="font-semibold">Einmal einrichten</div>
+            <div className="text-sm text-white/55">Kurzer Fragebogen zu deiner Situation — dann stimmen Lohn, Steuer und Rapport.</div>
+          </div>
+        </Link>
+      ) : !fertigEingerichtet(einst) && (
         <Link to="/einstellungen" className="glass rounded-3xl p-4 flex items-center gap-3 card-hover">
           <IconChip icon={Settings} />
           <div className="min-w-0">
-            <div className="font-semibold">Einmal einrichten</div>
-            <div className="text-sm text-white/50">Name, Temporärbüro und Firma eintragen — steht später im Rapport.</div>
+            <div className="font-semibold">Ersten Einsatz anlegen</div>
+            <div className="text-sm text-white/50">Einsatzvertrag fotografieren — Firma, Büro und Lohn werden übernommen.</div>
           </div>
         </Link>
       )}
+      {(() => {
+        const t = ausweisTage(einst.profil)
+        if (t == null || t > 60) return null
+        return (
+          <Link to="/fragebogen" className={'rounded-3xl p-4 flex items-center gap-3 border ' + (t <= 14 ? 'bg-ember/15 border-ember/40' : 'bg-amber-400/10 border-amber-400/30')}>
+            <IconChip icon={IdCard} />
+            <div className="min-w-0">
+              <div className="font-semibold">{t < 0 ? 'Ausweis abgelaufen!' : `Ausweis läuft in ${t} Tagen ab`}</div>
+              <div className="text-sm text-white/60">Verlängerung rechtzeitig beim Migrationsamt bzw. über den Arbeitgeber beantragen. Neues Datum im Fragebogen eintragen.</div>
+            </div>
+          </Link>
+        )
+      })()}
 
       {offen && (
         <button onClick={() => setAbschluss(offen)} className="w-full text-left rounded-3xl p-4 flex items-center gap-3 bg-aqua/10 border border-aqua/30">
@@ -154,6 +185,7 @@ export default function Heute() {
               Start
             </button>
             {!firma && <div className="text-sm text-white/50">Zuerst eine Firma wählen oder hinzufügen.</div>}
+            <button onClick={() => setKrank(true)} className="text-sm text-white/45 inline-flex items-center gap-1.5"><Thermometer className="w-4 h-4" /> Krank melden</button>
           </>
         ) : (
           <>
@@ -246,6 +278,7 @@ export default function Heute() {
       </section>
 
       <Erfassen wert={sheet} setWert={setSheet} />
+      {krank && <KrankSheet onClose={() => setKrank(false)} />}
       {abschluss && <AbschlussSheet wKey={abschluss} onClose={() => setAbschluss(null)} />}
     </div>
   )

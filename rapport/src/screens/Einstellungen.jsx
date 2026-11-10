@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { User, Building2, Factory, X, Download, Upload, Smartphone, Info, FileSignature, PenLine, Plus, ChevronRight, Sparkles, LogOut, MapPin } from 'lucide-react'
+import { User, Building2, Factory, X, Download, Upload, Smartphone, Info, FileSignature, PenLine, Plus, ClipboardList, ChevronRight, Sparkles, LogOut, MapPin } from 'lucide-react'
 import { useEinstellungen, tagesSoll } from '../lib/settings'
 import { db, exportieren, importieren } from '../lib/db'
 import { KANTONE } from '../lib/feiertage'
+import { Link } from 'react-router-dom'
+import { profilFertig, quellensteuerPflichtig, tarif, STATUS } from '../lib/profil'
 import { chf } from '../lib/lohn'
 import { anmelden, abmelden, angemeldetAls, kiVerfuegbar } from '../lib/ki'
 import EinsatzSheet from '../components/EinsatzSheet'
@@ -61,6 +63,17 @@ export default function Einstellungen() {
   return (
     <div className="space-y-5">
       <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Einstellungen</h1>
+
+      <Link to="/fragebogen" className={'rounded-3xl p-4 flex items-center gap-3 card-hover ' + (profilFertig(einst.profil) ? 'glass' : 'bg-aqua/10 border border-aqua/30')}>
+        <IconChip icon={ClipboardList} variant={profilFertig(einst.profil) ? 'tint' : 'grad'} />
+        <div className="min-w-0 flex-1">
+          <div className="font-bold">Meine Situation (Fragebogen)</div>
+          <div className="text-sm text-white/55 truncate">{profilFertig(einst.profil)
+            ? [STATUS.find((x) => x.id === einst.profil.status)?.label, quellensteuerPflichtig(einst.profil) && `Quellensteuer ${tarif(einst.profil)}`, einst.profil.wohnkanton].filter(Boolean).join(' · ')
+            : 'Ein paar Fragen — dann passt sich die App deiner Situation an'}</div>
+        </div>
+        <ChevronRight className="w-5 h-5 text-white/30 shrink-0" />
+      </Link>
 
       <Karte icon={User} titel="Ich">
         <Feld label="Mein Name (steht im Rapport)" value={einst.name} autoComplete="name"

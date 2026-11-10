@@ -10,6 +10,7 @@ import { isoDatum, isoWoche, wochenStart, wocheVersetzt, datumLang } from '../li
 import { lohnPdf } from '../lib/pdf'
 import { teileDatei } from '../lib/teilen'
 import EinsatzSheet from '../components/EinsatzSheet'
+import { Link } from 'react-router-dom'
 import IconChip from '../ui/IconChip'
 
 const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
@@ -100,6 +101,30 @@ export default function Lohn() {
                 <Briefcase className="w-4 h-4" /> Einsatzvertrag erfassen
               </button>
             </div>
+          )}
+
+          {lohn.qstFehlt && (
+            <Link to="/fragebogen" className="block text-sm rounded-2xl px-4 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-300">
+              Quellensteuer wird noch nicht abgezogen — Satz von der Lohnabrechnung im Fragebogen eintragen. Das Netto ist bis dahin zu hoch.
+            </Link>
+          )}
+
+          {einst.profil?.rav && modus === 'monat' && lohn.posten.length > 0 && (
+            <section className="glass rounded-3xl p-5 space-y-2">
+              <div className="font-bold">RAV · Zwischenverdienst {z.titel}</div>
+              <div className="text-xs text-white/45">Angaben pro Arbeitgeber (Temporärbüro) für deine monatlichen RAV-Unterlagen. Die Bescheinigung selbst stellt das Büro aus.</div>
+              {Object.values(lohn.posten.reduce((acc, p) => {
+                const b = p.einsatz?.buero || 'Ohne Büro'
+                const x = (acc[b] ||= { buero: b, std: 0, brutto: 0, firmen: [] })
+                x.std += p.grundStd; x.brutto += p.brutto; x.firmen.push(p.firma)
+                return acc
+              }, {})).map((x) => (
+                <div key={x.buero} className="flex items-baseline justify-between gap-3 text-sm border-t border-white/10 pt-2">
+                  <div className="min-w-0"><div className="font-semibold truncate">{x.buero}</div><div className="text-xs text-white/40 truncate">{x.firmen.join(', ')}</div></div>
+                  <div className="shrink-0 text-right tabular-nums"><div>{x.std.toFixed(2)} h</div><div className="text-xs text-white/50">brutto {chf(x.brutto, w)}</div></div>
+                </div>
+              ))}
+            </section>
           )}
 
           {lohn.posten.map((p) => (

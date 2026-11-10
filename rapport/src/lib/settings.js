@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { PROFIL_STANDARD } from './profil'
 
 const KEY = 'rapport.einstellungen'
 const STANDARD = {
@@ -26,7 +27,10 @@ export function tagesSoll(e) {
 export const zahl = (v) => parseFloat(String(v ?? '').replace(',', '.')) || 0
 
 export function ladeEinstellungen() {
-  try { return { ...STANDARD, ...JSON.parse(localStorage.getItem(KEY) || '{}') } } catch { return { ...STANDARD } }
+  try {
+    const e = { ...STANDARD, ...JSON.parse(localStorage.getItem(KEY) || '{}') }
+    return { ...e, profil: { ...PROFIL_STANDARD, ...(e.profil || {}) } }
+  } catch { return { ...STANDARD, profil: { ...PROFIL_STANDARD } } }
 }
 
 export function speichereEinstellungen(e) {

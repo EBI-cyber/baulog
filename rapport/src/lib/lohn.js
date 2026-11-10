@@ -1,6 +1,7 @@
 import { arbeitMs, isoDatum } from './zeit'
 import { zahl } from './settings'
 import { feiertagAm } from './feiertage'
+import { quellensteuerPflichtig, tarif } from './profil'
 
 /**
  * Lohnschätzung für Temporärarbeit (Schweiz), Aufbau wie GAV Personalverleih:
@@ -162,7 +163,13 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     const dz = t.grundStd * sz.total - grund - t.grundStd * sz.ferien - t.grundStd * sz.feiertag
     z(`13. Monatslohn ${wert(e, 'dreizehnterProzent')} %`, dz, { text: `${h} h × ${sz.dreizehnter.toFixed(2)}` })
     const brutto = zeilen.reduce((a, x) => a + x.betrag, 0)
-    const abzuege = ABZUEGE.map(([k, label]) => ({ k, label, prozent: wert(e, k), betrag: brutto * prozent(e, k) })).filter((a) => a.prozent > 0)
+    // Quellensteuer hängt von der Person ab (Fragebogen), nicht vom Einsatz
+    const p = einst?.profil
+    const qst = quellensteuerPflichtig(p) ? zahl(p.qstSatz) : p?.status ? 0 : wert(e, 'quellensteuer')
+    const abzuege = ABZUEGE.map(([k, label]) => {
+      const pr = k === 'quellensteuer' ? qst : wert(e, k)
+      return { k, label: k === 'quellensteuer' && quellensteuerPflichtig(p) ? `${label} (${tarif(p)}, ${p.wohnkanton || '?'})` : label, prozent: pr, betrag: brutto * pr / 100 }
+    }).filter((a) => a.prozent > 0)
     const abzugTotal = abzuege.reduce((a, x) => a + x.betrag, 0)
     // nicht AHV-pflichtig, kommt zur Auszahlung
     const mittag = t.tage.size * wert(e, 'mittagszulage')
@@ -177,6 +184,7 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     posten, brutto, abzuege, netto: brutto - abzuege, spesen: spesenSumme, mittag,
     auszahlung: brutto - abzuege + spesenSumme + mittag,
     fehlendeLoehne: posten.filter((p) => !p.stundenlohn).map((p) => p.firma),
+    qstFehlt: quellensteuerPflichtig(einst?.profil) && !zahl(einst?.profil?.qstSatz) && brutto > 0,
   }
 }
 

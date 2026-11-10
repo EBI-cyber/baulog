@@ -68,7 +68,7 @@ export function blobZuBase64(blob) {
 export async function msVersand({ datei, onedrive, mail, kopie }) {
   const r = await aufruf({
     task: 'versand', refreshToken: msLaden().refreshToken,
-    datei: { name: datei.name, typ: datei.blob.type || 'application/pdf', base64: await blobZuBase64(datei.blob) },
+    datei: datei ? { name: datei.name, typ: datei.blob.type || 'application/pdf', base64: await blobZuBase64(datei.blob) } : null,
     onedrive, mail, kopie,
   })
   if (r.refreshToken) msSpeichern({ refreshToken: r.refreshToken })

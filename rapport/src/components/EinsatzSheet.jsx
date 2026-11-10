@@ -9,8 +9,9 @@ import { verkleinern } from '../lib/bild'
 import { einsatzvertragLesen, kiVerfuegbar } from '../lib/ki'
 import { BRANCHEN, branche, brancheAnwenden } from '../lib/branchen'
 import { liste, FUNKTIONEN } from '../lib/unterschreiber'
+import { ferienMindestProzent, alter } from '../lib/profil'
 
-const NEU = { firma: '', branche: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
+const NEU = { firma: '', branche: '', wegKm: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
   gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
 
 const ZAHLEN = ['stundenlohn', 'wochenstunden', 'feiertagProzent', 'ferienProzent', 'dreizehnterProzent', 'ueberstundenZuschlag',
@@ -172,6 +173,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         <Feld label="Arbeitsbeginn" type="time" value={f.arbeitsbeginn} onChange={set('arbeitsbeginn')} />
         <Feld label="Qualifikation" value={f.qualifikation} onChange={set('qualifikation')} />
         <Feld label="Melden bei" value={f.meldenBei} onChange={set('meldenBei')} />
+        <Feld label="Arbeitsweg (einfach)" einheit="km" {...zahlFeld('wegKm')} />
         <Feld label="Beginn" type="date" value={f.beginn} onChange={set('beginn')} />
         <Feld label="Ende" type="date" value={f.ende} onChange={set('ende')} />
       </div>
@@ -224,6 +226,13 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
             {abweichung ? ` — Vertrag sagt ${w} ${totalVertrag.toFixed(2)}. Bitte Prozente prüfen.` : ''}</span>
         </div>
       )}
+
+      {(() => {
+        const min = ferienMindestProzent(einst.profil)
+        if (!min || !zahl(f.ferienProzent) || zahl(f.ferienProzent) >= min) return null
+        return <div className="text-sm rounded-xl px-3 py-2 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> Mit {alter(einst.profil)} Jahren stehen dir laut GAV Personalverleih mindestens {min} % Ferienentschädigung zu — im Vertrag stehen {f.ferienProzent} %. Beim Büro nachfragen.</div>
+      })()}
 
       <Titel>Zuschläge & Zulagen</Titel>
       <div className="grid grid-cols-2 gap-3">
