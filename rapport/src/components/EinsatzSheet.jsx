@@ -12,6 +12,7 @@ import { liste, FUNKTIONEN } from '../lib/unterschreiber'
 import { ferienMindestProzent, alter } from '../lib/profil'
 import { einsatzEnde } from '../lib/einsatzende'
 import OrtSuche from './OrtSuche'
+import VertragsCheck from './VertragsCheck'
 
 const NEU = { firma: '', branche: '', wegKm: '', maxDauerTage: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
   gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
@@ -67,6 +68,10 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
           erkannt.push(k)
         }
         if (['bau', 'industrie', 'andere'].includes(r.branche)) Object.assign(y, brancheAnwenden(y, r.branche, LOHN_STANDARD))
+        if (r.angaben && typeof r.angaben === 'object') y.angaben = r.angaben
+        y.klauseln = Array.isArray(r.klauseln) ? r.klauseln.filter((k) => k && (k.zitat || k.art)) : []
+        if (r.karenztage != null) y.karenztage = String(r.karenztage)
+        if (r.lohnzahlung) y.lohnzahlung = String(r.lohnzahlung)
         if (r.einsatzdauerTage) { y.maxDauerTage = String(r.einsatzdauerTage); erkannt.push('maxDauerTage') }
         ;['firma', 'einsatznummer', 'arbeitsbeginn', 'qualifikation', 'meldenBei', 'buero', 'bueroTel', 'bueroKontakt', 'bueroEmail', 'einsatzort', 'funktion', 'beginn', 'ende', 'gavName', 'kuendigungsfrist', 'bemerkungen', ...ZAHLEN].forEach((k) => nimm(k))
         nimm('spesenInfo', 'spesen'); nimm('stundenlohnTotalVertrag', 'stundenlohnTotal')
@@ -147,6 +152,8 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         </div>}
         {ki.fehler && <div className="text-sm rounded-xl px-3 py-2 bg-ember/15 border border-ember/30 text-ember">{ki.fehler}</div>}
       </div>
+
+      {(f.angaben || zahl(f.stundenlohn) > 0) && <VertragsCheck e={f} einst={einst} />}
 
       <Titel>Branche</Titel>
       <div className="grid grid-cols-3 gap-2">
@@ -284,6 +291,8 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
       <div className="grid grid-cols-2 gap-3">
         <Feld breit label="GAV" value={f.gavName} onChange={set('gavName')} />
         <Feld breit label="Kündigungsfrist" value={f.kuendigungsfrist} onChange={set('kuendigungsfrist')} />
+        <Feld label="Lohnzahlung (Termin)" value={f.lohnzahlung || ''} onChange={set('lohnzahlung')} />
+        <Feld label="Wartetage bei Krankheit" inputMode="numeric" value={f.karenztage || ''} onChange={set('karenztage')} />
         <Feld breit label="Spesen / Zulagen" value={f.spesenInfo} onChange={set('spesenInfo')} />
         <Feld breit label="Bemerkungen" value={f.bemerkungen} onChange={set('bemerkungen')} />
       </div>
