@@ -38,6 +38,34 @@ jobs:
           version: 2.121.0
       # Ohne "supabase link": der braucht mehr Token-Rechte als nötig.
       # Verbindung über den Supabase-Pooler (GitHub-Runner haben kein IPv6).
+      # Kostenlose Supabase-Projekte pausieren nach ca. 1 Woche ohne Nutzung → hier automatisch aufwecken
+      - name: Supabase-Projekt aufwecken (falls pausiert)
+        run: |
+          status() { curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "https://api.supabase.com/v1/projects/$PROJECT_REF" | jq -r '.status // "unbekannt"'; }
+          S=$(status); echo "Projektstatus: $S"
+          if [ "$S" = "INACTIVE" ] || [ "$S" = "PAUSED" ]; then
+            CODE=$(curl -s -o /tmp/restore.json -w '%{http_code}' -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "https://api.supabase.com/v1/projects/$PROJECT_REF/restore")
+            echo "Aufwecken angefordert: HTTP $CODE $(head -c 200 /tmp/restore.json)"
+            if [ "$CODE" -ge 300 ]; then
+              echo "::error::Supabase-Projekt ist pausiert und liess sich nicht automatisch aufwecken (HTTP $CODE). Bitte im Dashboard „Restore project“ wählen: https://supabase.com/dashboard/project/$PROJECT_REF"
+              exit 1
+            fi
+          fi
+          # warten, bis Datenbank und Pooler bereit sind (max. 15 Min.)
+          for i in $(seq 1 90); do
+            S=$(status)
+            [ "$S" = "ACTIVE_HEALTHY" ] && break
+            echo "… $S"; sleep 10
+          done
+          echo "Projektstatus: $S"
+          if [ "$S" != "ACTIVE_HEALTHY" ]; then echo "::error::Supabase-Projekt ist nicht bereit (Status $S)."; exit 1; fi
+          # Pooler-Konfiguration erscheint teils erst kurz nach dem Aufwachen
+          for i in $(seq 1 18); do
+            N=$(curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "https://api.supabase.com/v1/projects/$PROJECT_REF/config/database/pooler" | jq 'if type=="array" then length else 1 end')
+            [ "$N" != "0" ] && break
+            echo "… Pooler noch nicht bereit"; sleep 10
+          done
+
       - name: Datenbank-Verbindung ermitteln
         run: |
           RES=$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
@@ -62,7 +90,7 @@ jobs:
             STATUS=$(echo "$PROJ" | jq -r '.status // "unbekannt"'); REGION=$(echo "$PROJ" | jq -r '.region // "?"')
             echo "Pooler-Liste leer — Projektstatus: $STATUS, Region: $REGION"
             if [ "$STATUS" = "INACTIVE" ] || [ "$STATUS" = "PAUSED" ] || [ "$STATUS" = "PAUSING" ]; then
-              echo "::error::Das Supabase-Projekt $PROJECT_REF ist pausiert. Im Supabase-Dashboard öffnen und „Restore project“ wählen, danach den Deploy neu starten."
+              echo "::error::Das Supabase-Projekt $PROJECT_REF ist noch pausiert. Im Dashboard „Restore project“ wählen: https://supabase.com/dashboard/project/$PROJECT_REF"
               exit 1
             fi
             # sonst: Verbindung über „supabase link“ ermitteln lassen (offizieller Weg der CLI)
