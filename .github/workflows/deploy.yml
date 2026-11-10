@@ -57,15 +57,30 @@ jobs:
           HOST=$(echo "$POOLER" | jq -r "$WAHL | .db_host // empty")
           DBUSER=$(echo "$POOLER" | jq -r "$WAHL | .db_user // empty")
           if [ -z "$HOST" ] || [ -z "$DBUSER" ]; then
-            echo "::error::Pooler-Adresse nicht gefunden. Aufbau der Antwort: $(echo "$POOLER" | jq -c 'if type=="array" then map(keys) else keys end' 2>/dev/null || echo "$POOLER" | head -c 200)"
-            exit 1
+            # Projektstatus prüfen: pausierte Projekte haben keinen Pooler
+            PROJ=$(curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "https://api.supabase.com/v1/projects/$PROJECT_REF")
+            STATUS=$(echo "$PROJ" | jq -r '.status // "unbekannt"'); REGION=$(echo "$PROJ" | jq -r '.region // "?"')
+            echo "Pooler-Liste leer — Projektstatus: $STATUS, Region: $REGION"
+            if [ "$STATUS" = "INACTIVE" ] || [ "$STATUS" = "PAUSED" ] || [ "$STATUS" = "PAUSING" ]; then
+              echo "::error::Das Supabase-Projekt $PROJECT_REF ist pausiert. Im Supabase-Dashboard öffnen und „Restore project“ wählen, danach den Deploy neu starten."
+              exit 1
+            fi
+            # sonst: Verbindung über „supabase link“ ermitteln lassen (offizieller Weg der CLI)
+            echo "DB_LINK=1" >> "$GITHUB_ENV"
+            exit 0
           fi
           PW=$(jq -rn --arg p "$SUPABASE_DB_PASSWORD" '$p|@uri')
           echo "::add-mask::$PW"
           echo "DB_URL=postgresql://$DBUSER:$PW@$HOST:5432/postgres" >> "$GITHUB_ENV"
           echo "Pooler: $HOST ($DBUSER)"
       - name: Datenbank-Migrationen einspielen
-        run: supabase db push --db-url "$DB_URL" --include-all
+        run: |
+          if [ "$DB_LINK" = "1" ]; then
+            supabase link --project-ref "$PROJECT_REF" -p "$SUPABASE_DB_PASSWORD"
+            supabase db push --linked --include-all -p "$SUPABASE_DB_PASSWORD"
+          else
+            supabase db push --db-url "$DB_URL" --include-all
+          fi
       - name: Edge Function baulog-ai ausliefern
         run: supabase functions deploy baulog-ai --project-ref "$PROJECT_REF" --use-api
       - name: Edge Function rapport-versand ausliefern
