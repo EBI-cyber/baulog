@@ -51,6 +51,12 @@ jobs:
         run: supabase db push --db-url "$DB_URL" --include-all
       - name: Edge Function baulog-ai ausliefern
         run: supabase functions deploy baulog-ai --project-ref "$PROJECT_REF" --use-api
+      - name: Edge Function rapport-versand ausliefern
+        run: supabase functions deploy rapport-versand --project-ref "$PROJECT_REF" --use-api --no-verify-jwt
+      - name: Edge Function rapport-signatur ausliefern
+        run: supabase functions deploy rapport-signatur --project-ref "$PROJECT_REF" --use-api --no-verify-jwt
+      - name: Edge Function rapport-stempel ausliefern
+        run: supabase functions deploy rapport-stempel --project-ref "$PROJECT_REF" --use-api --no-verify-jwt
 
   build:
     needs: datenbank
@@ -68,6 +74,15 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      # Zweite App „Rapport" (Arbeitszeit/Wochenrapport) → /baulog/rapport/
+      - name: Rapport-App bauen
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          npm ci --prefix rapport
+          npm run build --prefix rapport
+          cp -r rapport/dist dist/rapport
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

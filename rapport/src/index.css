@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body, #root { min-height: 100%; }
+html, body { overflow-x: hidden; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(1100px 560px at 50% -10%, #06323d 0%, rgba(6,18,26,0) 55%),
+    radial-gradient(800px 500px at 100% 110%, #053324 0%, rgba(6,18,26,0) 50%),
+    #06121a;
+  background-attachment: fixed;
+  color: #eaf6f8;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+#root { padding-top: env(safe-area-inset-top); }
+
+@layer components {
+  .glass { background: rgba(255,255,255,.06); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.14); }
+  .glass .glass { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .grad-text { background-image: linear-gradient(90deg, #22d3ee, #34d399); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .btn-grad { background-image: linear-gradient(135deg, #22d3ee 0%, #34d399 100%); color: #06121a; }
+  .card-hover { transition: transform .16s ease, background .2s ease, border-color .2s ease; }
+  .card-hover:hover { background: rgba(255,255,255,.075); border-color: rgba(255,255,255,.16); transform: translateY(-2px); }
+  .icon-chip { background: rgba(34,211,238,.12); border: 1px solid rgba(34,211,238,.22); color: #67e8f9; }
+  .eingabe { @apply w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-aqua text-base; }
+}
+
+select option { background-color: #0b1f2a; color: #eaf6f8; }
+input[type="date"], input[type="time"] { color-scheme: dark; min-height: 2.75rem; }
+* { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent; }
