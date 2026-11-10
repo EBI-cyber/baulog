@@ -46,7 +46,7 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
     if (start > Date.now()) return setFehler('Der Beginn liegt in der Zukunft.')
     const neu = { ...(schicht || { pausen: [] }), start, ende, firma: f.firma, notiz: f.notiz }
     // Pause nur überschreiben, wenn sie geändert wurde (sonst bleiben die gestoppten Pausen erhalten)
-    if (!laeuft && (!schicht || pauseNeu !== pauseAlt)) { neu.pauseMin = pauseNeu; delete neu.pauseAuto }
+    if (!laeuft && (!schicht || pauseNeu !== pauseAlt)) { neu.pauseMin = pauseNeu; delete neu.pauseAuto; delete neu.pausePruefen }
     await speichern(neu)
     onClose()
   }

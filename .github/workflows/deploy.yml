@@ -55,6 +55,8 @@ jobs:
         run: supabase functions deploy rapport-versand --project-ref "$PROJECT_REF" --use-api --no-verify-jwt
       - name: Edge Function rapport-signatur ausliefern
         run: supabase functions deploy rapport-signatur --project-ref "$PROJECT_REF" --use-api --no-verify-jwt
+      - name: Edge Function rapport-stempel ausliefern
+        run: supabase functions deploy rapport-stempel --project-ref "$PROJECT_REF" --use-api --no-verify-jwt
 
   build:
     needs: datenbank

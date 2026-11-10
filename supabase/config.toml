@@ -11,3 +11,7 @@ verify_jwt = false
 # Rapport-App: Polier unterschreibt per QR-Code ohne Konto (Zugriff nur mit zufälligem Token).
 [functions.rapport-signatur]
 verify_jwt = false
+
+# Rapport-App: Stempeln per iPhone-Kurzbefehl (GET mit persönlichem Schlüssel, ohne Supabase-Konto).
+[functions.rapport-stempel]
+verify_jwt = false

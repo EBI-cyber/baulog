@@ -10,6 +10,7 @@ import { chf } from '../lib/lohn'
 import { anmelden, abmelden, angemeldetAls, kiVerfuegbar } from '../lib/ki'
 import EinsatzSheet from '../components/EinsatzSheet'
 import MicrosoftKarte from '../components/MicrosoftKarte'
+import KurzbefehlKarte from '../components/KurzbefehlKarte'
 import Unterschrift from '../components/Unterschrift'
 import { teileDatei } from '../lib/teilen'
 import { isoDatum } from '../lib/zeit'
@@ -84,6 +85,8 @@ export default function Einstellungen() {
         <div className="text-sm text-white/55">Einmal unterschreiben — wird bei jedem Rapport automatisch eingesetzt.</div>
         <Unterschrift wert={einst.unterschrift?.bild || null} onChange={(bild) => setEinst({ unterschrift: bild ? { bild, am: Date.now() } : null })} />
       </Karte>
+
+      <KurzbefehlKarte Karte={Karte} />
 
       <MicrosoftKarte Karte={Karte} />
 

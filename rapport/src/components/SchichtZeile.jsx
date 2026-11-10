@@ -9,7 +9,7 @@ export default function SchichtZeile({ s, onClick }) {
         <div className="text-sm text-white/50 tabular-nums">
           {uhr(s.start)} – {s.ende ? uhr(s.ende) : 'läuft'} · Pause {hm(pauseMs(s))}
           {s.notiz ? <span className="text-white/40"> · {s.notiz}</span> : null}
-          {s.pauseAuto != null && s.pauseMin != null ? <span className="text-amber-300/80"> · Pause ergänzt (Arbeitsgesetz)</span> : null}
+          {s.pausePruefen ? <span className="text-amber-300/80"> · Pause prüfen</span> : s.pauseAuto != null && s.pauseMin != null ? <span className="text-amber-300/80"> · Pause ergänzt (Arbeitsgesetz)</span> : null}
         </div>
       </div>
       <div className="shrink-0 font-bold tabular-nums">{hm(arbeitMs(s))} h</div>

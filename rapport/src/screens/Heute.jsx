@@ -17,7 +17,9 @@ import { feiertagAm } from '../lib/feiertage'
 import { kantonFuer } from '../lib/kanton'
 import { speichereAbsenz } from '../lib/db'
 import { offeneRapporte } from '../lib/rapporte'
-import { profilFertig, ausweisTage, mindestPause } from '../lib/profil'
+import { profilFertig, ausweisTage } from '../lib/profil'
+import { schichtBeenden, zustandMelden } from '../lib/stempel'
+import PauseSheet from '../components/PauseSheet'
 import SchichtZeile from '../components/SchichtZeile'
 import IconChip from '../ui/IconChip'
 
@@ -63,6 +65,9 @@ export default function Heute() {
   const [wechseln, setWechseln] = useState(false)
   const [abschluss, setAbschluss] = useState(null) // wocheKey
   const [krank, setKrank] = useState(false)
+  const [pauseFrage, setPauseFrage] = useState(null)
+  // per Kurzbefehl beendete Schichten ohne erfasste Pause (letzte 14 Tage)
+  const pausePruefen = useLiveQuery(() => db.schichten.where('start').above(Date.now() - 14 * 864e5).filter((x) => x.ende != null && x.pausePruefen).toArray(), [], [])
   const stoppTimer = useRef()
 
   const firma = einst.firma || einst.firmen[0] || ''
@@ -70,12 +75,21 @@ export default function Heute() {
   async function start() {
     if (!firma) return
     await speichern({ start: Date.now(), ende: null, pausen: [], firma, notiz: '' })
+    zustandMelden('arbeit')
   }
   async function pause() {
     await speichern({ ...laufend, pausen: [...(laufend.pausen || []), { start: Date.now(), ende: null }] })
+    zustandMelden('pause')
   }
   async function weiter() {
     await speichern({ ...laufend, pausen: laufend.pausen.map((p) => (p.ende == null ? { ...p, ende: Date.now() } : p)) })
+    zustandMelden('arbeit')
+  }
+  async function wochenabschlussPruefen() {
+    // Letzter Arbeitstag der Woche: direkt zum Wochenabschluss (unterschreiben & senden)
+    const wt = new Date().getDay() || 7
+    const key = wochenKey(isoWoche(new Date()))
+    if (wt >= (+einst.abschlussTag || 5) && (await offeneRapporte(key, einst)).length) setAbschluss(key)
   }
   async function stopp() {
     if (!stoppFrage) {
@@ -85,19 +99,12 @@ export default function Heute() {
       return
     }
     setStoppFrage(false)
-    const n = Date.now()
-    const fertig = { ...laufend, ende: n, pausen: (laufend.pausen || []).map((p) => (p.ende == null ? { ...p, ende: n } : p)) }
-    // Arbeitsgesetz: zu kurze Pause automatisch auf die Mindestpause ergänzen (abschaltbar im Fragebogen)
-    if (einst.profil?.mindestpause !== false) {
-      const pause = pauseMs(fertig) / 60000, arbeit = (n - fertig.start) / 60000 - pause
-      const soll = mindestPause(arbeit)
-      if (pause < soll) { fertig.pauseMin = soll; fertig.pauseAuto = Math.round(pause) }
-    }
+    const fertig = schichtBeenden(laufend, Date.now(), einst)
     await speichern(fertig)
-    // Letzter Arbeitstag der Woche: direkt zum Wochenabschluss (unterschreiben & senden)
-    const wt = new Date().getDay() || 7
-    const key = wochenKey(isoWoche(new Date()))
-    if (wt >= (+einst.abschlussTag || 5) && (await offeneRapporte(key, einst)).length) setAbschluss(key)
+    zustandMelden('aus')
+    // keine Pause gedrückt → kurz nachfragen (danach ggf. Wochenabschluss)
+    if (fertig.pausePruefen) { setPauseFrage({ ...fertig, danachAbschluss: true }); return }
+    await wochenabschlussPruefen()
   }
 
   const fertig = (heuteListe || []).filter((s) => s.ende != null)
@@ -157,6 +164,16 @@ export default function Heute() {
           </div>
         </button>
       )}
+
+      {(pausePruefen || []).filter((x) => !pauseFrage || x.id !== pauseFrage.id).map((x) => (
+        <button key={x.id} onClick={() => setPauseFrage(x)} className="w-full text-left rounded-3xl p-4 flex items-center gap-3 bg-amber-400/10 border border-amber-400/30">
+          <IconChip icon={Coffee} />
+          <div className="min-w-0">
+            <div className="font-semibold">Pause angeben · {TAGE_LANG[new Date(x.start).getDay()]} {uhr(x.start)}–{uhr(x.ende)}</div>
+            <div className="text-sm text-white/60">{x.pauseAuto != null ? `Vorläufig ${x.pauseMin} Min. nach Arbeitsgesetz eingetragen — ` : ''}Wann und wie lange war die Pause?</div>
+          </div>
+        </button>
+      ))}
 
       {/* Stempeluhr */}
       <section className="glass rounded-4xl p-6 text-center space-y-5">
@@ -278,6 +295,7 @@ export default function Heute() {
       </section>
 
       <Erfassen wert={sheet} setWert={setSheet} />
+      {pauseFrage && <PauseSheet schicht={pauseFrage} onClose={() => { const d = pauseFrage.danachAbschluss; setPauseFrage(null); if (d) wochenabschlussPruefen() }} />}
       {krank && <KrankSheet onClose={() => setKrank(false)} />}
       {abschluss && <AbschlussSheet wKey={abschluss} onClose={() => setAbschluss(null)} />}
     </div>
