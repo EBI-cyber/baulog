@@ -1,0 +1,26 @@
+name: Supabase wach halten
+
+# Kostenlose Supabase-Projekte pausieren nach ca. 1 Woche ohne Datenbank-Nutzung.
+# Alle 3 Tage eine kleine Leseabfrage (mit dem öffentlichen Anon-Key, RLS bleibt aktiv) hält das Projekt wach.
+on:
+  schedule:
+    - cron: '17 5 */3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  anstupsen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Datenbank kurz abfragen
+        env:
+          URL: ${{ vars.VITE_SUPABASE_URL }}
+          KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/rest/v1/bau_projekte?select=token&limit=1" -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
+          echo "Antwort: HTTP $CODE"
+          if [ "$CODE" -ge 500 ] || [ "$CODE" = "000" ]; then
+            echo "::warning::Supabase antwortet nicht (HTTP $CODE) — Projekt evtl. pausiert: https://supabase.com/dashboard/project/${{ vars.SUPABASE_PROJECT_REF }}"
+          fi
