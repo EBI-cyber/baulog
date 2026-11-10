@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, Briefcase, AlertTriangle, FileText, Info } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Briefcase, AlertTriangle, FileText, Info, ScanSearch, CheckCircle2, XCircle } from 'lucide-react'
 import { laufendeSchicht } from '../lib/db'
 import { useEinstellungen } from '../lib/settings'
 import { useLohn } from '../lib/useLohn'
@@ -10,6 +10,9 @@ import { isoDatum, isoWoche, wochenStart, wocheVersetzt, datumLang } from '../li
 import { lohnPdf } from '../lib/pdf'
 import { teileDatei } from '../lib/teilen'
 import EinsatzSheet from '../components/EinsatzSheet'
+import KontenKarte from '../components/KontenKarte'
+import LohnPruefung from '../components/LohnPruefung'
+import { db } from '../lib/db'
 import { Link } from 'react-router-dom'
 import IconChip from '../ui/IconChip'
 
@@ -41,6 +44,8 @@ export default function Lohn() {
   const [modus, setModus] = useState('monat')
   const [basis, setBasis] = useState(() => new Date())
   const [einsatzNeu, setEinsatzNeu] = useState(null)
+  const [pruefung, setPruefung] = useState(null) // true = neu | gespeicherter Datensatz
+  const geprueft = useLiveQuery(() => db.lohnabrechnungen.orderBy('von').reverse().limit(12).toArray(), [], [])
   const laufend = useLiveQuery(laufendeSchicht, [], null)
   const [jetzt, setJetzt] = useState(Date.now())
   useEffect(() => {
@@ -64,6 +69,28 @@ export default function Lohn() {
   return (
     <div className="space-y-5">
       <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Lohn</h1>
+
+      <button onClick={() => setPruefung(true)} className="w-full glass rounded-3xl p-4 flex items-center gap-3 card-hover text-left">
+        <IconChip icon={ScanSearch} variant="grad" />
+        <div className="min-w-0">
+          <div className="font-bold">Lohnabrechnung prüfen</div>
+          <div className="text-sm text-white/55">Foto machen — die App vergleicht jede Zeile mit deinen Rapporten</div>
+        </div>
+      </button>
+      {(geprueft || []).length > 0 && (
+        <div className="space-y-1.5">
+          {geprueft.slice(0, 4).map((g) => {
+            const n = (g.pruefung || []).filter((c) => c.status === 'abweichung' && c.id !== 'auszahlung').length
+            return (
+              <button key={g.id} onClick={() => setPruefung(g)} className="w-full text-left rounded-2xl px-3 py-2 bg-white/[0.04] border border-white/10 flex items-center gap-2 text-sm">
+                {n ? <XCircle className="w-4 h-4 text-ember shrink-0" /> : <CheckCircle2 className="w-4 h-4 text-lime shrink-0" />}
+                <span className="flex-1 truncate">Abrechnung {g.von.split('-').reverse().join('.')}–{g.bis.split('-').reverse().join('.')} {g.buero ? `· ${g.buero}` : ''}</span>
+                <span className={'text-xs shrink-0 ' + (n ? 'text-ember' : 'text-white/45')}>{n ? `${n} Abweichung${n > 1 ? 'en' : ''}` : 'stimmt'}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <div className="flex gap-2">
         {[['monat', 'Monat'], ['woche', 'Woche']].map(([m, l]) => (
@@ -109,6 +136,8 @@ export default function Lohn() {
             </Link>
           )}
 
+          <KontenKarte einst={einst} bis={z.bis} w={w} />
+
           {lohn.qstAuto && lohn.brutto > 0 && (
             <div className="text-xs text-white/45 px-1">
               Quellensteuer {lohn.qstAuto.satz.toFixed(2)} % — offizielle Tabelle {lohn.qstAuto.kanton} {lohn.qstAuto.jahr}, Tarif {lohn.qstAuto.code}, Monatslohn {chf(lohn.qstAuto.monatsBrutto, w)}{lohn.qstAuto.monatsBrutto > lohn.brutto + 1 ? ' (hochgerechnet)' : ''}.
@@ -142,10 +171,16 @@ export default function Lohn() {
                   <div className="text-xs text-white/45">{p.einsatz?.funktion ? `${p.einsatz.funktion} · ` : ''}{p.einsatz?.kanton ? `${p.einsatz.kanton} · ` : ''}{p.stundenlohn ? `${chf(p.stundenlohn, w)} / Std. Grundlohn` : 'kein Stundenlohn'}</div>
                 </div>
               </div>
-              {p.zeilen.map((x, i) => (
+              {p.zeilen.filter((x) => !x.konto).map((x, i) => (
                 <Zeile key={i} w={w} betrag={x.betrag} info={x.info}
-                  label={x.art ? `${absenzArt(x.art).label} (Lohnfortzahlung)` : x.label} />
+                  label={x.art ? `${absenzArt(x.art).label} (${x.ausKonto ? 'aus Konto' : 'Lohnfortzahlung'})` : x.label} />
               ))}
+              {p.zeilen.some((x) => x.konto) && (
+                <div className="mt-1 rounded-xl bg-white/[0.03] border border-dashed border-white/15 px-3 py-1">
+                  <div className="text-[11px] uppercase tracking-wider text-white/35 pt-1">Angespart beim Büro (nicht im Bruttolohn)</div>
+                  {p.zeilen.filter((x) => x.konto).map((x, i) => <Zeile key={i} w={w} betrag={x.betrag} info={x.info} label={`→ ${x.label}`} />)}
+                </div>
+              )}
               <Zeile fett label="Bruttolohn" betrag={p.brutto} w={w} />
               {p.abzuege.map((a) => <Zeile key={a.k} minus label={`${a.label} ${a.prozent} %`} betrag={a.betrag} w={w} />)}
               <Zeile fett label="Nettolohn" betrag={p.netto} w={w} />
@@ -178,6 +213,7 @@ export default function Lohn() {
         </>
       )}
 
+      {pruefung && <LohnPruefung gespeichert={pruefung === true ? null : pruefung} onClose={() => setPruefung(null)} />}
       {einsatzNeu && <EinsatzSheet einsatz={null} vorgabe={einsatzNeu} onClose={() => setEinsatzNeu(null)} />}
     </div>
   )

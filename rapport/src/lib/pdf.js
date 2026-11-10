@@ -201,7 +201,8 @@ export function lohnPdf({ einst, lohn, titel, von, bis }) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
     if (p.stundenlohn) doc.text(`Grundlohn ${geld(p.stundenlohn)} / Std.`, R - 2, y, { align: 'right' })
     y += 8
-    for (const x of p.zeilen) zeile(x.art ? `${absenzArt(x.art).label} (Lohnfortzahlung)` : x.label, x.betrag, { info: x.info })
+    for (const x of p.zeilen.filter((z) => !z.konto)) zeile(x.art ? `${absenzArt(x.art).label} (${x.ausKonto ? 'aus Konto' : 'Lohnfortzahlung'})` : x.label, x.betrag, { info: x.info })
+    for (const x of p.zeilen.filter((z) => z.konto)) zeile(`(angespart) ${x.label}`, x.betrag, { info: 'nicht im Bruttolohn' })
     doc.setDrawColor(200); doc.line(L, y - 3.5, R, y - 3.5)
     zeile('Bruttolohn', p.brutto, { fett: true })
     for (const a of p.abzuege) zeile(`${a.label} ${a.prozent} %`, a.betrag, { minus: true })

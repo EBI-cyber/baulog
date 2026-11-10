@@ -6,6 +6,7 @@ import { useEinstellungen } from '../lib/settings'
 import { KANTONE } from '../lib/feiertage'
 import { STATUS, quellensteuerPflichtig, tarifAuto, tarif, alter, ferienMindestProzent, ausweisTage } from '../lib/profil'
 import Unterschrift from '../components/Unterschrift'
+import OrtSuche from '../components/OrtSuche'
 import IconChip from '../ui/IconChip'
 
 function Chips({ werte, wert, onWahl }) {
@@ -88,15 +89,9 @@ export default function Fragebogen() {
         <Frage titel="Geburtsdatum" hinweis="Für den Ferienanspruch (unter 20 und ab 50 Jahren mehr Ferien).">
           <input className="eingabe" type="date" value={p.geburtsdatum} onChange={(e) => setP({ geburtsdatum: e.target.value })} />
         </Frage>
-        <Frage titel="Wohnort">
-          <div className="grid grid-cols-[6rem_1fr] gap-2">
-            <input className="eingabe" inputMode="numeric" placeholder="PLZ" value={p.plz} onChange={(e) => setP({ plz: e.target.value })} />
-            <input className="eingabe" placeholder="Ort" value={p.ort} onChange={(e) => setP({ ort: e.target.value })} />
-          </div>
-          <select className="eingabe" value={p.wohnkanton} onChange={(e) => setP({ wohnkanton: e.target.value })}>
-            <option value="">Wohnkanton wählen</option>
-            {Object.entries(KANTONE).map(([k, n]) => <option key={k} value={k}>{k} – {n}</option>)}
-          </select>
+        <Frage titel="Wohnort" hinweis="Ort oder PLZ eintippen und auswählen — PLZ und Kanton werden ergänzt. Der Wohnkanton bestimmt die Quellensteuer.">
+          <OrtSuche wert={p.ort ? `${p.plz} ${p.ort}`.trim() : ''} onWahl={(t) => setP({ plz: t.plz, ort: t.ort, wohnkanton: t.kanton })} />
+          {p.wohnkanton && <div className="text-sm text-white/60">Kanton: <b className="text-white">{KANTONE[p.wohnkanton]} ({p.wohnkanton})</b></div>}
         </Frage>
       </>
     ) },
