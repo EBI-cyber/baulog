@@ -66,12 +66,29 @@ Deno.serve(async (req) => {
       const auth = { Authorization: `Bearer ${j.access_token}` }
       const ergebnis: Record<string, unknown> = {}
 
-      // 1) OneDrive
+      // 1) OneDrive (bis 4 MB direkt, grössere Dateien — z.B. Datensicherung mit Fotos — in Stücken)
       if (b.onedrive && b.datei) {
         const ziel = pfad(b.onedrive.ordner || 'Rapporte', b.datei.name)
-        const res = await fetch(`${GRAPH}/me/drive/root:/${ziel}:/content?@microsoft.graph.conflictBehavior=replace`, {
-          method: 'PUT', headers: { ...auth, 'Content-Type': b.datei.typ || 'application/pdf' }, body: b64zuBytes(b.datei.base64),
-        })
+        const bytes = b64zuBytes(b.datei.base64)
+        let res: Response
+        if (bytes.length <= 4_000_000) {
+          res = await fetch(`${GRAPH}/me/drive/root:/${ziel}:/content?@microsoft.graph.conflictBehavior=replace`, {
+            method: 'PUT', headers: { ...auth, 'Content-Type': b.datei.typ || 'application/pdf' }, body: bytes,
+          })
+        } else {
+          const s = await fetch(`${GRAPH}/me/drive/root:/${ziel}:/createUploadSession`, {
+            method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }),
+          })
+          const sj = await s.json().catch(() => ({}))
+          if (!s.ok || !sj.uploadUrl) return out({ ...ergebnis, onedrive: { ok: false, fehler: sj.error?.message || s.status }, refreshToken: j.refresh_token || b.refreshToken })
+          const STUECK = 320 * 1024 * 10 // 3.2 MB, Vielfaches von 320 KiB
+          res = new Response(null, { status: 500 })
+          for (let a = 0; a < bytes.length; a += STUECK) {
+            const e = Math.min(a + STUECK, bytes.length)
+            res = await fetch(sj.uploadUrl, { method: 'PUT', headers: { 'Content-Range': `bytes ${a}-${e - 1}/${bytes.length}` }, body: bytes.slice(a, e) })
+            if (!res.ok) break
+          }
+        }
         const r = await res.json().catch(() => ({}))
         ergebnis.onedrive = res.ok ? { ok: true, url: r.webUrl, pfad: decodeURIComponent(ziel) } : { ok: false, fehler: r.error?.message || res.status }
         // Freigabelink (nur ansehen) — z.B. für den Durchschlag per WhatsApp

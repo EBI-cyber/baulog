@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Play, Pause, Square, Coffee, Plus, Send, Settings, Building2, Pencil, CalendarOff, Wallet, Banknote, PartyPopper, IdCard, ClipboardList, Thermometer } from 'lucide-react'
+import { Play, Pause, Square, Coffee, Plus, Send, Settings, Building2, Pencil, CalendarOff, Wallet, Banknote, PartyPopper, IdCard, ClipboardList, Thermometer, CalendarClock, AlarmClock } from 'lucide-react'
 import { db, speichern, laufendeSchicht } from '../lib/db'
 import { useEinstellungen, fertigEingerichtet } from '../lib/settings'
 import { isoWoche, isoDatum, wochenKey, wocheVersetzt, TAGE_LANG, datumLang, uhr, pauseMs, arbeitMs, istPausiert, hms, hm } from '../lib/zeit'
@@ -20,6 +20,7 @@ import { offeneRapporte } from '../lib/rapporte'
 import { profilFertig, ausweisTage } from '../lib/profil'
 import { schichtBeenden, zustandMelden } from '../lib/stempel'
 import PauseSheet from '../components/PauseSheet'
+import { einsatzEnde, tageBisEnde, verlaengern } from '../lib/einsatzende'
 import SchichtZeile from '../components/SchichtZeile'
 import IconChip from '../ui/IconChip'
 
@@ -66,6 +67,8 @@ export default function Heute() {
   const [abschluss, setAbschluss] = useState(null) // wocheKey
   const [krank, setKrank] = useState(false)
   const [pauseFrage, setPauseFrage] = useState(null)
+  const [endeZeit, setEndeZeit] = useState('16:30')
+  const [weiterGearbeitet, setWeiterGearbeitet] = useState(false)
   // per Kurzbefehl beendete Schichten ohne erfasste Pause (letzte 14 Tage)
   const pausePruefen = useLiveQuery(() => db.schichten.where('start').above(Date.now() - 14 * 864e5).filter((x) => x.ende != null && x.pausePruefen).toArray(), [], [])
   const stoppTimer = useRef()
@@ -91,6 +94,18 @@ export default function Heute() {
     const key = wochenKey(isoWoche(new Date()))
     if (wt >= (+einst.abschlussTag || 5) && (await offeneRapporte(key, einst)).length) setAbschluss(key)
   }
+  // Uhr läuft seit über 12 Stunden → Feierabend vergessen? Endzeit nachtragen
+  async function nachtraeglichBeenden() {
+    const tag = isoDatum(new Date(laufend.start))
+    let ende = new Date(`${tag}T${endeZeit}`).getTime()
+    if (ende <= laufend.start) ende += 864e5
+    if (ende > Date.now()) ende = Date.now()
+    const fertig = schichtBeenden(laufend, ende, einst)
+    await speichern(fertig)
+    zustandMelden('aus')
+    if (fertig.pausePruefen) setPauseFrage(fertig)
+  }
+
   async function stopp() {
     if (!stoppFrage) {
       setStoppFrage(true)
@@ -175,6 +190,32 @@ export default function Heute() {
         </button>
       ))}
 
+      {/* Einsatz endet bald / ist abgelaufen */}
+      {(() => {
+        const t = tageBisEnde(aktiverEinsatz)
+        if (t == null || t > 2 || aktiverEinsatz.endeBestaetigt === einsatzEnde(aktiverEinsatz)) return null
+        const ende = einsatzEnde(aktiverEinsatz).split('-').reverse().join('.')
+        const setze = (teil) => db.einsaetze.update(aktiverEinsatz.id, teil)
+        return (
+          <div className={'rounded-3xl p-4 space-y-3 border ' + (t < 0 ? 'bg-ember/10 border-ember/35' : 'bg-amber-400/10 border-amber-400/30')}>
+            <div className="flex items-center gap-3">
+              <IconChip icon={CalendarClock} />
+              <div className="min-w-0">
+                <div className="font-semibold">{t < 0 ? `Einsatz bei ${aktiverEinsatz.firma} ist am ${ende} abgelaufen` : t === 0 ? `Einsatz bei ${aktiverEinsatz.firma} endet heute` : `Einsatz bei ${aktiverEinsatz.firma} endet am ${ende}`}</div>
+                <div className="text-sm text-white/60">Wurde er verlängert? {aktiverEinsatz.bueroKontakt ? `Sonst bei ${aktiverEinsatz.bueroKontakt} nachfragen.` : 'Sonst beim Büro nachfragen.'}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setze({ ende: verlaengern(aktiverEinsatz, 7) })} className="px-3 py-2 rounded-xl bg-white/10 text-sm font-semibold">+1 Woche</button>
+              <button onClick={() => setze({ ende: verlaengern(aktiverEinsatz, 14) })} className="px-3 py-2 rounded-xl bg-white/10 text-sm font-semibold">+2 Wochen</button>
+              <button onClick={() => setze({ ende: '', maxDauerTage: '' })} className="px-3 py-2 rounded-xl bg-white/10 text-sm font-semibold">Unbefristet</button>
+              <button onClick={() => { setze({ endeBestaetigt: einsatzEnde(aktiverEinsatz), beendet: t < 0 }); if (t < 0) setEinst({ firma: '' }) }}
+                className="px-3 py-2 rounded-xl text-sm text-white/60 border border-white/15">{t < 0 ? 'Ist beendet' : 'Stimmt so'}</button>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Stempeluhr */}
       <section className="glass rounded-4xl p-6 text-center space-y-5">
         {!laufend ? (
@@ -206,6 +247,19 @@ export default function Heute() {
           </>
         ) : (
           <>
+            {jetzt - laufend.start > 12 * 3600000 && !weiterGearbeitet && (
+              <div className="rounded-2xl p-4 text-left space-y-3 bg-amber-400/10 border border-amber-400/35">
+                <div className="flex gap-2 font-semibold"><AlarmClock className="w-5 h-5 text-amber-300 shrink-0" /> Feierabend vergessen? Die Uhr läuft seit {TAGE_LANG[new Date(laufend.start).getDay()]} {uhr(laufend.start)}.</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {['16:00', '16:30', '17:00', '17:30'].map((z) => (
+                    <button key={z} onClick={() => setEndeZeit(z)} className={'px-3 py-1.5 rounded-xl text-sm border ' + (endeZeit === z ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/70')}>{z}</button>
+                  ))}
+                  <input type="time" value={endeZeit} onChange={(e) => setEndeZeit(e.target.value)} className="eingabe w-28 py-1.5" />
+                </div>
+                <button onClick={nachtraeglichBeenden} className="w-full rounded-2xl py-3 btn-grad font-bold">Feierabend um {endeZeit} eintragen</button>
+                <button onClick={() => setWeiterGearbeitet(true)} className="w-full text-sm text-white/45">Nein, ich arbeite noch (Nachtschicht)</button>
+              </div>
+            )}
             <button onClick={() => bearbeite(laufend)} className="inline-flex items-center gap-1.5 text-sm text-white/60">
               <Building2 className="w-4 h-4" /> {laufend.firma} · seit {uhr(laufend.start)} <Pencil className="w-3.5 h-3.5 text-white/35" />
             </button>

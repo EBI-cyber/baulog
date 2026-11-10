@@ -1,5 +1,6 @@
 import Dexie from 'dexie'
 import { isoWoche, isoDatum, wochenKey } from './zeit'
+import { ladeEinstellungen, speichereEinstellungen } from './settings'
 
 // Alles bleibt auf dem Gerät (IndexedDB) — funktioniert auch ohne Netz.
 export const db = new Dexie('rapport')
@@ -50,7 +51,9 @@ export async function wocheMarkieren(key, feld) {
 export async function exportieren() {
   return { app: 'rapport', version: 3, exportiertAm: new Date().toISOString(),
     schichten: await db.schichten.toArray(), wochen: await db.wochen.toArray(),
-    absenzen: await db.absenzen.toArray(), spesen: await db.spesen.toArray(), einsaetze: await db.einsaetze.toArray() }
+    absenzen: await db.absenzen.toArray(), spesen: await db.spesen.toArray(), einsaetze: await db.einsaetze.toArray(),
+    // Einstellungen inkl. Fragebogen und Unterschrift (ohne Microsoft-Anmeldung — die liegt getrennt)
+    einstellungen: ladeEinstellungen() }
 }
 
 export async function importieren(daten) {
@@ -60,4 +63,5 @@ export async function importieren(daten) {
       await db[t].clear(); await db[t].bulkAdd(daten[t] || [])
     }
   })
+  if (daten.einstellungen) speichereEinstellungen({ ...ladeEinstellungen(), ...daten.einstellungen })
 }

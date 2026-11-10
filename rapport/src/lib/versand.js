@@ -5,6 +5,7 @@ import { gruppenLaden, statusKey, rapportStatus } from './rapporte'
 import { wochenRechnung, std } from './woche'
 import { ausKey } from './zeit'
 import { ladeEinstellungen } from './settings'
+import { automatischSichern } from './sicherung'
 
 const sauber = (t) => String(t || '').replace(/[\\/:*?"<>|]/g, '_').trim()
 
@@ -79,6 +80,7 @@ async function versenden(g, wKey, status, wunsch, mehrere) {
     if (wunsch.mail && !mailAn) fehler.push('E-Mail: Im Einsatz ist keine E-Mail des Büros eingetragen')
     if (fehler.length) neu.fehler = fehler.join(' · ')
     await db.wochen.put(neu)
+    automatischSichern(true).catch(() => {}) // nach jedem Abschluss auch die Daten sichern
     return { status: neu, r }
   } catch (e) {
     // kein Netz o.ä.: vormerken und beim nächsten Öffnen nachholen

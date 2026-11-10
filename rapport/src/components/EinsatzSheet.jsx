@@ -10,8 +10,9 @@ import { einsatzvertragLesen, kiVerfuegbar } from '../lib/ki'
 import { BRANCHEN, branche, brancheAnwenden } from '../lib/branchen'
 import { liste, FUNKTIONEN } from '../lib/unterschreiber'
 import { ferienMindestProzent, alter } from '../lib/profil'
+import { einsatzEnde } from '../lib/einsatzende'
 
-const NEU = { firma: '', branche: '', wegKm: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
+const NEU = { firma: '', branche: '', wegKm: '', maxDauerTage: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
   gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
 
 const ZAHLEN = ['stundenlohn', 'wochenstunden', 'feiertagProzent', 'ferienProzent', 'dreizehnterProzent', 'ueberstundenZuschlag',
@@ -65,6 +66,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
           erkannt.push(k)
         }
         if (['bau', 'industrie', 'andere'].includes(r.branche)) Object.assign(y, brancheAnwenden(y, r.branche, LOHN_STANDARD))
+        if (r.einsatzdauerTage) { y.maxDauerTage = String(r.einsatzdauerTage); erkannt.push('maxDauerTage') }
         ;['firma', 'einsatznummer', 'arbeitsbeginn', 'qualifikation', 'meldenBei', 'buero', 'bueroTel', 'bueroKontakt', 'bueroEmail', 'einsatzort', 'funktion', 'beginn', 'ende', 'gavName', 'kuendigungsfrist', 'bemerkungen', ...ZAHLEN].forEach((k) => nimm(k))
         nimm('spesenInfo', 'spesen'); nimm('stundenlohnTotalVertrag', 'stundenlohnTotal')
         if (r.kanton && KANTONE[String(r.kanton).toUpperCase()]) { y.kanton = String(r.kanton).toUpperCase(); erkannt.push('kanton') }
@@ -176,6 +178,8 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         <Feld label="Arbeitsweg (einfach)" einheit="km" {...zahlFeld('wegKm')} />
         <Feld label="Beginn" type="date" value={f.beginn} onChange={set('beginn')} />
         <Feld label="Ende" type="date" value={f.ende} onChange={set('ende')} />
+        <Feld label="Max. Dauer (Kalendertage)" inputMode="numeric" value={f.maxDauerTage} onChange={set('maxDauerTage')} placeholder="z.B. 14" />
+        <div className="text-xs text-white/45 self-end pb-3">{einsatzEnde(f) ? `Endet am ${einsatzEnde(f).split('-').reverse().join('.')}` : 'Unbefristet'}</div>
       </div>
 
       <Titel>Temporärbüro</Titel>

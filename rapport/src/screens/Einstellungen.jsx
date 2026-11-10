@@ -11,6 +11,8 @@ import { anmelden, abmelden, angemeldetAls, kiVerfuegbar } from '../lib/ki'
 import EinsatzSheet from '../components/EinsatzSheet'
 import MicrosoftKarte from '../components/MicrosoftKarte'
 import KurzbefehlKarte from '../components/KurzbefehlKarte'
+import { inOneDriveSichern, tageSeitSicherung } from '../lib/sicherung'
+import { useMs } from '../lib/microsoft'
 import Unterschrift from '../components/Unterschrift'
 import { teileDatei } from '../lib/teilen'
 import { isoDatum } from '../lib/zeit'
@@ -40,6 +42,7 @@ export default function Einstellungen() {
   const [meldung, setMeldung] = useState(null)
   const datei = useRef()
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], [])
+  const ms = useMs()
   const [einsatz, setEinsatz] = useState(null) // { e } bearbeiten | { vorgabe } | {} neu
   const [konto, setKonto] = useState(null)
   const [login, setLogin] = useState({ email: '', pw: '' })
@@ -189,7 +192,12 @@ export default function Einstellungen() {
       </Karte>}
 
       <Karte icon={Download} titel="Datensicherung">
-        <div className="text-sm text-white/55">Alle Zeiten liegen nur auf diesem Gerät. Sichere sie ab und zu (z.B. auch in OneDrive).</div>
+        <div className="text-sm text-white/55">Alle Zeiten liegen auf diesem Gerät. {ms.refreshToken ? 'Mit verbundenem Microsoft-Konto werden sie jede Woche und nach jedem Wochenabschluss automatisch in OneDrive gesichert (Ordner „Rapporte/Sicherung“).' : 'Verbinde unten Microsoft, dann wird automatisch in OneDrive gesichert — sonst hier ab und zu von Hand sichern.'}</div>
+        <div className={'text-sm ' + (tageSeitSicherung() == null || tageSeitSicherung() > 14 ? 'text-amber-300' : 'text-white/60')}>
+          Letzte Sicherung: {einst.letzteSicherung ? `${new Date(einst.letzteSicherung).toLocaleDateString('de-CH')} (${einst.letzteSicherungPfad || 'OneDrive'})` : 'noch nie'}
+        </div>
+        {ms.refreshToken && <button onClick={async () => { setMeldung(null); try { const r = await inOneDriveSichern(); setMeldung({ ok: true, text: `Gesichert: ${r.pfad}` }) } catch (e) { setMeldung({ ok: false, text: e.message }) } }}
+          className="w-full rounded-2xl py-3 btn-grad font-bold">Jetzt in OneDrive sichern</button>}
         <div className="grid grid-cols-2 gap-3">
           <button onClick={sichern} className="rounded-2xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2"><Download className="w-4 h-4" /> Sichern</button>
           <button onClick={() => datei.current?.click()} className="rounded-2xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2"><Upload className="w-4 h-4" /> Einspielen</button>
