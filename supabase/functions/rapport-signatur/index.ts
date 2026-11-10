@@ -24,6 +24,9 @@ Deno.serve(async (req) => {
       const daten = JSON.stringify(b.daten || {})
       if (daten.length > 300_000) return out({ error: 'Rapport zu gross' }, 400)
       await db.from(T).delete().lt('ablauf', new Date().toISOString()) // Aufräumen
+      // Schutz vor Massenanlage (Funktion ist ohne Konto erreichbar): höchstens 200 neue Rapporte pro Stunde insgesamt
+      const { count } = await db.from(T).select('token', { count: 'exact', head: true }).gt('erstellt', new Date(Date.now() - 3600_000).toISOString())
+      if ((count || 0) >= 200) return out({ error: 'Gerade zu viele Anfragen — bitte in einer Stunde nochmal.' }, 429)
       const token = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, '0')).join('')
       const { error } = await db.from(T).insert({ token, daten: b.daten })
       if (error) return out({ error: error.message }, 500)

@@ -61,6 +61,9 @@ Deno.serve(async (req) => {
     else if (a === 'status') return text(zustand === 'arbeit' ? 'Am Arbeiten' : zustand === 'pause' ? 'In der Pause' : 'Nicht eingestempelt')
     else return text('Unbekannte Aktion.', 400)
 
+    // Schutz: höchstens 100 nicht abgeholte Tipps pro Schlüssel (die App holt sie beim Öffnen ab)
+    const { count } = await db.from('rapport_stempel_ereignisse').select('id', { count: 'exact', head: true }).eq('schluessel', h)
+    if ((count || 0) >= 100) return text('Zu viele offene Tipps — bitte die Rapport-App einmal öffnen.', 429)
     const { error } = await db.from('rapport_stempel_ereignisse').insert({ schluessel: h, aktion, zeit: jetzt.toISOString() })
     if (error) return text('Fehler: ' + error.message, 500)
     await setze(neu)
