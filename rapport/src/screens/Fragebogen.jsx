@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { tarifLaden, satzFuer } from '../lib/quellensteuer'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Check, User, IdCard, Landmark, Briefcase, Car, PenLine, CheckCircle2 } from 'lucide-react'
 import { useEinstellungen } from '../lib/settings'
@@ -25,6 +26,50 @@ const Frage = ({ titel, hinweis, children }) => (
   </div>
 )
 const JaNein = ({ wert, onWahl }) => <Chips werte={[[true, 'Ja'], [false, 'Nein']]} wert={wert} onWahl={onWahl} />
+
+/** Quellensteuer: Tarif und Satz automatisch aus der offiziellen ESTV-Tabelle — Eingaben nur als Korrektur */
+function QstVorschau({ p, setP }) {
+  const [t, setT] = useState(undefined)
+  const [korrektur, setKorrektur] = useState(!!(p.qstTarif || p.qstSatz))
+  const code = p.qstTarif || tarifAuto(p)
+  useEffect(() => {
+    let aktiv = true
+    setT(undefined)
+    if (p.wohnkanton) tarifLaden(new Date().getFullYear(), p.wohnkanton, code).then((x) => aktiv && setT(x))
+    return () => { aktiv = false }
+  }, [p.wohnkanton, code])
+  return (
+    <div className="rounded-2xl bg-white/[0.05] border border-white/10 p-3 space-y-2">
+      <div className="text-sm">Dein Tarif: <b className="font-mono text-base">{code}</b>{p.wohnkanton ? ` · Wohnkanton ${p.wohnkanton}` : ''}</div>
+      {!p.wohnkanton ? <div className="text-sm text-amber-300">Bitte im ersten Schritt den Wohnkanton wählen — er bestimmt die Quellensteuer.</div>
+        : t === undefined ? <div className="text-xs text-white/40">Offizielle Tabelle wird geladen …</div>
+        : t ? (
+          <>
+            <div className="text-sm text-white/75">Der Satz wird <b>automatisch</b> aus der offiziellen Tabelle der Steuerverwaltung ({t.kanton} {t.jahr}) berechnet — je nach Monatslohn:</div>
+            <div className="grid grid-cols-4 gap-1.5 text-center text-xs">
+              {[4000, 5000, 6000, 7000].map((b) => (
+                <div key={b} className="rounded-lg bg-white/[0.05] py-1.5"><div className="text-white/45">{b.toLocaleString('de-CH')}</div><b className="text-sm">{satzFuer(t, b).toFixed(2)} %</b></div>
+              ))}
+            </div>
+            <div className="text-xs text-white/40">Du musst nichts eintragen.</div>
+          </>
+        ) : <div className="text-sm text-amber-300">Tabelle gerade nicht erreichbar — der Satz wird automatisch nachgeladen.</div>}
+      <button type="button" onClick={() => setKorrektur(!korrektur)} className="text-xs text-white/45 underline">Lohnabrechnung zeigt etwas anderes?</button>
+      {korrektur && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs text-white/50 mb-1">Tarif laut Abrechnung</label>
+            <input className="eingabe font-mono" placeholder={tarifAuto(p)} value={p.qstTarif} onChange={(e) => setP({ qstTarif: e.target.value.toUpperCase() })} />
+          </div>
+          <div>
+            <label className="block text-xs text-white/50 mb-1">Fester Satz % (leer = automatisch)</label>
+            <input className="eingabe" inputMode="decimal" placeholder="automatisch" value={p.qstSatz} onChange={(e) => setP({ qstSatz: e.target.value })} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 /** Fragebogen „Meine Situation“ — passt die App an die Person an */
 export default function Fragebogen() {
@@ -65,7 +110,7 @@ export default function Fragebogen() {
             <input className="eingabe" type="date" value={p.ausweisBis} onChange={(e) => setP({ ausweisBis: e.target.value })} />
           </Frage>
         )}
-        {qst && <div className="text-sm rounded-xl px-3 py-2 bg-aqua/10 border border-aqua/25 text-white/75">Mit {p.status === 'G' ? 'G-Ausweis' : `${p.status}-Ausweis`} wird dir Quellensteuer vom Lohn abgezogen. Im nächsten Schritt geht es um deinen Tarif.</div>}
+        {qst && <div className="text-sm rounded-xl px-3 py-2 bg-aqua/10 border border-aqua/25 text-white/75">Mit {p.status === 'G' ? 'G-Ausweis' : `${p.status}-Ausweis`} wird dir Quellensteuer vom Lohn abgezogen — nach dem Tarif deines <b>Wohnkantons</b>. Die App rechnet sie automatisch.</div>}
       </>
     ) },
     { icon: Landmark, titel: 'Familie & Steuer', aus: !qst, inhalt: (
@@ -84,20 +129,7 @@ export default function Fragebogen() {
           </div>
         </Frage>
         <Frage titel="Kirchensteuer?" hinweis="Mitglied einer Landeskirche (reformiert, katholisch …)."><JaNein wert={p.kirche} onWahl={(v) => setP({ kirche: v })} /></Frage>
-        <div className="rounded-2xl bg-white/[0.05] border border-white/10 p-3 space-y-2">
-          <div className="text-sm">Dein Tarif (geschätzt): <b className="font-mono text-base">{tarifAuto(p)}</b>{p.wohnkanton ? ` · Kanton ${p.wohnkanton}` : ''}</div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs text-white/50 mb-1">Tarif laut Lohnabrechnung</label>
-              <input className="eingabe font-mono" placeholder={tarifAuto(p)} value={p.qstTarif} onChange={(e) => setP({ qstTarif: e.target.value.toUpperCase() })} />
-            </div>
-            <div>
-              <label className="block text-xs text-white/50 mb-1">Quellensteuer-Satz %</label>
-              <input className="eingabe" inputMode="decimal" placeholder="z.B. 6.5" value={p.qstSatz} onChange={(e) => setP({ qstSatz: e.target.value })} />
-            </div>
-          </div>
-          <div className="text-xs text-white/40">Den Satz findest du auf deiner Lohnabrechnung. Bis dahin bleibt das Netto ohne Quellensteuer — die App weist darauf hin. Der Satz steigt mit dem Monatslohn.</div>
-        </div>
+        <QstVorschau p={p} setP={setP} />
       </>
     ) },
     { icon: Briefcase, titel: 'Arbeit & Lohn', inhalt: (
@@ -131,7 +163,7 @@ export default function Fragebogen() {
   if (fertig) {
     const a = alter(p), fm = ferienMindestProzent(p), tage = ausweisTage(p)
     const punkte = [
-      qst ? `Quellensteuer: Tarif ${tarif(p)}${p.qstSatz ? `, ${p.qstSatz} % wird abgezogen` : ' — Satz von der ersten Lohnabrechnung eintragen'}` : 'Keine Quellensteuer',
+      qst ? `Quellensteuer: Tarif ${tarif(p)}, Kanton ${p.wohnkanton || '?'} — ${p.qstSatz ? `fester Satz ${p.qstSatz} %` : 'Satz automatisch nach offizieller Tabelle und Monatslohn'}` : 'Keine Quellensteuer',
       fm && `Ferien: mit ${a} Jahren mindestens ${fm} % (${fm > 9 ? '5' : '4'} Wochen) — die App warnt, wenn ein Vertrag weniger hat`,
       tage != null && `Erinnerung ${tage > 60 ? 'ab 60 Tage' : 'jetzt'} vor Ablauf des Ausweises (${p.ausweisBis.split('-').reverse().join('.')})`,
       p.mindestpause && 'Fehlende Pausen werden nach Arbeitsgesetz ergänzt',
