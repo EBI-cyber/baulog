@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { CheckCircle2, Send, Mail, CloudUpload, Loader2, AlertTriangle, Share2, Building2 } from 'lucide-react'
 import Sheet from './Sheet'
 import Unterschrift from './Unterschrift'
+import QrSignatur from './QrSignatur'
 import { useEinstellungen } from '../lib/settings'
 import { gruppenLaden, rapportStatus } from '../lib/rapporte'
 import { abschliessen, gruppenPdf, ordnerPfad } from '../lib/versand'
@@ -38,7 +39,7 @@ export default function AbschlussSheet({ wKey, onClose }) {
 
 function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
   const status = useLiveQuery(() => rapportStatus(wKey, g.firma, !mehrere), [wKey, g.firma, mehrere], undefined)
-  const [ma, setMa] = useState(null), [fi, setFi] = useState(null), [fiName, setFiName] = useState('')
+  const [ma, setMa] = useState(null), [fi, setFi] = useState(null), [fiName, setFiName] = useState(''), [fiAm, setFiAm] = useState(null)
   const [wunsch, setWunsch] = useState({ mail: true, onedrive: true })
   const [laeuft, setLaeuft] = useState(false), [ergebnis, setErgebnis] = useState(null)
   useEffect(() => {
@@ -51,9 +52,9 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
   const total = wochenRechnung({ schichten: g.schichten, absenzen: g.absenzen, einst: g.einst }).total
   const jetzt = Date.now()
   const unterschriften = { maBild: ma, maAm: ma ? (status?.maBild === ma ? status.maAm : jetzt) : null,
-    firmaBild: fi, firmaName: fiName, firmaAm: fi ? (status?.firmaBild === fi ? status.firmaAm : jetzt) : null }
+    firmaBild: fi, firmaName: fiName, firmaAm: fi ? (fiAm || (status?.firmaBild === fi ? status.firmaAm : jetzt)) : null }
   // PDF vorab (für das Teilen-Menü ohne Microsoft — iOS verlangt den direkten Klick)
-  const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, fiName, g]) // eslint-disable-line react-hooks/exhaustive-deps
+  const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, fiName, fiAm, g]) // eslint-disable-line react-hooks/exhaustive-deps
   const email = g.einsatz?.bueroEmail
 
   async function los() {
@@ -81,8 +82,9 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
       </div>
       <div className="space-y-1.5">
         <div className="text-xs text-white/50">Unterschrift Einsatzbetrieb (Vorarbeiter / Polier)</div>
-        <Unterschrift wert={fi} onChange={setFi} hoehe={150} />
+        <Unterschrift wert={fi} onChange={(b) => { setFi(b); setFiAm(null) }} hoehe={150} />
         <input className="eingabe" placeholder="Name des Unterzeichners" value={fiName} onChange={(e) => setFiName(e.target.value)} />
+        {!fi && <QrSignatur g={g} woche={woche} onUnterschrift={({ bild, name, am }) => { setFi(bild); setFiName(name || ''); setFiAm(am) }} />}
       </div>
 
       {verbunden ? (

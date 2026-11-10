@@ -4,10 +4,22 @@ import Heute from './screens/Heute'
 import Woche from './screens/Woche'
 import Einstellungen from './screens/Einstellungen'
 import Lohn from './screens/Lohn'
+import Unterschreiben from './screens/Unterschreiben'
 
 export default function App() {
   return (
     <HashRouter>
+      <Routes>
+        {/* Öffentliche Seite für den Polier (QR-Code) — ohne Navigation */}
+        <Route path="/unterschreiben/:token" element={<Unterschreiben />} />
+        <Route path="*" element={<Hauptlayout />} />
+      </Routes>
+    </HashRouter>
+  )
+}
+
+function Hauptlayout() {
+  return (
       <div className="md:flex min-h-[100dvh]">
         <Nav />
         <main className="flex-1 min-w-0 pb-28 md:pb-12">
@@ -23,6 +35,5 @@ export default function App() {
           </div>
         </main>
       </div>
-    </HashRouter>
   )
 }
