@@ -11,7 +11,11 @@ const STANDARD = {
   arbeitstage: 5,    // Arbeitstage pro Woche → Tagessoll = wochenSoll / arbeitstage
   waehrung: 'CHF',
   kmSatz: '0.70',
-  kanton: '',        // Kanton für Feiertage, wenn kein Einsatz zugeordnet ist    // Entschädigung pro km (für Spesen „Fahrt")
+  kanton: '',        // Kanton für Feiertage, wenn kein Einsatz zugeordnet ist
+  unterschrift: null, // meine Unterschrift { bild (PNG-DataURL), am }
+  onedriveOrdner: 'Rapporte/{jahr}/{buero}',
+  abschlussTag: 5,   // ab diesem Wochentag fragt „Feierabend" nach dem Wochenabschluss (5 = Freitag)
+  kopieAnMich: true, // Rapport-Mail in Kopie an mich    // Entschädigung pro km (für Spesen „Fahrt")
 }
 
 /** Tagessoll in Stunden (Vorschlag für bezahlte Abwesenheiten), Standard 8 */
@@ -41,4 +45,5 @@ export function useEinstellungen() {
   return [e, aendern]
 }
 
-export const fertigEingerichtet = (e) => !!(e.name && e.buero && e.firmen.length)
+// Büro steht im Einsatz (oder als Standard) — Name und mindestens eine Firma genügen
+export const fertigEingerichtet = (e) => !!(e.name && e.firmen.length)

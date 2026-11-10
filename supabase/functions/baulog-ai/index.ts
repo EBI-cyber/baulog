@@ -134,10 +134,13 @@ Deno.serve(async (req) => {
       const bilder = (Array.isArray(body.bilder) ? body.bilder : [body.bild]).filter(Boolean).slice(0, 6)
       if (!bilder.length) return out({ error: 'Kein Foto übergeben.' }, 400)
       messages = [
-        { role: 'system', content: 'Du liest Fotos eines Einsatzvertrags (Temporärarbeit/Personalverleih, Schweiz; mehrere Fotos = mehrere Seiten). ' +
+        { role: 'system', content: 'Du liest Fotos eines Einsatzvertrags (Temporärarbeit/Personalverleih, Schweiz; mehrere Fotos = mehrere Seiten). Das Foto kann gedreht oder schräg sein — lies es trotzdem vollständig. ' +
+          'Typischer Aufbau (z. B. swissstaffing-Vorlage): „Einsatzbetrieb“, „Melden bei“, „Treffpunkt“, „Einsatzbeginn“, „Einsatzdauer“, „ave GAV“, „Qualifikation“, „Arbeitsbeginn“ (Uhrzeit), „Einsatzort“ (PLZ Ort), „Einsatz als“, „Arbeitszeit“ (Stunden pro Woche); ' +
+          'Lohntabelle: „Stundenlohn“ = Grundlohn, darunter Ferienentschädigung %, Feiertagsentschädigung %, 13. Monatslohn %, und „Total AHV-pflichtiger Bruttolohn pro Stunde“ = stundenlohnTotal; ' +
+          'Abzüge: „FAR“, „Vollzug“/„VZK“ (Vollzugskosten → Feld gav). Kopf: „Einsatznummer“, „Agent“ (Ansprechperson des Büros) mit Telefon und E-Mail; Fusszeile: Firma des Temporärbüros. ' +
           'Übernimm nur Werte, die wirklich im Vertrag stehen, Zahlen Ziffer für Ziffer; was fehlt oder unlesbar ist, ist null. Prozentsätze als Zahl ohne %-Zeichen (z. B. 8.33), Beträge als Zahl in CHF. ' +
           'Felder: firma (Einsatzbetrieb/Kunde, nicht das Temporärbüro), einsatzort (Ort/Adresse des Arbeitsorts), kanton (zweistelliges Kürzel des Arbeitsorts, z. B. ZH, AG, BE; aus PLZ/Ort ableiten), ' +
-          'branche ("bau" für Bauhauptgewerbe/LMV, z. B. Maurer, Stahlbetonbauer; "industrie" für Industrie/Produktion, z. B. Fertigteilwerk, Betonwarenwerk; sonst "andere"), ' +
+          'branche ("bau" für Bauhauptgewerbe/LMV, z. B. Maurer, Stahlbetonbauer; "industrie" für Industrie/Produktion, z. B. Fertigteilwerk, Betonwaren-Industrie, Betonvorfabrikation; sonst "andere"), ' +
           'buero (Name des Temporärbüros/Personalverleihers), bueroTel (Telefon der Filiale), bueroKontakt (Ansprechperson/Berater), bueroEmail, beginn und ende (YYYY-MM-DD, ende null wenn unbefristet), funktion (Tätigkeit/Beruf), ' +
           'stundenlohn (GRUNDLOHN pro Stunde OHNE Ferien-, Feiertagsentschädigung und 13. Monatslohn), stundenlohnTotal (Stundenlohn inkl. aller Entschädigungen, falls angegeben), ' +
           'wochenstunden (vereinbarte/betriebsübliche Wochenarbeitszeit), feiertagProzent, ferienProzent, dreizehnterProzent (Entschädigungen in % des Grundlohns), ' +
@@ -145,7 +148,8 @@ Deno.serve(async (req) => {
           'zulageStunde (feste Zulage pro Stunde in CHF, z. B. Schicht- oder Schmutzzulage), mittagszulage (Mittags-/Verpflegungszulage pro Arbeitstag in CHF), ' +
           'krankFaktor (Lohnfortzahlung bei Krankheit in %, z. B. 80), schlechtwetterFaktor (Lohn bei Schlechtwetter in %), ' +
           'ahv, alv, nbu, ktg, bvg, gav, far, parifonds, quellensteuer (Arbeitnehmer-Abzüge in % vom Bruttolohn: AHV/IV/EO, ALV, Nichtberufsunfall, Krankentaggeld, Pensionskasse, GAV-Weiterbildung/Vollzug, FAR-Frühpensionierung Bau, Parifonds/Berufsbeitrag, Quellensteuer), ' +
-          'gavName (anwendbarer GAV), kuendigungsfrist (Text), spesen (Text zu Spesen/Zulagen/Pauschalen), bemerkungen (weitere wichtige Punkte, kurz). ' +
+          'einsatznummer, arbeitsbeginn (HH:MM), qualifikation, meldenBei (Person/Funktion), ' +
+          'gavName (anwendbarer GAV), kuendigungsfrist (Text), spesen (Text zu Spesen/Zulagen/Pauschalen), bemerkungen (weitere wichtige Punkte kurz, z. B. Treffpunkt, Einsatzdauer). ' +
           'Antworte NUR als JSON mit genau diesen Feldern.' },
         { role: 'user', content: [
           { type: 'text', text: bilder.length > 1 ? `Einsatzvertrag, ${bilder.length} Seiten:` : 'Einsatzvertrag:' },

@@ -24,6 +24,7 @@
 - Tabellen: `bau_projekte`, `bau_eintraege`, `bau_rechnungen`, `bau_members` (Team). **Quelle: `supabase/migrations/`** — wird bei jedem Push auf `main` automatisch per GitHub Actions eingespielt (Job `datenbank`, läuft VOR dem App-Build). Neue DB-Änderungen immer als neue, idempotente Migrationsdatei anlegen. `schema.sql`/`schema_team.sql` sind nur noch die alte Handversion.
 - GitHub braucht dafür: Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, Variable `SUPABASE_PROJECT_REF` (= `nhlhrqxmxtacaygnydxf`). Fehlen sie, bricht der Deploy bewusst ab.
 - Edge Function `baulog-ai` (Deno, Secret `OPENAI_KEY`): Tasks `din` / `korrektur` / `nachtrag` / `setup` / `abschluss` (+ `einsatzvertrag` für die Rapport-App) (gpt-4o-mini, `korrektur` auf gpt-4o). Wird beim Push auf `main` automatisch mit ausgeliefert (Job `datenbank`).
+- Edge Function `rapport-versand` (Rapport-App, `verify_jwt = false`, wird beim Push auf `main` mit ausgeliefert).
 - Edge Function `invite-worker` (vorhanden, aktuell **inaktiv** — Auto-Einladung deaktiviert, s.u.).
 
 ## Cloud-Sync
@@ -71,4 +72,7 @@ Folgt dem Skill **`baulog-design`** (dunkles Glas, lucide-Icons, IconChips, resp
 - **Pro Einsatz eigenes Temporärbüro** (Name, WhatsApp, Kontakt, E-Mail) und **Branche** (`lib/branchen.js`: Bau/LMV, Industrie/Fertigteilwerk, Andere → Vorschläge für Ferien %, Nachtzeit, Samstag/Sonntag/Feiertagsarbeit, Schlechtwetter; überschreibt keine Vertragswerte). Rapport = einer pro Firma/Büro und Woche (`lib/rapporte.js`, Status-Key `KW|Firma`).
 - **Feiertage** je Kanton (`lib/feiertage.js`, Hauptliste ohne Gewähr), Kanton kommt aus dem Einsatz der Firma.
 - **Lohn** (`lib/lohn.js`, Screen `Lohn`): Schema GAV Personalverleih — Grundlohn, Überstunden-/Nacht-/Sonntagszuschlag, bezahlte Absenzen, Feiertags-/Ferienentschädigung, 13. ML → Brutto − AHV/ALV/NBU/KTG/BVG/GAV/Quellensteuer = Netto + Spesen. Live auf „Heute“, Lohnabrechnung als PDF.
+- **Lohnsätze wie im Einsatzvertrag** (`stundenSaetze`): Ferien- und Feiertagsentschädigung auf den Grundlohn, 13. ML auf Grundlohn+Ferien+Feiertag, ungerundet gerechnet, Total auf 0.01 (Beispiel Bellini: 29.80 → 37.00).
+- **Unterschriften** (Mitarbeiter einmal in den Einstellungen, Einsatzbetrieb im Wochenabschluss) landen im Rapport-PDF; gespeichert im Wochenstatus (`wochen`, Key `KW|Firma`).
+- **Automatischer Versand** über Edge Function `rapport-versand` (Microsoft Graph, Gerätecode-Anmeldung, eigene App-Registrierung des Nutzers = Client-ID in den Einstellungen; Refresh-Token nur auf dem Gerät): PDF in OneDrive-Ordner (Vorlage `Rapporte/{jahr}/{buero}`) + E-Mail ans Büro (`bueroEmail` des Einsatzes). „Feierabend“ ab dem Abschluss-Tag (Standard Freitag) öffnet den Wochenabschluss. Ohne Netz wird der Versand vorgemerkt und nachgeholt. WhatsApp bleibt manuell (Teilen-Menü) — dafür gibt es keine Schnittstelle.
 - Rapport-Layout (`rapport/src/lib/pdf.js`) ist vorläufig — wird an die Vorlage des Nutzers angepasst.

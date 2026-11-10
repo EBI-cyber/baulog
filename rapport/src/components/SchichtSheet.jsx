@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import Sheet from './Sheet'
 import FirmaWahl from './FirmaWahl'
@@ -13,13 +14,19 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
   const pauseAlt = schicht ? Math.round(pauseMs(schicht) / 60000) : 30
   const [f, setF] = useState(() => ({
     datum: schicht ? isoDatum(new Date(schicht.start)) : datum || isoDatum(new Date()),
-    beginn: schicht ? uhr(schicht.start) : '07:00',
+    beginn: schicht ? uhr(schicht.start) : '',
     ende: schicht?.ende ? uhr(schicht.ende) : '16:30',
     pause: String(pauseAlt),
     firma: schicht?.firma || einst.firma || einst.firmen[0] || '',
     notiz: schicht?.notiz || '',
   }))
   const [fehler, setFehler] = useState('')
+  // Beginn aus dem Einsatzvertrag (z.B. 07:00), sonst 07:00
+  const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], null)
+  useEffect(() => {
+    if (!einsaetze || f.beginn) return
+    setF((x) => ({ ...x, beginn: einsaetze.find((e) => e.firma === x.firma)?.arbeitsbeginn || '07:00' }))
+  }, [einsaetze]) // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (e) => setF({ ...f, [k]: e.target?.value ?? e })
 
   const zeiten = () => {

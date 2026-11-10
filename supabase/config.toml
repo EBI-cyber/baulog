@@ -3,3 +3,7 @@ project_id = "baulog"
 
 [functions.baulog-ai]
 verify_jwt = true
+
+# Rapport-App: Versand über Microsoft Graph. Kein JWT nötig — ohne gültigen Microsoft-Token des Nutzers passiert nichts.
+[functions.rapport-versand]
+verify_jwt = false

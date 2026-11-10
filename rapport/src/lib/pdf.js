@@ -13,7 +13,7 @@ export function dateiName(einst, w, firma) {
  * Wochenrapport als PDF (vorläufiges Layout — wird später an die Vorlage angepasst).
  * Gibt einen Blob zurück.
  */
-export function rapportPdf({ einst, woche, schichten, absenzen = [], spesen = [] }) {
+export function rapportPdf({ einst, woche, schichten, absenzen = [], spesen = [], einsatz = null, unterschriften = null }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const tage = wochenTage(woche)
   const L = 15, R = 195
@@ -35,7 +35,14 @@ export function rapportPdf({ einst, woche, schichten, absenzen = [], spesen = []
   }
   feld('Mitarbeiter', einst.name, 40)
   feld('Temporärbüro', einst.buero, 47)
-  feld('Einsatzbetrieb', firmen.join(', ') || '—', 54)
+  feld('Einsatzbetrieb', firmen.join(', ') || einsatz?.firma || '—', 54)
+  // rechte Spalte: Einsatz-Nr., Funktion, Einsatzort
+  const rechts = [['Einsatz-Nr.', einsatz?.einsatznummer], ['Funktion', einsatz?.funktion], ['Einsatzort', einsatz?.einsatzort]].filter((x) => x[1])
+  rechts.forEach(([k, v], i) => {
+    const yy = 40 + i * 7
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(110); doc.text(k, 120, yy)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(0); doc.text(doc.splitTextToSize(String(v), 52)[0], 143, yy)
+  })
   doc.setDrawColor(180); doc.line(L, 59, R, 59)
 
   // Tabelle
@@ -139,13 +146,26 @@ export function rapportPdf({ einst, woche, schichten, absenzen = [], spesen = []
   }
 
   // Unterschriften
-  if (y > 262) { doc.addPage(); y = 40 }
-  y = Math.max(y + 16, 250)
+  if (y > 258) { doc.addPage(); y = 40 }
+  y = Math.max(y + 24, 252)
+  const u = unterschriften || {}
+  const bild = (src, x, unten) => {
+    if (!src) return
+    try {
+      const p = doc.getImageProperties(src)
+      const h = Math.min(20, (70 * p.height) / p.width), w = (h * p.width) / p.height
+      doc.addImage(src, 'PNG', x + 2, unten - h - 0.5, w, h)
+    } catch { /* ungültiges Bild ignorieren */ }
+  }
+  bild(u.maBild, L, y); bild(u.firmaBild, R - 75, y)
   doc.setDrawColor(120)
   doc.line(L, y, L + 75, y); doc.line(R - 75, y, R, y)
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(90)
-  doc.text('Datum / Unterschrift Mitarbeiter', L, y + 5)
-  doc.text('Datum / Unterschrift Einsatzbetrieb', R - 75, y + 5)
+  const am = (ts) => (ts ? `${datumLang(new Date(ts))} ${uhr(ts)}` : 'Datum')
+  doc.text(`${am(u.maAm)} / Unterschrift Mitarbeiter`, L, y + 5)
+  doc.text(`${am(u.firmaAm)} / Unterschrift Einsatzbetrieb`, R - 75, y + 5)
+  if (u.firmaName) { doc.setFontSize(8.5); doc.text(u.firmaName, R - 75, y + 9.5) }
+  if (u.maBild || u.firmaBild) { doc.setFontSize(7); doc.setTextColor(150); doc.text('Elektronisch unterschrieben in der Rapport-App.', L, y + 9.5) }
   doc.setFontSize(7.5); doc.setTextColor(150)
   doc.text(`Erstellt am ${datumLang(new Date())} ${uhr(Date.now())} mit Rapport`, L, 289)
 

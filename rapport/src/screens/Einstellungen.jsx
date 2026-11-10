@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { User, Building2, Factory, X, Download, Upload, Smartphone, Info, FileSignature, Plus, ChevronRight, Sparkles, LogOut, MapPin } from 'lucide-react'
+import { User, Building2, Factory, X, Download, Upload, Smartphone, Info, FileSignature, PenLine, Plus, ChevronRight, Sparkles, LogOut, MapPin } from 'lucide-react'
 import { useEinstellungen, tagesSoll } from '../lib/settings'
 import { db, exportieren, importieren } from '../lib/db'
 import { KANTONE } from '../lib/feiertage'
 import { chf } from '../lib/lohn'
 import { anmelden, abmelden, angemeldetAls, kiVerfuegbar } from '../lib/ki'
 import EinsatzSheet from '../components/EinsatzSheet'
+import MicrosoftKarte from '../components/MicrosoftKarte'
+import Unterschrift from '../components/Unterschrift'
 import { teileDatei } from '../lib/teilen'
 import { isoDatum } from '../lib/zeit'
 import IconChip from '../ui/IconChip'
@@ -64,6 +66,13 @@ export default function Einstellungen() {
         <Feld label="Mein Name (steht im Rapport)" value={einst.name} autoComplete="name"
           onChange={(e) => setEinst({ name: e.target.value })} placeholder="Vorname Nachname" />
       </Karte>
+
+      <Karte icon={PenLine} titel="Meine Unterschrift">
+        <div className="text-sm text-white/55">Einmal unterschreiben — wird bei jedem Rapport automatisch eingesetzt.</div>
+        <Unterschrift wert={einst.unterschrift?.bild || null} onChange={(bild) => setEinst({ unterschrift: bild ? { bild, am: Date.now() } : null })} />
+      </Karte>
+
+      <MicrosoftKarte Karte={Karte} />
 
       <Karte icon={Building2} titel="Temporärbüro (Standard)">
         <div className="text-sm text-white/55">Jeder Einsatz hat sein eigenes Büro (unten bei den Einsätzen). Diese Angaben gelten nur, wenn im Einsatz keins steht.</div>

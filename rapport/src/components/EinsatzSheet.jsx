@@ -9,7 +9,7 @@ import { verkleinern } from '../lib/bild'
 import { einsatzvertragLesen, kiVerfuegbar } from '../lib/ki'
 import { BRANCHEN, branche, brancheAnwenden } from '../lib/branchen'
 
-const NEU = { firma: '', branche: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
+const NEU = { firma: '', branche: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
   gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
 
 const ZAHLEN = ['stundenlohn', 'wochenstunden', 'feiertagProzent', 'ferienProzent', 'dreizehnterProzent', 'ueberstundenZuschlag',
@@ -62,7 +62,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
           erkannt.push(k)
         }
         if (['bau', 'industrie', 'andere'].includes(r.branche)) Object.assign(y, brancheAnwenden(y, r.branche, LOHN_STANDARD))
-        ;['firma', 'buero', 'bueroTel', 'bueroKontakt', 'bueroEmail', 'einsatzort', 'funktion', 'beginn', 'ende', 'gavName', 'kuendigungsfrist', 'bemerkungen', ...ZAHLEN].forEach((k) => nimm(k))
+        ;['firma', 'einsatznummer', 'arbeitsbeginn', 'qualifikation', 'meldenBei', 'buero', 'bueroTel', 'bueroKontakt', 'bueroEmail', 'einsatzort', 'funktion', 'beginn', 'ende', 'gavName', 'kuendigungsfrist', 'bemerkungen', ...ZAHLEN].forEach((k) => nimm(k))
         nimm('spesenInfo', 'spesen'); nimm('stundenlohnTotalVertrag', 'stundenlohnTotal')
         if (r.kanton && KANTONE[String(r.kanton).toUpperCase()]) { y.kanton = String(r.kanton).toUpperCase(); erkannt.push('kanton') }
         return y
@@ -88,7 +88,8 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
     const firmen = einst.firmen.map((x) => (x === alt ? firma : x))
     setEinst({
       firmen: firmen.includes(firma) ? firmen : [...firmen, firma],
-      firma: !einst.firma || einst.firma === alt ? firma : einst.firma,
+      // neuer Einsatz wird zum aktuellen (voreingestellt bei Start)
+      firma: !einsatz || !einst.firma || einst.firma === alt ? firma : einst.firma,
     })
     onClose()
   }
@@ -165,6 +166,10 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
               className={'px-2.5 py-1 rounded-full text-xs border ' + (f.funktion === fn ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{fn}</button>
           ))}
         </div>}
+        <Feld label="Einsatz-Nr." value={f.einsatznummer} onChange={set('einsatznummer')} />
+        <Feld label="Arbeitsbeginn" type="time" value={f.arbeitsbeginn} onChange={set('arbeitsbeginn')} />
+        <Feld label="Qualifikation" value={f.qualifikation} onChange={set('qualifikation')} />
+        <Feld label="Melden bei" value={f.meldenBei} onChange={set('meldenBei')} />
         <Feld label="Beginn" type="date" value={f.beginn} onChange={set('beginn')} />
         <Feld label="Ende" type="date" value={f.ende} onChange={set('ende')} />
       </div>
@@ -173,8 +178,8 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
       <div className="grid grid-cols-2 gap-3">
         <Feld breit label="Name des Büros (steht im Rapport)" value={f.buero} onChange={set('buero')} placeholder={einst.buero ? `leer = ${einst.buero} (Standard)` : ''} />
         <Feld label="WhatsApp / Telefon" inputMode="tel" value={f.bueroTel} onChange={set('bueroTel')} placeholder="+41 …" />
-        <Feld label="Kontaktperson" value={f.bueroKontakt} onChange={set('bueroKontakt')} />
-        <Feld breit label="E-Mail" type="email" value={f.bueroEmail} onChange={set('bueroEmail')} />
+        <Feld label="Kontaktperson / Agent" value={f.bueroKontakt} onChange={set('bueroKontakt')} />
+        <Feld breit label="E-Mail (Rapporte gehen automatisch hierhin)" type="email" value={f.bueroEmail} onChange={set('bueroEmail')} />
       </div>
 
       <Titel>Lohn</Titel>

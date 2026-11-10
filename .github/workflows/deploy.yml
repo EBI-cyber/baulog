@@ -51,6 +51,8 @@ jobs:
         run: supabase db push --db-url "$DB_URL" --include-all
       - name: Edge Function baulog-ai ausliefern
         run: supabase functions deploy baulog-ai --project-ref "$PROJECT_REF" --use-api
+      - name: Edge Function rapport-versand ausliefern
+        run: supabase functions deploy rapport-versand --project-ref "$PROJECT_REF" --use-api --no-verify-jwt
 
   build:
     needs: datenbank

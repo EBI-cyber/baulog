@@ -47,3 +47,14 @@ export async function offeneRapporte(wKey, einst) {
   for (const x of g) if (!(await rapportStatus(wKey, x.firma, g.length === 1))?.gesendetAm) offen.push(x.firma)
   return offen
 }
+
+/** Gruppen einer Woche aus der Datenbank laden */
+export async function gruppenLaden(wKey, einst) {
+  const [schichten, absenzen, spesen, einsaetze] = await Promise.all([
+    db.schichten.where('wocheKey').equals(wKey).toArray(),
+    db.absenzen.where('wocheKey').equals(wKey).toArray(),
+    db.spesen.where('wocheKey').equals(wKey).toArray(),
+    db.einsaetze.toArray(),
+  ])
+  return rapportGruppen({ schichten, absenzen, spesen, einsaetze, einst })
+}

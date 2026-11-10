@@ -21,7 +21,7 @@ export const LOHN_STANDARD = {
 
 export const ABZUEGE = [
   ['ahv', 'AHV/IV/EO'], ['alv', 'ALV'], ['nbu', 'Nichtberufsunfall (NBU)'], ['ktg', 'Krankentaggeld (KTG)'],
-  ['bvg', 'Pensionskasse (BVG)'], ['gav', 'GAV-Beitrag (Weiterbildung/Vollzug)'],
+  ['bvg', 'Pensionskasse (BVG)'], ['gav', 'Vollzugskosten (VZK) / GAV-Beitrag'],
   ['far', 'FAR (Frühpensionierung Bau)'], ['parifonds', 'Parifonds / Berufsbeitrag'], ['quellensteuer', 'Quellensteuer'],
 ]
 
@@ -29,12 +29,24 @@ export const ABZUEGE = [
 const wert = (e, k) => zahl(e?.[k] !== undefined && e?.[k] !== '' ? e[k] : LOHN_STANDARD[k])
 const prozent = (e, k) => wert(e, k) / 100
 
-/** Stundenlohn inkl. Feiertag, Ferien, 13. ML (wie oft im Vertrag als „Total" angegeben) */
-export function stundenlohnTotal(e) {
+const r2 = (n) => Math.round(n * 100) / 100
+
+/**
+ * Stundensätze wie im Einsatzvertrag (Schema swissstaffing/GAV Personalverleih):
+ * Ferien- und Feiertagsentschädigung auf den Grundlohn, 13. ML auf Grundlohn + Ferien + Feiertag.
+ * Gerechnet wird ungerundet, erst das Total wird auf CHF 0.01 gerundet.
+ * Beispiel: 29.80 + 3.53 (11.83 %) + 0.82 (2.77 %) + 2.85 (8.33 %) = 37.00
+ */
+export function stundenSaetze(e) {
   const g = zahl(e?.stundenlohn)
-  const ft = g * prozent(e, 'feiertagProzent'), fe = (g + ft) * prozent(e, 'ferienProzent')
-  return g + ft + fe + (g + ft + fe) * prozent(e, 'dreizehnterProzent')
+  const ferien = g * prozent(e, 'ferienProzent')
+  const feiertag = g * prozent(e, 'feiertagProzent')
+  const dreizehnter = (g + ferien + feiertag) * prozent(e, 'dreizehnterProzent')
+  return { grund: g, ferien, feiertag, dreizehnter, total: r2(g + ferien + feiertag + dreizehnter) }
 }
+
+/** Stundenlohn inkl. Ferien, Feiertag, 13. ML (im Vertrag „Total AHV-pflichtiger Bruttolohn pro Stunde") */
+export const stundenlohnTotal = (e) => stundenSaetze(e).total
 
 /** Lohnfaktor einer Abwesenheit (Anteil des Stundenlohns) */
 export function absenzFaktor(art, e) {
@@ -142,11 +154,13 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     for (const [art, a] of Object.entries(t.absenzen)) {
       zeilen.push({ art, label: art, betrag: a.betrag, info: `${std(a.std)} × ${Math.round(a.faktor * 100)} %` })
     }
-    const ft = grund * prozent(e, 'feiertagProzent')
-    z(`Feiertagsentschädigung ${wert(e, 'feiertagProzent')} %`, ft)
-    const fe = (grund + ft) * prozent(e, 'ferienProzent')
-    z(`Ferienentschädigung ${wert(e, 'ferienProzent')} %`, fe)
-    z(`13. Monatslohn ${wert(e, 'dreizehnterProzent')} %`, (grund + ft + fe) * prozent(e, 'dreizehnterProzent'))
+    // Entschädigungen wie im Vertrag: pro gearbeitete Stunde, Satz auf den Rappen gerundet
+    const sz = stundenSaetze(e), h = t.grundStd.toFixed(2)
+    z(`Ferienentschädigung ${wert(e, 'ferienProzent')} %`, t.grundStd * sz.ferien, { text: `${h} h × ${sz.ferien.toFixed(2)}` })
+    z(`Feiertagsentschädigung ${wert(e, 'feiertagProzent')} %`, t.grundStd * sz.feiertag, { text: `${h} h × ${sz.feiertag.toFixed(2)}` })
+    // Rest so, dass Grundlohn + Entschädigungen = Stunden × Total-Stundenlohn (wie abgerechnet wird)
+    const dz = t.grundStd * sz.total - grund - t.grundStd * sz.ferien - t.grundStd * sz.feiertag
+    z(`13. Monatslohn ${wert(e, 'dreizehnterProzent')} %`, dz, { text: `${h} h × ${sz.dreizehnter.toFixed(2)}` })
     const brutto = zeilen.reduce((a, x) => a + x.betrag, 0)
     const abzuege = ABZUEGE.map(([k, label]) => ({ k, label, prozent: wert(e, k), betrag: brutto * prozent(e, k) })).filter((a) => a.prozent > 0)
     const abzugTotal = abzuege.reduce((a, x) => a + x.betrag, 0)

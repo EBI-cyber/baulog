@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom'
 import { useEinstellungen } from '../lib/settings'
 import { isoWoche, wochenKey, ausKey, wocheVersetzt, wochenTage, isoDatum, TAGE_LANG, datumKurz, datumLang, arbeitMs, hm, dezimal, uhr } from '../lib/zeit'
 import RapportKarte from '../components/RapportKarte'
+import AbschlussSheet from '../components/AbschlussSheet'
 import { rapportGruppen } from '../lib/rapporte'
 import Erfassen from '../components/Erfassen'
 import { AbsenzZeile, SpesenZeile } from '../components/Zeilen'
@@ -31,6 +32,7 @@ export default function Woche() {
   const spesen = useLiveQuery(() => db.spesen.where('wocheKey').equals(wKey).toArray(), [wKey], null)
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], [])
   const [sheet, setSheet] = useState(null)
+  const [abschluss, setAbschluss] = useState(false)
   const tage = wochenTage(woche)
   const aktuelleWoche = wKey === wochenKey(isoWoche())
 
@@ -127,7 +129,7 @@ export default function Woche() {
           <IconChip icon={FileText} />
           <div className="text-sm text-white/45">Noch keine Einträge in dieser Woche.</div>
         </section>
-      ) : gruppen.map((g) => <RapportKarte key={g.firma} g={g} woche={woche} wKey={wKey} mehrere={gruppen.length > 1} />)}
+      ) : gruppen.map((g) => <RapportKarte key={g.firma} g={g} woche={woche} wKey={wKey} mehrere={gruppen.length > 1} onAbschluss={() => setAbschluss(true)} />)}
 
       {/* Tage */}
       <section className="space-y-4">
@@ -169,6 +171,7 @@ export default function Woche() {
       </button>
 
       <Erfassen wert={sheet} setWert={setSheet} />
+      {abschluss && <AbschlussSheet wKey={wKey} onClose={() => setAbschluss(false)} />}
     </div>
   )
 }

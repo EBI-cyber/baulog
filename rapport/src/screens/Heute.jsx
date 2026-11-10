@@ -7,6 +7,7 @@ import { useEinstellungen, fertigEingerichtet } from '../lib/settings'
 import { isoWoche, isoDatum, wochenKey, wocheVersetzt, TAGE_LANG, datumLang, uhr, pauseMs, arbeitMs, istPausiert, hms, hm } from '../lib/zeit'
 import FirmaWahl from '../components/FirmaWahl'
 import Erfassen from '../components/Erfassen'
+import AbschlussSheet from '../components/AbschlussSheet'
 import { AbsenzZeile, SpesenZeile } from '../components/Zeilen'
 import { zahl, tagesSoll } from '../lib/settings'
 import { useLohn } from '../lib/useLohn'
@@ -50,12 +51,15 @@ export default function Heute() {
   const lohnHeute = useLohn(tag, tag, einst, jetzt)
   const monatVon = tag.slice(0, 8) + '01'
   const lohnMonat = useLohn(monatVon, tag, einst, jetzt)
+  const aktiverEinsatz = (einsaetze || []).find((e) => e.firma === (einst.firma || einst.firmen[0]))
   const kanton = kantonFuer(laufend?.firma || einst.firma, einsaetze, einst)
   const feiertag = feiertagAm(kanton, tag)
   const pausiert = istPausiert(laufend)
   const [sheet, setSheet] = useState(null)
   const bearbeite = (s) => setSheet({ typ: 'zeit', objekt: s })
   const [stoppFrage, setStoppFrage] = useState(false)
+  const [wechseln, setWechseln] = useState(false)
+  const [abschluss, setAbschluss] = useState(null) // wocheKey
   const stoppTimer = useRef()
 
   const firma = einst.firma || einst.firmen[0] || ''
@@ -80,6 +84,10 @@ export default function Heute() {
     setStoppFrage(false)
     const n = Date.now()
     await speichern({ ...laufend, ende: n, pausen: (laufend.pausen || []).map((p) => (p.ende == null ? { ...p, ende: n } : p)) })
+    // Letzter Arbeitstag der Woche: direkt zum Wochenabschluss (unterschreiben & senden)
+    const wt = new Date().getDay() || 7
+    const key = wochenKey(isoWoche(new Date()))
+    if (wt >= (+einst.abschlussTag || 5) && (await offeneRapporte(key, einst)).length) setAbschluss(key)
   }
 
   const fertig = (heuteListe || []).filter((s) => s.ende != null)
@@ -110,24 +118,36 @@ export default function Heute() {
       )}
 
       {offen && (
-        <Link to={`/woche/${offen}`} className="rounded-3xl p-4 flex items-center gap-3 bg-aqua/10 border border-aqua/30">
+        <button onClick={() => setAbschluss(offen)} className="w-full text-left rounded-3xl p-4 flex items-center gap-3 bg-aqua/10 border border-aqua/30">
           <IconChip icon={Send} variant="grad" />
           <div className="min-w-0">
             <div className="font-semibold">KW {+offen.slice(-2)} ist vorbei</div>
-            <div className="text-sm text-white/60">Rapport jetzt sichern & ans Büro senden</div>
+            <div className="text-sm text-white/60">Unterschreiben & ans Büro senden</div>
           </div>
-        </Link>
+        </button>
       )}
 
       {/* Stempeluhr */}
       <section className="glass rounded-4xl p-6 text-center space-y-5">
         {!laufend ? (
           <>
-            <div className="text-left space-y-2">
-              <div className="text-xs text-white/50 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Einsatzbetrieb</div>
-              <FirmaWahl firmen={einst.firmen} wert={firma} onWahl={(f) => setEinst({ firma: f })}
-                onNeu={(n) => setEinst({ firmen: [...einst.firmen, n], firma: n })} />
-            </div>
+            {firma && !wechseln ? (
+              // Aktueller Einsatz ist voreingestellt — nur Start drücken
+              <button onClick={() => setWechseln(true)} className="w-full text-left rounded-2xl bg-white/[0.05] border border-white/10 px-4 py-3 flex items-center gap-3">
+                <IconChip icon={Building2} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold truncate">{firma}</div>
+                  <div className="text-xs text-white/45 truncate">{[aktiverEinsatz?.buero || einst.buero, aktiverEinsatz?.einsatzort, aktiverEinsatz?.funktion].filter(Boolean).join(' · ') || 'Einsatz'}</div>
+                </div>
+                <span className="shrink-0 text-xs text-white/40">Wechseln</span>
+              </button>
+            ) : (
+              <div className="text-left space-y-2">
+                <div className="text-xs text-white/50 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Einsatzbetrieb wählen</div>
+                <FirmaWahl firmen={einst.firmen} wert={firma} onWahl={(f) => { setEinst({ firma: f }); setWechseln(false) }}
+                  onNeu={(n) => { setEinst({ firmen: [...einst.firmen, n], firma: n }); setWechseln(false) }} />
+              </div>
+            )}
             <button onClick={start} disabled={!firma}
               className="mx-auto w-44 h-44 rounded-full btn-grad shadow-glow flex flex-col items-center justify-center gap-1 font-extrabold text-xl active:scale-95 transition disabled:opacity-40">
               <Play className="w-12 h-12" strokeWidth={2.2} fill="currentColor" />
@@ -226,6 +246,7 @@ export default function Heute() {
       </section>
 
       <Erfassen wert={sheet} setWert={setSheet} />
+      {abschluss && <AbschlussSheet wKey={abschluss} onClose={() => setAbschluss(null)} />}
     </div>
   )
 }
