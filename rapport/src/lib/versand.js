@@ -1,18 +1,25 @@
 import { db } from './db'
-import { rapportPdf, dateiName } from './pdf'
+import { rapportPdf, dateiName, zeitnachweisPdf } from './pdf'
 import { msVerbunden, msVersand, msLaden } from './microsoft'
 import { gruppenLaden, statusKey, rapportStatus } from './rapporte'
 import { wochenRechnung, std } from './woche'
-import { ausKey } from './zeit'
+import { ausKey, wochenStart } from './zeit'
 import { ladeEinstellungen } from './settings'
 import { automatischSichern } from './sicherung'
 
 const sauber = (t) => String(t || '').replace(/[\\/:*?"<>|]/g, '_').trim()
 
-/** OneDrive-Ordner aus der Vorlage, z.B. "Rapporte/{jahr}/{buero}" */
+const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+/** Monat einer Woche = Monat ihres Donnerstags (wie die ISO-Woche das Jahr bestimmt) → „11 November“ (sortiert richtig) */
+export function wochenMonat(woche) {
+  const d = wochenStart(woche); d.setDate(d.getDate() + 3)
+  return `${String(d.getMonth() + 1).padStart(2, '0')} ${MONATE[d.getMonth()]}`
+}
+
+/** OneDrive-Ordner aus der Vorlage, z.B. "Rapporte/{jahr}/{monat}" → "Rapporte/2026/11 November" */
 export function ordnerPfad(vorlage, woche, g) {
-  return String(vorlage || 'Rapporte/{jahr}')
-    .replace(/\{jahr\}/g, woche.jahr).replace(/\{kw\}/g, String(woche.kw).padStart(2, '0'))
+  return String(vorlage || 'Rapporte/{jahr}/{monat}')
+    .replace(/\{jahr\}/g, woche.jahr).replace(/\{monat\}/g, wochenMonat(woche)).replace(/\{kw\}/g, String(woche.kw).padStart(2, '0'))
     .replace(/\{buero\}/g, sauber(g.buero) || 'Büro').replace(/\{firma\}/g, sauber(g.firma) || 'Firma')
 }
 
@@ -25,6 +32,12 @@ export function mailText(g, woche, einst) {
       `Im Anhang sende ich Ihnen meinen Rapport für KW ${woche.kw}/${woche.jahr} (Einsatz bei ${g.firma}${nr}): ${h} Stunden.\n\n` +
       `Freundliche Grüsse\n${einst.name || ''}`,
   }
+}
+
+/** Zeitnachweis (Arbeitsblöcke, Pausen, Projekt) einer Gruppe */
+export function zeitnachweisDatei(g, woche, mehrere) {
+  const blob = zeitnachweisPdf({ einst: g.einst, woche, schichten: g.schichten, absenzen: g.absenzen, spesen: g.spesen, einsatz: g.einsatz })
+  return { blob, name: dateiName(g.einst, woche, mehrere ? g.firma : null, 'Zeitnachweis') }
 }
 
 /** PDF einer Gruppe mit den gespeicherten Unterschriften */
@@ -71,6 +84,10 @@ async function versenden(g, wKey, status, wunsch, mehrere) {
       mail: wunsch.mail && mailAn ? { an: mailAn, cc, ...m } : null,
       kopie: k,
     })
+    // Zeitnachweis daneben ablegen (gleicher Ordner, gleiche KW vorne im Namen)
+    if (wunsch.onedrive) {
+      try { await msVersand({ datei: zeitnachweisDatei(g, woche, mehrere), onedrive: { ordner: ordnerPfad(einst.onedriveOrdner, woche, g) } }) } catch { /* Rapport ist wichtiger */ }
+    }
     const neu = { ...status, versandOffen: null, fehler: null }
     if (r.mail?.ok) neu.gesendetAm = Date.now(), neu.gesendetAn = r.mail.an.join(', ')
     if (r.onedrive?.ok) neu.gespeichertAm = Date.now(), neu.onedrivePfad = r.onedrive.pfad, neu.onedriveUrl = r.onedrive.url

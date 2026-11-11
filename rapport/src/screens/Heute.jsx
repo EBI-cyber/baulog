@@ -17,6 +17,7 @@ import { feiertagAm } from '../lib/feiertage'
 import { kantonFuer } from '../lib/kanton'
 import { speichereAbsenz } from '../lib/db'
 import { offeneRapporte } from '../lib/rapporte'
+import FernHinweise from '../components/FernHinweise'
 import { profilFertig, ausweisTage } from '../lib/profil'
 import { schichtBeenden, zustandMelden } from '../lib/stempel'
 import PauseSheet from '../components/PauseSheet'
@@ -51,7 +52,9 @@ export default function Heute() {
     const liste = []
     for (let i = 8; i >= 1; i--) {
       const key = wochenKey(wocheVersetzt(woche, -i))
-      if ((await offeneRapporte(key, einst)).length) liste.push(key)
+      // schon vorab zur Unterschrift verschickt → eigener Hinweis statt „noch nicht gesendet“
+      const fernOffen = await db.wochen.filter((w) => w.key.startsWith(key) && !!w.fern?.gesendetAm && !w.fern.erledigt).count()
+      if (!fernOffen && (await offeneRapporte(key, einst)).length) liste.push(key)
     }
     return liste
   }, [wochenKey(vorwoche), einst.firma, einst.buero], [])
@@ -176,6 +179,7 @@ export default function Heute() {
         )
       })()}
 
+      <FernHinweise onOeffnen={setAbschluss} />
       {offen && (
         <button onClick={() => setAbschluss(offen)} className="w-full text-left rounded-3xl p-4 flex items-center gap-3 bg-aqua/10 border border-aqua/30">
           <IconChip icon={Send} variant="grad" />

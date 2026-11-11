@@ -5,6 +5,7 @@ import { CheckCircle2, Send, Mail, CloudUpload, Loader2, AlertTriangle, Share2, 
 import Sheet from './Sheet'
 import Unterschrift from './Unterschrift'
 import QrSignatur from './QrSignatur'
+import FernSenden from './FernSenden'
 import { useEinstellungen } from '../lib/settings'
 import { gruppenLaden, rapportStatus } from '../lib/rapporte'
 import { abschliessen, gruppenPdf, ordnerPfad } from '../lib/versand'
@@ -66,7 +67,9 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
     setMa(status?.maBild || einst.unterschrift?.bild || null)
     setFi(status?.firmaBild || null)
     if (status) setEb({ einsatzWeiter: status.einsatzWeiter ?? null, beendetAm: status.beendetAm || '', bewertung: status.bewertung ?? null })
-    if (status?.firmaName) setWer({ id: status.firmaId, name: status.firmaName, funktion: status.firmaFunktion || '', email: status.kopieEmail || '', tel: status.kopieTel || '', bestaetigt: true })
+    if (status?.firmaName) setWer({ id: status.firmaId, name: status.firmaName, funktion: status.firmaFunktion || '', email: status.kopieEmail || '', tel: status.kopieTel || '',
+      // per Link unterschrieben, aber nicht in der Liste: erst bestätigen
+      ...(status.fern?.bestaetigen && !status.firmaId ? { neu: true, bestaetigt: false } : { bestaetigt: true }) })
     else if (haupt) setWer({ ...haupt, bestaetigt: true })
   }, [status === undefined]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -155,6 +158,8 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
           setWer(p ? { ...p, email: email || p.email, tel: tel || p.tel, bestaetigt: true }
             : { name: name || '', funktion: funktion || '', email: email || '', tel: tel || '', neu: true, bestaetigt: false })
         }} />}
+        {!fi && <FernSenden g={g} woche={woche} wKey={wKey} ma={{ bild: ma, am: unterschriften.maAm }} wer={wer} setWer={setWer} ort={ort}
+          eb={{ bewertung: eb.bewertung, einsatzWeiter: eb.einsatzWeiter }} einst={einst} status={status} mehrere={mehrere} />}
         {unbestaetigt && (
           <div className="rounded-2xl p-3 bg-amber-400/10 border border-amber-400/40 space-y-2">
             <div className="text-sm text-amber-200 flex gap-2"><ShieldAlert className="w-5 h-5 shrink-0" />

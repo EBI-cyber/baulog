@@ -5,6 +5,7 @@ import './index.css'
 import { registerSW } from 'virtual:pwa-register'
 import { ausstehendeVersenden } from './lib/versand'
 import { abholenStarten } from './lib/stempel'
+import { fernStarten } from './lib/fernsignatur'
 import { automatischSichern } from './lib/sicherung'
 
 registerSW({
@@ -25,6 +26,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 // Tipps vom iPhone-Kurzbefehl (Rückseite, Siri, Ort) regelmässig abholen
 if (!location.hash.startsWith('#/unterschreiben')) {
   abholenStarten()
+  // per Link vorab geschickte Rapporte: Unterschrift abholen → automatisch abschliessen
+  fernStarten()
   // wöchentliche Datensicherung in OneDrive
   setTimeout(() => automatischSichern().catch(() => {}), 6000)
 }

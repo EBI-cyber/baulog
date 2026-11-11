@@ -68,3 +68,14 @@ export function hms(ms) {
   const s = Math.floor(ms / 1000)
   return `${p2(Math.floor(s / 3600))}:${p2(Math.floor((s % 3600) / 60))}:${p2(s % 60)}`
 }
+
+/** Arbeitsblöcke einer Schicht: [[von, bis], …] — Lücken = gestoppte Pausen (nur Pausen mit Zeitpunkten) */
+export function bloecke(s) {
+  if (s.ende == null) return [[s.start, null]]
+  const p = s.pauseMin == null ? (s.pausen || []).filter((x) => x.start && x.ende && x.ende > x.start).sort((a, b) => a.start - b.start) : []
+  const out = []
+  let a = s.start
+  for (const x of p) { if (x.start > a) out.push([a, x.start]); a = Math.max(a, x.ende) }
+  out.push([a, s.ende])
+  return out
+}

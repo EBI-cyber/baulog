@@ -29,6 +29,8 @@ export function herunterladen(blob, dateiname) {
 
 /** WhatsApp-Chat mit dem Büro öffnen (nur Text — Dateien gehen nur übers Teilen-Menü) */
 export function whatsappLink(tel, text) {
-  const nr = String(tel || '').replace(/[^\d]/g, '').replace(/^00/, '')
+  // wa.me braucht die internationale Nummer: 079 … → 4179 …, 0041 … → 41 …
+  let nr = String(tel || '').replace(/[^\d+]/g, '').replace(/^\+/, '').replace(/^00/, '')
+  if (/^0\d{9}$/.test(nr)) nr = '41' + nr.slice(1)
   return `https://wa.me/${nr}?text=${encodeURIComponent(text)}`
 }

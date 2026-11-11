@@ -92,7 +92,7 @@ export default function MicrosoftKarte({ Karte }) {
         <div className="col-span-2">
           <label className="block text-xs text-white/50 mb-1">OneDrive-Ordner</label>
           <input className="eingabe" value={einst.onedriveOrdner} onChange={(e) => setEinst({ onedriveOrdner: e.target.value })} />
-          <div className="text-xs text-white/35 mt-1">Platzhalter: {'{jahr}'} {'{kw}'} {'{buero}'} {'{firma}'} — Ordner werden automatisch angelegt.</div>
+          <div className="text-xs text-white/35 mt-1">Platzhalter: {'{jahr}'} {'{monat}'} {'{kw}'} {'{buero}'} {'{firma}'} — Ordner werden automatisch angelegt, z.B. Rapporte/2026/11 November. Dateien beginnen mit der KW.</div>
         </div>
         <div>
           <label className="block text-xs text-white/50 mb-1">Wochenabschluss ab</label>
