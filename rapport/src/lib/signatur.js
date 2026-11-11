@@ -23,7 +23,7 @@ export function schnappschuss(g, woche, ma = null) {
     einst: { name: g.einst.name, buero: g.einst.buero, waehrung: g.einst.waehrung, wochenSoll: g.einst.wochenSoll,
       profil: { strasse: g.einst.profil?.strasse, plz: g.einst.profil?.plz, ort: g.einst.profil?.ort, rav: g.einst.profil?.rav } },
     // nur was der Rapport zeigt — kein Lohn
-    einsatz: g.einsatz ? Object.fromEntries(['firma', 'firmaAdresse', 'einsatznummer', 'funktion', 'einsatzort', 'kanton', 'rapportVorlage', 'ueberstundenModus', 'wochenstunden',
+    einsatz: g.einsatz ? Object.fromEntries(['firma', 'firmaAdresse', 'einsatznummer', 'funktion', 'einsatzort', 'baustelle', 'kanton', 'rapportVorlage', 'ueberstundenModus', 'wochenstunden',
       'nachtVon', 'nachtBis', 'nachtZuschlag', 'samstagZuschlag', 'sonntagZuschlag', 'feiertagArbeitZuschlag', 'ueberstundenZuschlag'].map((k) => [k, g.einsatz[k]])) : null,
     schichten: g.schichten.map(s),
     absenzen: g.absenzen.map((a) => ({ datum: a.datum, wocheKey: a.wocheKey, art: a.art, stunden: a.stunden, halbtag: a.halbtag, zeugnis: a.zeugnis, notiz: a.notiz })),

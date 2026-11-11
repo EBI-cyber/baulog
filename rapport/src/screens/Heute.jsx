@@ -226,7 +226,7 @@ export default function Heute() {
                 <IconChip icon={Building2} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold truncate">{firma}</div>
-                  <div className="text-xs text-white/45 truncate">{[aktiverEinsatz?.buero || einst.buero, aktiverEinsatz?.einsatzort, aktiverEinsatz?.funktion].filter(Boolean).join(' · ') || 'Einsatz'}</div>
+                  <div className="text-xs text-white/45 truncate">{[aktiverEinsatz?.buero || einst.buero, aktiverEinsatz?.baustelle, aktiverEinsatz?.einsatzort, aktiverEinsatz?.funktion].filter(Boolean).join(' · ') || 'Einsatz'}</div>
                 </div>
                 <span className="shrink-0 text-xs text-white/40">Wechseln</span>
               </button>
