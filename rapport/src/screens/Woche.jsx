@@ -35,9 +35,12 @@ export default function Woche() {
   const [sheet, setSheet] = useState(null)
   const [abschluss, setAbschluss] = useState(false)
   // Woche nachtragen — auch per Link: #/woche/2026-W44?h=9.5,8.5,8,10.75,8&f=Stüssi&b=07:00&papier=1
+  // genaue Zeiten: z=06:45-09:00_09:15-12:00;…  (Tage mit ; , Blöcke mit _), Notizen: n=…;…
   const [such, setSuch] = useSearchParams()
-  const [nachtragen, setNachtragen] = useState(() => such.has('h') ? {
-    stunden: such.get('h').split(/[;,]/).map((x) => x.trim()),
+  const [nachtragen, setNachtragen] = useState(() => such.has('h') || such.has('z') ? {
+    stunden: (such.get('h') || '').split(/[;,]/).map((x) => x.trim()),
+    zeiten: (such.get('z') || '').split(';').map((tag) => tag.split('_').map((b) => b.split('-').map((x) => x.trim())).filter((b) => b.length === 2 && b[0] && b[1])),
+    notizen: (such.get('n') || '').split(';'),
     firma: such.get('f') || '', beginn: such.get('b') || '', papier: such.get('papier') === '1',
   } : null)
   const nachtragenZu = () => { setNachtragen(null); if ([...such.keys()].length) setSuch({}, { replace: true }) }

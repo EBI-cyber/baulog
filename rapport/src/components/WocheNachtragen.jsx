@@ -24,7 +24,8 @@ export function stundenMinuten(t) {
 /**
  * Ganze Woche auf einmal nachtragen, z.B. vom Papier-Rapport: Stunden pro Tag → Schichten
  * mit Beginn aus dem Einsatz und der Mindestpause nach ArG (änderbar).
- * vorgabe = { stunden: [Mo..So], firma, beginn, papier } (z.B. aus einem Link)
+ * vorgabe = { stunden: [Mo..So], zeiten: [Mo..So: [[von,bis],…]], notizen: [Mo..So], firma, beginn, papier }
+ * (z.B. aus einem Link). Mit genauen Zeiten werden die Lücken dazwischen als Pausen gespeichert.
  */
 export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
   const [einst, setEinst] = useEinstellungen()
@@ -37,6 +38,7 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
   const [beginn, setBeginn] = useState(vorgabe.beginn || '')
   const [stunden, setStunden] = useState(() => tage.map((_, i) => vorgabe.stunden?.[i] ?? ''))
   const [pausen, setPausen] = useState(() => tage.map(() => null)) // null = automatisch
+  const [zeiten, setZeiten] = useState(() => tage.map((_, i) => vorgabe.zeiten?.[i]?.length ? vorgabe.zeiten[i] : null))
   const [papier, setPapier] = useState(!!vorgabe.papier)
   const [fehler, setFehler] = useState('')
 
@@ -48,13 +50,22 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
 
   const zeilen = useMemo(() => tage.map((t, i) => {
     const datum = isoDatum(t)
+    const schon = (vorhanden || []).filter((s) => s.datum === datum)
+    const notiz = vorgabe.notizen?.[i] || ''
+    if (zeiten[i]) {
+      // genaue Zeiten: Beginn = erstes Von, Ende = letztes Bis, Lücken = Pausen
+      const ts = zeiten[i].map(([a, b]) => [new Date(`${datum}T${a}`).getTime(), new Date(`${datum}T${b}`).getTime()])
+      const min = ts.reduce((s, [a, b]) => s + Math.max(0, b - a), 0) / 60000
+      const luecken = ts.slice(1).map(([a], k) => ({ start: ts[k][1], ende: a })).filter((x) => x.ende > x.start)
+      const pause = luecken.reduce((s, x) => s + (x.ende - x.start), 0) / 60000
+      return { t, i, datum, min, pause, start: ts[0][0], ende: ts[ts.length - 1][1], luecken, genau: true, notiz, schon }
+    }
     const min = stundenMinuten(stunden[i])
     const pause = pausen[i] ?? mindestPause(min)
     const start = new Date(`${datum}T${beginn || '07:00'}`).getTime()
     const ende = start + (min + pause) * 60000
-    const schon = (vorhanden || []).filter((s) => s.datum === datum)
-    return { t, i, datum, min, pause, start, ende, schon }
-  }), [tage, stunden, pausen, beginn, vorhanden]) // eslint-disable-line react-hooks/exhaustive-deps
+    return { t, i, datum, min, pause, start, ende, notiz, schon }
+  }), [tage, stunden, pausen, zeiten, beginn, vorhanden]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const neu = zeilen.filter((z) => z.min > 0 && !z.schon.length)
   const total = zeilen.reduce((s, z) => s + z.min, 0) / 60
@@ -64,7 +75,10 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
     if (!neu.length && !papier) return setFehler('Keine neuen Stunden eingetragen.')
     if (neu.some((z) => z.start > Date.now())) return setFehler('Ein Tag liegt in der Zukunft.')
     for (const z of neu) {
-      await speichern({ start: z.start, ende: z.ende, pausen: [], pauseMin: z.pause, firma, notiz: papier ? 'vom Papier-Rapport nachgetragen' : 'nachgetragen' })
+      const notiz = [z.notiz, papier ? 'vom Papier-Rapport nachgetragen' : 'nachgetragen'].filter(Boolean).join(' · ')
+      await speichern(z.genau
+        ? { start: z.start, ende: z.ende, pausen: z.luecken, firma, notiz }
+        : { start: z.start, ende: z.ende, pausen: [], pauseMin: z.pause, firma, notiz })
     }
     if (papier) {
       const k = statusKey(wKey, firma)
@@ -95,11 +109,12 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
             {z.schon.length ? (
               <div className="col-span-3 text-xs text-white/45">schon erfasst — bleibt wie es ist</div>
             ) : <>
-              <input inputMode="decimal" value={stunden[z.i]} placeholder="–" aria-label={`Stunden ${TAGE_LANG[z.t.getDay()]}`}
-                onChange={(e) => setStunden(stunden.map((v, j) => (j === z.i ? e.target.value : v)))} className="eingabe !py-2" />
-              <input inputMode="numeric" value={z.min ? z.pause : ''} placeholder="–" aria-label={`Pause ${TAGE_LANG[z.t.getDay()]}`}
+              <input inputMode="decimal" value={z.genau ? (z.min / 60).toFixed(2) : stunden[z.i]} placeholder="–" aria-label={`Stunden ${TAGE_LANG[z.t.getDay()]}`}
+                onChange={(e) => { setStunden(stunden.map((v, j) => (j === z.i ? e.target.value : v))); if (z.genau) setZeiten(zeiten.map((v, j) => (j === z.i ? null : v))) }} className="eingabe !py-2" />
+              <input inputMode="numeric" readOnly={z.genau} value={z.min ? z.pause : ''} placeholder="–" aria-label={`Pause ${TAGE_LANG[z.t.getDay()]}`}
                 onChange={(e) => setPausen(pausen.map((v, j) => (j === z.i ? Math.max(0, parseInt(e.target.value, 10) || 0) : v)))} className="eingabe !py-2" />
-              <div className="text-xs text-right tabular-nums text-white/55">{z.min ? `${uhr(z.start)}–${uhr(z.ende)}` : ''}</div>
+              <div className="text-xs text-right tabular-nums text-white/55">{z.min ? `${uhr(z.start)}–${uhr(z.ende)}` : ''}
+                {z.genau && <div className="text-[10px] text-white/35">{z.luecken.length} Pause{z.luecken.length === 1 ? '' : 'n'}</div>}</div>
             </>}
           </div>
         ))}
