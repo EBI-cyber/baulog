@@ -90,6 +90,7 @@ export default function Fragebogen() {
           <input className="eingabe" type="date" value={p.geburtsdatum} onChange={(e) => setP({ geburtsdatum: e.target.value })} />
         </Frage>
         <Frage titel="Wohnort" hinweis="Ort oder PLZ eintippen und auswählen — PLZ und Kanton werden ergänzt. Der Wohnkanton bestimmt die Quellensteuer.">
+          <input className="eingabe" placeholder="Strasse und Nr. (für den Rapport)" autoComplete="street-address" value={p.strasse || ''} onChange={(e) => setP({ strasse: e.target.value })} />
           <OrtSuche wert={p.ort ? `${p.plz} ${p.ort}`.trim() : ''} onWahl={(t) => setP({ plz: t.plz, ort: t.ort, wohnkanton: t.kanton })} />
           {p.wohnkanton && <div className="text-sm text-white/60">Kanton: <b className="text-white">{KANTONE[p.wohnkanton]} ({p.wohnkanton})</b></div>}
         </Frage>

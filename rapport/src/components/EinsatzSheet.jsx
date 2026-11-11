@@ -14,7 +14,7 @@ import { einsatzEnde } from '../lib/einsatzende'
 import OrtSuche from './OrtSuche'
 import VertragsCheck from './VertragsCheck'
 
-const NEU = { firma: '', branche: '', wegKm: '', maxDauerTage: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
+const NEU = { firma: '', firmaAdresse: '', rapportVorlage: 'formular', ueberstundenModus: 'woche', branche: '', wegKm: '', maxDauerTage: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
   gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
 
 const ZAHLEN = ['stundenlohn', 'wochenstunden', 'feiertagProzent', 'ferienProzent', 'dreizehnterProzent', 'ueberstundenZuschlag',
@@ -73,7 +73,8 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         if (r.karenztage != null) y.karenztage = String(r.karenztage)
         if (r.lohnzahlung) y.lohnzahlung = String(r.lohnzahlung)
         if (r.einsatzdauerTage) { y.maxDauerTage = String(r.einsatzdauerTage); erkannt.push('maxDauerTage') }
-        ;['firma', 'einsatznummer', 'arbeitsbeginn', 'qualifikation', 'meldenBei', 'buero', 'bueroTel', 'bueroKontakt', 'bueroEmail', 'einsatzort', 'funktion', 'beginn', 'ende', 'gavName', 'kuendigungsfrist', 'bemerkungen', ...ZAHLEN].forEach((k) => nimm(k))
+        if (r.arbeitszeitDurchschnitt === true) y.ueberstundenModus = 'keine'
+        ;['firma', 'firmaAdresse', 'einsatznummer', 'arbeitsbeginn', 'qualifikation', 'meldenBei', 'buero', 'bueroTel', 'bueroKontakt', 'bueroEmail', 'einsatzort', 'funktion', 'beginn', 'ende', 'gavName', 'kuendigungsfrist', 'bemerkungen', ...ZAHLEN].forEach((k) => nimm(k))
         nimm('spesenInfo', 'spesen'); nimm('stundenlohnTotalVertrag', 'stundenlohnTotal')
         if (r.kanton && KANTONE[String(r.kanton).toUpperCase()]) { y.kanton = String(r.kanton).toUpperCase(); erkannt.push('kanton') }
         return y
@@ -169,6 +170,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
       <Titel>Einsatz</Titel>
       <div className="grid grid-cols-2 gap-3">
         <Feld breit label="Einsatzbetrieb (Firma) *" value={f.firma} onChange={set('firma')} />
+        <Feld breit label="Adresse Einsatzbetrieb (für den Rapport)" value={f.firmaAdresse || ''} onChange={set('firmaAdresse')} placeholder="Strasse, PLZ Ort" />
         <div className="col-span-2">
           <label className="block text-xs text-white/50 mb-1">Einsatzort (setzt den Kanton für die Feiertage)</label>
           <OrtSuche wert={f.einsatzort} onWahl={(t) => setF((x) => ({ ...x, einsatzort: `${t.plz} ${t.ort}`, kanton: t.kanton }))} />
@@ -265,6 +267,25 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         return <div className="text-sm rounded-xl px-3 py-2 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> Mit {alter(einst.profil)} Jahren stehen dir laut GAV Personalverleih mindestens {min} % Ferienentschädigung zu — im Vertrag stehen {f.ferienProzent} %. Beim Büro nachfragen.</div>
       })()}
+
+      <Titel>Rapport</Titel>
+      <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="w-28 shrink-0 text-white/70">Vorlage</span>
+          {[['formular', 'Formular (Wochenraster)'], ['liste', 'Liste mit Uhrzeiten']].map(([v, l]) => (
+            <button key={v} type="button" onClick={() => setF((x) => ({ ...x, rapportVorlage: v }))}
+              className={'flex-1 px-2 py-1.5 rounded-lg text-xs border ' + ((f.rapportVorlage || 'formular') === v ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{l}</button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-28 shrink-0 text-white/70">Überstunden</span>
+          {[['woche', 'ab Wochensoll (125 %)'], ['keine', 'durchschnittl. Arbeitszeit']].map(([v, l]) => (
+            <button key={v} type="button" onClick={() => setF((x) => ({ ...x, ueberstundenModus: v }))}
+              className={'flex-1 px-2 py-1.5 rounded-lg text-xs border ' + ((f.ueberstundenModus || 'woche') === v ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{l}</button>
+          ))}
+        </div>
+        <div className="text-xs text-white/40">„Durchschnittliche Arbeitszeit“ (z.B. „40 Std. pro Woche durchschnittlich“): Stunden über dem Wochensoll bleiben Normalstunden — Überstunden nur, wenn angeordnet.</div>
+      </div>
 
       <Titel>Zuschläge & Zulagen</Titel>
       <div className="grid grid-cols-2 gap-3">

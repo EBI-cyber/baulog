@@ -148,6 +148,7 @@ Deno.serve(async (req) => {
           'zulageStunde (feste Zulage pro Stunde in CHF, z. B. Schicht- oder Schmutzzulage), mittagszulage (Mittags-/Verpflegungszulage pro Arbeitstag in CHF), ' +
           'krankFaktor (Lohnfortzahlung bei Krankheit in %, z. B. 80), schlechtwetterFaktor (Lohn bei Schlechtwetter in %), ' +
           'ahv, alv, nbu, ktg, bvg, gav, far, parifonds, quellensteuer (Arbeitnehmer-Abzüge in % vom Bruttolohn: AHV/IV/EO, ALV, Nichtberufsunfall, Krankentaggeld, Pensionskasse, GAV-Weiterbildung/Vollzug, FAR-Frühpensionierung Bau, Parifonds/Berufsbeitrag, Quellensteuer), ' +
+          'firmaAdresse (Adresse des Einsatzbetriebs: Strasse, PLZ Ort, falls angegeben), arbeitszeitDurchschnitt (true, wenn die Wochenarbeitszeit als Durchschnitt/„durchschnittlich“ oder Jahresarbeitszeit angegeben ist), ' +
           'einsatznummer, arbeitsbeginn (HH:MM), qualifikation, meldenBei (Person/Funktion), einsatzdauerTage (Zahl, wenn eine Dauer wie „maximal 14 Kalendertage“ angegeben ist), ' +
           'gavName (anwendbarer GAV), kuendigungsfrist (Text), spesen (Text zu Spesen/Zulagen/Pauschalen), bemerkungen (weitere wichtige Punkte kurz, z. B. Treffpunkt, Einsatzdauer), ' +
           'karenztage (Wartetage ohne Lohn bei Krankheit, Zahl), lohnzahlung (Termin der Lohnzahlung, Text, z. B. „monatlich am 10.“), ' +

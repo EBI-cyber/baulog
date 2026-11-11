@@ -4,6 +4,7 @@ import { absenzArt, spesenArt } from './arten'
 import { zahl } from './settings'
 import { wochenRechnung, std } from './woche'
 import { unterzeichnerText } from './unterschreiber'
+import { rapportTage } from './rapporttage'
 
 const sauber = (t) => String(t || '').trim().replace(/\s+/g, '_').replace(/[^\wäöüÄÖÜß-]/g, '')
 export function dateiName(einst, w, firma) {
@@ -14,7 +15,12 @@ export function dateiName(einst, w, firma) {
  * Wochenrapport als PDF (vorläufiges Layout — wird später an die Vorlage angepasst).
  * Gibt einen Blob zurück.
  */
-export function rapportPdf({ einst, woche, schichten, absenzen = [], spesen = [], einsatz = null, unterschriften = null }) {
+/** Rapport-PDF: Formular (Wochenraster wie die Arbeitsrapporte der Temporärbüros, Standard) oder Liste mit Uhrzeiten */
+export function rapportPdf(args) {
+  return args.einsatz?.rapportVorlage === 'liste' ? rapportListePdf(args) : rapportFormularPdf(args)
+}
+
+function rapportListePdf({ einst, woche, schichten, absenzen = [], spesen = [], einsatz = null, unterschriften = null }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const tage = wochenTage(woche)
   const L = 15, R = 195
@@ -217,5 +223,115 @@ export function lohnPdf({ einst, lohn, titel, von, bis }) {
   zeile('Auszahlung', w === 'CHF' ? Math.round(lohn.auszahlung * 20) / 20 : lohn.auszahlung, { fett: true })
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(140)
   doc.text(doc.splitTextToSize('Eigene Schätzung nach Schema GAV Personalverleih, ohne Gewähr. Massgebend ist die Lohnabrechnung des Temporärbüros.', R - L), L, 285)
+  return doc.output('blob')
+}
+
+
+/**
+ * Arbeitsrapport als Formular (A4 quer), Aufbau wie die Rapporte der Temporärbüros:
+ * TMA-Teil mit Wochenraster (Normalstunden, 125 %, 150 %, Spesen, Einsatzort) und Unterschrift,
+ * Teil Einsatzbetrieb mit Fortsetzung/Ende, Leistungsbeurteilung, Stempel/Unterschrift, Name in Blockschrift.
+ * Kein Logo und keine Formulartexte eines Büros — der Büroname steht als Text im Kopf.
+ */
+function rapportFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [], einsatz: e = null, unterschriften = null }) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' })
+  const L = 14, R = 283, u = unterschriften || {}, p = einst?.profil || {}
+  const { tage, total } = rapportTage({ woche, schichten, absenzen, spesen, einsatz: e, einst })
+  const zahlTxt = (n) => (n > 0.004 ? n.toFixed(2) : '')
+  const grau = (y, text) => {
+    doc.setFillColor(120, 120, 120); doc.rect(L, y, R - L, 6, 'F')
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(255); doc.text(text, L + 2, y + 4.2); doc.setTextColor(0)
+  }
+  const label = (t, x, y, size = 8.5) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(size); doc.setTextColor(90); doc.text(t, x, y); doc.setTextColor(0) }
+  const wertTxt = (t, x, y, size = 11) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(size); doc.text(String(t || ''), x, y) }
+  const box = (x, y, an) => { doc.setDrawColor(90); doc.rect(x, y - 3, 3.5, 3.5); if (an) { doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.text('X', x + 0.7, y - 0.2) } }
+  const bild = (src, x, unten, maxB = 60, maxH = 16) => {
+    if (!src) return
+    try { const ip = doc.getImageProperties(src); const h = Math.min(maxH, (maxB * ip.height) / ip.width), w = (h * ip.width) / ip.height; doc.addImage(src, 'PNG', x, unten - h, w, h) } catch {}
+  }
+  const am = (ts) => (ts ? datumLang(new Date(ts)) : '')
+
+  // Kopf: Feld für den Strichcode-Aufkleber, Titel, Büro, Kalenderwoche
+  doc.setDrawColor(170); doc.setLineDashPattern([1.2, 1.2], 0); doc.rect(L, 9, 72, 20); doc.setLineDashPattern([], 0)
+  label('Strichcode hier einkleben', L + 18, 20, 8)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Arbeitsrapport', 125, 17)
+  label('Kalenderwoche | Jahr', 125, 27); wertTxt(`KW ${woche.kw} / ${woche.jahr}`, 158, 27, 13)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text(einst?.buero || '', R, 16, { align: 'right' })
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(90); doc.text('Temporärbüro', R, 21, { align: 'right' }); doc.setTextColor(0)
+
+  // TMA
+  grau(33, 'vom Temporär-Mitarbeitenden auszufüllen (TMA)')
+  label('Vorname | Name TMA', L + 2, 46); wertTxt(einst?.name, L + 38, 46, 12)
+  label('Adresse TMA', L + 2, 53); wertTxt([p.strasse, [p.plz, p.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '), L + 38, 53, 10)
+  label('Name Einsatzbetrieb', 150, 46); wertTxt(e?.firma || schichten[0]?.firma, 183, 46, 12)
+  label('Adresse Einsatzbetrieb', 150, 53); wertTxt(e?.firmaAdresse || e?.einsatzort, 183, 53, 10)
+
+  // Wochenraster
+  const x0 = L, lw = 34, tw = 26, dw = (R - L - lw - tw) / 7
+  const cx = (i) => x0 + lw + i * dw
+  let y = 58
+  doc.setFillColor(242, 242, 242); doc.rect(x0, y, R - L, 7, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9)
+  doc.text('Position | Tag', x0 + 2, y + 4.8)
+  ;['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'].forEach((t, i) => doc.text(t, cx(i) + 2, y + 4.8))
+  doc.text('Total', R - tw + 2, y + 4.8)
+  y += 7
+  const hat200 = total.h200 > 0.004
+  const zeilen = [
+    ['Datum', (t) => datumKurz(t.tag), () => ''],
+    ['Normalstunden', (t) => zahlTxt(t.normal), () => zahlTxt(total.normal)],
+    ['Stunden zu 125 %', (t) => zahlTxt(t.h125), () => zahlTxt(total.h125)],
+    ['Stunden zu 150 %', (t) => zahlTxt(t.h150), () => zahlTxt(total.h150)],
+    ['Spesen Essen', (t) => (t.spesen > 0 ? t.spesen.toFixed(2) : ''), () => (total.spesen > 0 ? total.spesen.toFixed(2) : '')],
+    hat200 ? ['Stunden zu 200 %', (t) => zahlTxt(t.h200), () => zahlTxt(total.h200)]
+      : ['Abwesenheit (Std.)', (t) => zahlTxt(t.absenzen.reduce((a, x) => a + x.std, 0)), () => zahlTxt(total.absenz)],
+  ]
+  for (const [titel, f, fT] of zeilen) {
+    doc.setDrawColor(200); doc.rect(x0, y, R - L, 8)
+    for (let i = 0; i <= 7; i++) doc.line(cx(i), y, cx(i), y + 8)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(60); doc.text(titel, x0 + 2, y + 5.3); doc.setTextColor(0)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5)
+    tage.forEach((t, i) => { const v = f(t); if (v) doc.text(v, cx(i) + dw / 2, y + 5.5, { align: 'center' }) })
+    const vt = fT(); if (vt) doc.text(vt, R - tw / 2, y + 5.5, { align: 'center' })
+    y += 8
+  }
+  // Einsatzort | Baustelle (+ Abwesenheiten als Text)
+  doc.setDrawColor(200); doc.rect(x0, y, R - L - tw, 11)
+  for (let i = 0; i <= 7; i++) doc.line(cx(i), y, cx(i), y + 11)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(60); doc.text(['Einsatzort |', 'Baustelle'], x0 + 2, y + 4.3); doc.setTextColor(0)
+  doc.setFontSize(7.5)
+  tage.forEach((t, i) => {
+    const txt = [t.ort, ...t.absenzen.map((a) => `${a.label} ${a.std ? a.std.toFixed(2) : ''}`.trim())].filter(Boolean).join(' · ')
+    if (txt) doc.text(doc.splitTextToSize(txt, dw - 2).slice(0, 2), cx(i) + 1, y + 4.2)
+  })
+  y += 18
+
+  // TMA: Zwischenverdienst, Ort/Datum, Unterschrift
+  label('Zwischenverdienst', L + 2, y); box(L + 31, y, !!p.rav); label('ja', L + 36, y); box(L + 44, y, p.rav === false); label('nein', L + 49, y)
+  label('Ort | Datum', L + 66, y); wertTxt(`${p.ort || ''}${u.maAm ? (p.ort ? ', ' : '') + am(u.maAm) : ''}`, L + 84, y, 10)
+  bild(u.maBild, 185, y + 1.5, 60, 8.5)
+  doc.setDrawColor(150); doc.line(150, y + 2, R, y + 2); label('Unterschrift TMA', 150, y + 6)
+  y += 10
+
+  // Einsatzbetrieb
+  grau(y, 'vom Einsatzbetrieb auszufüllen'); y += 12
+  box(L + 2, y, u.einsatzWeiter === true); label('der Arbeitseinsatz geht weiter', L + 7.5, y, 9)
+  box(L + 70, y, u.einsatzWeiter === false); label(`der Arbeitseinsatz ist beendet am ${u.einsatzWeiter === false && u.beendetAm ? u.beendetAm.split('-').reverse().join('.') : '________'}`, L + 75.5, y, 9)
+  label('Leistungsbeurteilung', 178, y - 4, 8)
+  for (let i = 1; i <= 5; i++) { box(178 + (i - 1) * 16, y + 2, +u.bewertung === i); label(String(i), 182.5 + (i - 1) * 16, y + 2, 8) }
+  label('ungenügend', 178, y + 7, 7); label('sehr gut', 238, y + 7, 7)
+  y += 22
+  const ortEB = (e?.einsatzort || '').replace(/^\d{4}\s*/, '')
+  wertTxt(`${ortEB}${u.firmaAm ? (ortEB ? ', ' : '') + am(u.firmaAm) : ''}`, L + 2, y - 1.5, 10)
+  bild(u.firmaBild, 110, y)
+  wertTxt(unterzeichnerText(u).toUpperCase(), 192, y - 1.5, 9.5)
+  doc.setDrawColor(150); doc.line(L, y, 95, y); doc.line(105, y, 182, y); doc.line(192, y, R, y)
+  label('Ort | Datum', L, y + 4); label('Stempel und rechtsgültige Unterschrift', 105, y + 4); label('Name Unterzeichner in Blockschrift', 192, y + 4)
+
+  // Fuss
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(110)
+  doc.text(doc.splitTextToSize('Mit ihrer Unterschrift bestätigen Mitarbeitende und Einsatzbetrieb die Richtigkeit der eingetragenen Arbeitszeiten. ' +
+    'Es gelten der Einsatzvertrag und der Rahmenarbeitsvertrag des Temporärbüros.' + (u.maBild || u.firmaBild ? ' Elektronisch unterschrieben in der Rapport-App.' : ''), R - L), L, 199)
+  doc.text(`Erstellt am ${datumLang(new Date())} ${uhr(Date.now())}${e?.einsatznummer ? ` · Einsatz-Nr. ${e.einsatznummer}` : ''}`, L, 206)
   return doc.output('blob')
 }

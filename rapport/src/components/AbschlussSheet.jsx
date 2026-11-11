@@ -48,11 +48,13 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
   // wer unterschreibt für den Einsatzbetrieb: { id?, name, funktion, email, tel, neu?, bestaetigt? }
   const [wer, setWer] = useState({ name: '', funktion: '', email: '', tel: '' })
   const [wunsch, setWunsch] = useState({ mail: true, onedrive: true })
+  const [eb, setEb] = useState({ einsatzWeiter: null, beendetAm: '', bewertung: null }) // Angaben des Einsatzbetriebs
   const [laeuft, setLaeuft] = useState(false), [ergebnis, setErgebnis] = useState(null)
   useEffect(() => {
     if (status === undefined) return
     setMa(status?.maBild || einst.unterschrift?.bild || null)
     setFi(status?.firmaBild || null)
+    if (status) setEb({ einsatzWeiter: status.einsatzWeiter ?? null, beendetAm: status.beendetAm || '', bewertung: status.bewertung ?? null })
     if (status?.firmaName) setWer({ id: status.firmaId, name: status.firmaName, funktion: status.firmaFunktion || '', email: status.kopieEmail || '', tel: status.kopieTel || '', bestaetigt: true })
     else if (haupt) setWer({ ...haupt, bestaetigt: true })
   }, [status === undefined]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -68,9 +70,10 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
     firmaBild: fi, firmaName: wer.name.trim(), firmaFunktion: wer.funktion, firmaId: wer.id || null,
     firmaAm: fi ? (fiAm || (status?.firmaBild === fi ? status.firmaAm : jetzt)) : null,
     vertretungFuer: vertretung?.name || null, kopieCc: vertretung?.email || '',
-    kopieEmail: (wer.email || '').trim(), kopieTel: (wer.tel || '').trim() }
+    kopieEmail: (wer.email || '').trim(), kopieTel: (wer.tel || '').trim(),
+    bewertung: eb.bewertung, einsatzWeiter: eb.einsatzWeiter, beendetAm: eb.einsatzWeiter === false ? eb.beendetAm : null }
   // PDF vorab (für das Teilen-Menü ohne Microsoft — iOS verlangt den direkten Klick)
-  const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, wer, fiAm, g]) // eslint-disable-line react-hooks/exhaustive-deps
+  const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, wer, fiAm, eb, g]) // eslint-disable-line react-hooks/exhaustive-deps
   const email = g.einsatz?.bueroEmail
 
   async function los() {
@@ -126,8 +129,9 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
           Vertretung: unterschreibt für <b>{vertretung.name}</b> ({vertretung.funktion}). Im Rapport steht „i.V.“{vertretung.email ? `, ${vertretung.name} bekommt eine Kopie` : ''}.
         </div>}
         <Unterschrift wert={fi} onChange={(b) => { setFi(b); setFiAm(null) }} hoehe={150} />
-        {!fi && <QrSignatur g={g} woche={woche} ma={{ bild: ma, am: unterschriften.maAm }} onUnterschrift={({ bild, name, funktion, id, am, email, tel }) => {
+        {!fi && <QrSignatur g={g} woche={woche} ma={{ bild: ma, am: unterschriften.maAm }} onUnterschrift={({ bild, name, funktion, id, am, email, tel, bewertung, einsatzWeiter, beendetAm }) => {
           setFi(bild); setFiAm(am)
+          setEb({ einsatzWeiter: einsatzWeiter ?? null, beendetAm: beendetAm || '', bewertung: bewertung ?? null })
           const p = finde(einsatz, { id, email, name })
           // bekannte Person → direkt; neue Person → erst bestätigen
           setWer(p ? { ...p, email: email || p.email, tel: tel || p.tel, bestaetigt: true }
@@ -144,6 +148,19 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
             </div>
           </div>
         )}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-white/45">Einsatz</span>
+          {[[true, 'geht weiter'], [false, 'ist beendet']].map(([v, l]) => (
+            <button key={l} type="button" onClick={() => setEb({ ...eb, einsatzWeiter: eb.einsatzWeiter === v ? null : v })}
+              className={'px-2.5 py-1 rounded-full border ' + (eb.einsatzWeiter === v ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{l}</button>
+          ))}
+          {eb.einsatzWeiter === false && <input type="date" className="eingabe py-1 text-xs w-36" value={eb.beendetAm} onChange={(x) => setEb({ ...eb, beendetAm: x.target.value })} />}
+          <span className="text-white/45 ml-2">Beurteilung</span>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} type="button" onClick={() => setEb({ ...eb, bewertung: eb.bewertung === n ? null : n })}
+              className={'w-7 h-7 rounded-full border ' + (eb.bewertung === n ? 'btn-grad border-transparent font-bold' : 'border-white/15 text-white/60')}>{n}</button>
+          ))}
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
             <input className="eingabe pl-9 text-sm" type="email" placeholder="Durchschlag E-Mail" value={wer.email || ''} onChange={(e) => setWer({ ...wer, email: e.target.value })} /></div>
