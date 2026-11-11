@@ -35,6 +35,13 @@ export function buchungenLokal(text, heute = new Date()) {
       if (datum && betrag) funde.push({ datum, betrag, text: txt })
       gefunden = true
     }
+    if (!gefunden) { // ganze Franken nur mit eindeutigem Vorzeichen/CHF: „+800“, „CHF 800“, „800 CHF“
+      const g = /(?:([+\-−–])\s?(?:CHF\s?)?|CHF\s?)(\d{1,3}(?:['’ ]\d{3})+|\d+)(?![.,\d])|(\d{1,3}(?:['’ ]\d{3})+|\d+)\s?CHF\b/.exec(zeile)
+      if (g && datum) {
+        const betrag = parseFloat((g[2] || g[3]).replace(/['’ ]/g, '')) * (/[-−–]/.test(g[1] || '') ? -1 : 1)
+        if (betrag) { funde.push({ datum, betrag, text: [...puffer, zeile.replace(g[0], ' ')].join(' ').replace(/\bCHF\b/g, ' ').replace(/\s+/g, ' ').trim() }); gefunden = true }
+      }
+    }
     puffer = gefunden ? [] : [...puffer, zeile].slice(-3)
   }
   return funde
@@ -42,19 +49,45 @@ export function buchungenLokal(text, heute = new Date()) {
 
 const wort = (x) => String(x || '').toLowerCase().trim().split(/\s+/)[0]
 
-/** Vom Büro? Art und Monat vorschlagen. buero = Liste der Büro-Namen aus Einsätzen/Einstellungen */
-export function einordnen(b, bueros = []) {
+/** ISO-Kalenderwoche eines Datums */
+export function kwVon(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7))
+  return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7)
+}
+
+/**
+ * Wochen-Vorschuss bezahlt die Vorwoche (z.B. am Do 05.11. für KW 44 = 26.–30.10.) → Monat der Vorwoche
+ * (nach deren Mittwoch, also dem Monat mit den meisten Arbeitstagen). Gibt { fuerMonat, kw } zurück.
+ */
+export function vorwocheVon(datum) {
+  const d = new Date(datum + 'T12:00')
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7 + 2) // Mittwoch der Vorwoche
+  return { fuerMonat: isoDatum(d).slice(0, 7), kw: kwVon(d) }
+}
+
+/** Normalisierter Absender-/Text-Anfang (für gelernte Muster, wenn der Verwendungszweck mager ist) */
+export const muster = (text) => String(text || '').toLowerCase().replace(/[^a-zäöüéèà ]/g, ' ').replace(/\b(gutschrift|zahlung|eingang|überweisung|ueberweisung|sepa|ch|ag|gmbh|sa)\b/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ')
+
+/** Vom Büro? Art und Monat vorschlagen. bueros = Büro-Namen aus Einsätzen/Einstellungen, gelernt = gemerkte Muster */
+export function einordnen(b, bueros = [], gelernt = []) {
   const t = b.text.toLowerCase()
-  const vomBuero = bueros.some((x) => wort(x).length > 2 && t.includes(wort(x)))
+  const m = muster(b.text)
+  const vomBuero = bueros.some((x) => wort(x).length > 2 && t.includes(wort(x))) || (m.length > 2 && gelernt.includes(m))
   const lohnWort = /lohn|salär|salaer|gehalt|salary/.test(t)
   const vorschussWort = /vorschuss|akonto|a-konto|vorauszahlung|abschlag/.test(t)
   const relevant = b.betrag > 0 && (vomBuero || lohnWort || vorschussWort)
   const art = vorschussWort ? 'vorschuss' : lohnWort ? 'lohn' : 'vorschuss'
-  const d = new Date(b.datum + 'T12:00')
-  // Lohn-Restzahlung kommt meist Anfang Folgemonat → gehört zum Vormonat
-  if (art === 'lohn' && d.getDate() <= 20) d.setMonth(d.getMonth() - 1)
-  const buero = bueros.find((x) => t.includes(wort(x))) || ''
-  return { ...b, relevant, art, fuerMonat: isoDatum(d).slice(0, 7), buero }
+  const buero = bueros.find((x) => t.includes(wort(x))) || (vomBuero ? bueros[0] || '' : '')
+  return { ...b, relevant, art, ...monatFuer(b.datum, art), buero }
+}
+
+/** Vorschuss → Monat der bezahlten Vorwoche; Lohn-Restzahlung bis zum 20. → Vormonat, sonst Zahlungsmonat */
+export function monatFuer(datum, art) {
+  if (art === 'vorschuss') return vorwocheVon(datum)
+  const d = new Date(datum + 'T12:00')
+  if (art === 'lohn' && d.getDate() <= 20) d.setDate(0)
+  return { fuerMonat: isoDatum(d).slice(0, 7), kw: null }
 }
 
 export const schluessel = (b) => `${b.datum}|${Number(b.betrag).toFixed(2)}`

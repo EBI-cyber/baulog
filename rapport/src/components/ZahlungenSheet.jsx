@@ -7,7 +7,7 @@ import { useEinstellungen, zahl } from '../lib/settings'
 import { kiVerfuegbar } from '../lib/ki'
 import { verkleinern } from '../lib/bild'
 import { chf } from '../lib/lohn'
-import { ARTEN, buchungenKI, buchungenLokal, einordnen, schluessel, zahlungenSpeichern } from '../lib/zahlungen'
+import { ARTEN, buchungenKI, buchungenLokal, einordnen, schluessel, zahlungenSpeichern, monatFuer, muster } from '../lib/zahlungen'
 import { isoDatum } from '../lib/zeit'
 
 const MONATE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
@@ -19,7 +19,7 @@ const monateUm = (datum) => [-1, 0, 1].map((d) => { const x = new Date(datum + '
  * finden → als Vorschuss/Lohn für einen Monat übernehmen. Ohne KI liest die App kopierten Text selbst.
  */
 export default function ZahlungenSheet({ onClose }) {
-  const [einst] = useEinstellungen()
+  const [einst, setEinst] = useEinstellungen()
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], [])
   const bueros = [...new Set([...(einsaetze || []).map((e) => e.buero), einst.buero].filter(Boolean))]
   const [text, setText] = useState('')
@@ -52,8 +52,13 @@ export default function ZahlungenSheet({ onClose }) {
       funde = buchungenLokal(text)
       hinweis = (bilder.length ? 'Screenshots brauchen die KI: ' : 'KI nicht erreichbar, Text selbst gelesen: ') + err.message
     }
-    const vorhanden = new Set((await db.zahlungen.toArray()).map((z) => z.schluessel))
-    const l = funde.filter((b) => b.betrag > 0).map((b) => { const x = einordnen(b, bueros); return { ...x, an: x.relevant && !vorhanden.has(schluessel(x)), doppelt: vorhanden.has(schluessel(x)) } })
+    const vorhanden = new Map((await db.zahlungen.toArray()).map((z) => [z.schluessel, z]))
+    const l = funde.filter((b) => b.betrag > 0).map((b) => {
+      const x = einordnen(b, bueros, einst.zahlungsMuster || [])
+      const alt = vorhanden.get(schluessel(x))
+      // schon erfasst: gespeicherte Art/Monat zeigen (lässt sich hier umbuchen)
+      return alt ? { ...x, art: alt.art, fuerMonat: alt.fuerMonat, kw: alt.kw, an: false, doppelt: alt.id } : { ...x, an: x.relevant, doppelt: null }
+    })
       .sort((a, b) => (b.relevant - a.relevant) || b.datum.localeCompare(a.datum))
     setListe(l)
     setLaeuft(false)
@@ -61,12 +66,20 @@ export default function ZahlungenSheet({ onClose }) {
     else if (hinweis) setMeldung({ ok: false, text: hinweis })
   }
 
-  const setZeile = (i, x) => setListe((l) => l.map((z, j) => (j === i ? { ...z, ...x } : z)))
+  const setZeile = (i, x) => {
+    setListe((l) => l.map((z, j) => (j === i ? { ...z, ...x } : z)))
+    const z = liste[i]
+    if (z.doppelt) db.zahlungen.update(z.doppelt, x) // schon gespeicherte Zahlung direkt umbuchen
+  }
+  const artWahl = (i, x, art) => setZeile(i, { art, ...monatFuer(x.datum, art) })
   const firmaZu = (b) => (einsaetze || []).find((e) => e.buero && b.buero && e.buero === b.buero)?.firma || einst.firma || ''
 
   async function speichern() {
     const gewaehlt = liste.filter((x) => x.an && !x.doppelt).map((x) => ({ ...x, firma: firmaZu(x), buero: x.buero || bueros[0] || '' }))
     const n = await zahlungenSpeichern(gewaehlt, 'bank')
+    // Absender merken → beim nächsten Mal automatisch erkannt (auch bei magerem Verwendungszweck)
+    const neu = [...new Set([...(einst.zahlungsMuster || []), ...gewaehlt.map((x) => muster(x.text)).filter((m) => m.length > 2)])]
+    if (neu.length !== (einst.zahlungsMuster || []).length) setEinst({ zahlungsMuster: neu })
     setMeldung({ ok: true, text: `${n} Zahlung${n === 1 ? '' : 'en'} übernommen.` })
     setListe(null); setText(''); setBilder([])
   }
@@ -96,29 +109,31 @@ export default function ZahlungenSheet({ onClose }) {
       </>}
 
       {liste && <>
-        <div className="text-sm text-white/55">Gutschriften gefunden — vom Büro sind vorausgewählt. Art und Monat (für welche Lohnabrechnung) prüfen:</div>
+        <div className="text-sm text-white/55">Gutschriften gefunden — vom Büro sind vorausgewählt. Ein Vorschuss zählt zum Monat der Woche, die er bezahlt (Vorwoche). Nicht erkannt? Anhaken — die App merkt sich den Absender.</div>
         <div className="space-y-2">
           {liste.map((x, i) => (
             <div key={i} className={'rounded-2xl p-3 border ' + (x.an ? 'bg-white/[0.06] border-white/20' : 'border-white/10 opacity-60')}>
               <label className="flex items-start gap-2.5">
-                <input type="checkbox" disabled={x.doppelt} checked={x.an} onChange={(e) => setZeile(i, { an: e.target.checked })} className="mt-1 w-4 h-4 accent-amber-500" />
+                <input type="checkbox" disabled={!!x.doppelt} checked={x.an || !!x.doppelt} onChange={(e) => setZeile(i, { an: e.target.checked })} className="mt-1 w-4 h-4 accent-amber-500" />
                 <div className="min-w-0 flex-1">
                   <div className="flex justify-between gap-2 font-semibold"><span>{x.datum.split('-').reverse().join('.')}</span><span className="tabular-nums">{chf(x.betrag, w)}</span></div>
-                  <div className="text-xs text-white/50 truncate">{x.text || '—'}{x.doppelt ? ' · schon erfasst' : ''}</div>
+                  <div className="text-xs text-white/50 truncate">{x.text || '—'}</div>
+                  {x.doppelt && <div className="text-xs text-emerald-300">schon erfasst — Art/Monat hier änderbar</div>}
                 </div>
               </label>
-              {x.an && <div className="flex flex-wrap gap-1.5 mt-2 pl-6">
-                {ARTEN.map((a) => <button key={a.id} onClick={() => setZeile(i, { art: a.id })} className={'px-2.5 py-1 rounded-full text-xs border ' + (x.art === a.id ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{a.label}</button>)}
+              {(x.an || x.doppelt) && <div className="flex flex-wrap gap-1.5 mt-2 pl-6">
+                {ARTEN.map((a) => <button key={a.id} onClick={() => artWahl(i, x, a.id)} className={'px-2.5 py-1 rounded-full text-xs border ' + (x.art === a.id ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{a.label}</button>)}
                 <select value={x.fuerMonat} onChange={(e) => setZeile(i, { fuerMonat: e.target.value })} className="eingabe !w-auto !py-1 text-xs">
                   {monateUm(x.datum).map((m) => <option key={m} value={m}>für {monatTxt(m)}</option>)}
                 </select>
+                {x.art === 'vorschuss' && x.kw && <span className="text-xs text-white/45 self-center">bezahlt KW {x.kw}</span>}
               </div>}
             </div>
           ))}
         </div>
-        <button disabled={!liste.some((x) => x.an && !x.doppelt)} onClick={speichern} className="w-full rounded-2xl py-3 font-bold btn-grad disabled:opacity-40">
-          {liste.filter((x) => x.an && !x.doppelt).length} Zahlungen übernehmen
-        </button>
+        {liste.some((x) => x.an && !x.doppelt)
+          ? <button onClick={speichern} className="w-full rounded-2xl py-3 font-bold btn-grad">{liste.filter((x) => x.an && !x.doppelt).length} Zahlungen übernehmen</button>
+          : <button onClick={onClose} className="w-full rounded-2xl py-3 font-bold btn-grad">Fertig</button>}
         <button onClick={() => setListe(null)} className="w-full py-2 text-sm text-white/45">Zurück</button>
       </>}
 

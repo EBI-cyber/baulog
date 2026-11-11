@@ -5,6 +5,11 @@ import { db } from '../lib/db'
 import { chf } from '../lib/lohn'
 import { ARTEN } from '../lib/zahlungen'
 import ZahlungenSheet from './ZahlungenSheet'
+import { isoDatum } from '../lib/zeit'
+
+const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
+const monatTxt = (m) => MON[+m.slice(5, 7) - 1]
+const monateUm = (datum) => [-1, 0, 1].map((d) => { const x = new Date(datum + 'T12:00'); x.setDate(1); x.setMonth(x.getMonth() + d); return isoDatum(x).slice(0, 7) })
 
 /**
  * Bezahlt vs. Anspruch für einen Monat: Vorschüsse + Lohnzahlungen vom Büro gegen die (geschätzte) Auszahlung.
@@ -42,7 +47,10 @@ export default function ZahlungenKarte({ monat, anspruch, w = 'CHF', titel = 'Za
           {zahlungen.map((z) => (
             <div key={z.id} className="flex items-center gap-2 text-xs rounded-xl bg-white/[0.04] px-3 py-2">
               <span className="tabular-nums w-16">{z.datum.split('-').reverse().join('.').slice(0, 6)}</span>
-              <span className="flex-1 truncate text-white/60">{ARTEN.find((a) => a.id === z.art)?.label} · {z.text}</span>
+              <span className="flex-1 min-w-0 truncate text-white/60">{ARTEN.find((a) => a.id === z.art)?.label}{z.kw ? ` KW ${z.kw}` : ''} · {z.text}</span>
+              <select value={z.fuerMonat} onChange={(e) => db.zahlungen.update(z.id, { fuerMonat: e.target.value })} className="bg-transparent text-white/60 text-xs" aria-label="Monat">
+                {monateUm(z.datum).map((m) => <option key={m} value={m}>{monatTxt(m)}</option>)}
+              </select>
               <span className="tabular-nums font-semibold">{chf(z.betrag, w)}</span>
               <button onClick={() => confirm('Zahlung löschen?') && db.zahlungen.delete(z.id)} className="text-white/35" aria-label="Löschen"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
