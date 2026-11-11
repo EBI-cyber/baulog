@@ -307,12 +307,16 @@ function rapportFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [
   if (total.absenz > 0.004) { doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.text(zahlTxt(total.absenz), R - tw / 2, y + 7, { align: 'center' }) }
   y += 11
   // Einsatzort | Baustelle
-  doc.setDrawColor(200); doc.rect(x0, y, R - L - tw, 10)
-  for (let i = 0; i <= 7; i++) doc.line(cx(i), y, cx(i), y + 10)
+  doc.setDrawColor(200); doc.rect(x0, y, R - L - tw, 13)
+  for (let i = 0; i <= 7; i++) doc.line(cx(i), y, cx(i), y + 13)
   titelTxt(['Einsatzort |', 'Baustelle'], 4.3)
-  doc.setFontSize(7.5)
-  tage.forEach((t, i) => { if (t.ort) doc.text(doc.splitTextToSize(t.ort, dw - 2).slice(0, 2), cx(i) + 1, y + 4.2) })
-  y += 16
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7)
+  tage.forEach((t, i) => {
+    if (!t.orteListe.length) return
+    const z = t.orteListe.flatMap((x) => doc.splitTextToSize(x, dw - 2))
+    doc.text(z.slice(0, 4), cx(i) + 1, y + 3.4, { lineHeightFactor: 1.15 })
+  })
+  y += 18
 
   // TMA: Zwischenverdienst, Ort/Datum, Unterschrift
   label('Zwischenverdienst', L + 2, y); box(L + 31, y, !!p.rav); label('ja', L + 36, y); box(L + 44, y, p.rav === false); label('nein', L + 49, y)

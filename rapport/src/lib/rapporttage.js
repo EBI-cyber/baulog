@@ -47,7 +47,8 @@ export function rapportTage({ woche, schichten, absenzen = [], spesen = [], eins
     t.normal += rest
     // Notiz als Baustelle, ohne den automatischen Vermerk „(vom Papier-Rapport) nachgetragen“
     const notiz = (s.notiz || '').replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '').trim()
-    t.orte.add(notiz || e?.einsatzort || '')
+    // Einsatzbetrieb + Ort (+ Baustelle/Notiz), z.B. „Stüssi Betonvorfabrikation AG · Dällikon“
+    for (const teil of [s.firma || e?.firma, (e?.einsatzort || '').replace(/^\d{4}\s+/, ''), notiz]) if (teil?.trim()) t.orte.add(teil.trim())
   }
   for (const x of spesen) {
     const t = nach[x.datum]
@@ -55,7 +56,7 @@ export function rapportTage({ woche, schichten, absenzen = [], spesen = [], eins
   }
   const total = (k) => tage.reduce((a, t) => a + t[k], 0)
   return {
-    tage: tage.map((t) => ({ ...t, ort: [...t.orte].filter(Boolean).join(', ') })),
+    tage: tage.map((t) => ({ ...t, orteListe: [...t.orte].filter(Boolean), ort: [...t.orte].filter(Boolean).join(', ') })),
     total: { normal: total('normal'), h125: total('h125'), h150: total('h150'), h200: total('h200'), spesen: total('spesen'),
       absenz: tage.reduce((a, t) => a + t.absenzen.reduce((b, x) => b + x.std, 0), 0) },
   }
