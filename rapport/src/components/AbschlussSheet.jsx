@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Send, Mail, CloudUpload, Loader2, AlertTriangle, Share2, Building2, Phone, MessageCircle, Copy, ShieldAlert, UserPlus } from 'lucide-react'
+import { CheckCircle2, Send, Mail, CloudUpload, Loader2, AlertTriangle, Share2, Building2, Phone, MessageCircle, Copy, ShieldAlert, UserPlus, MapPin } from 'lucide-react'
 import Sheet from './Sheet'
 import Unterschrift from './Unterschrift'
 import QrSignatur from './QrSignatur'
@@ -14,6 +14,7 @@ import { db } from '../lib/db'
 import { liste, standardPerson, finde, merken, FUNKTIONEN } from '../lib/unterschreiber'
 import { wochenRechnung, std } from '../lib/woche'
 import { ausKey } from '../lib/zeit'
+import { ortVomStandort } from '../lib/standort'
 
 /** Wochenabschluss: pro Firma unterschreiben (ich + Einsatzbetrieb), dann automatisch senden & sichern */
 export default function AbschlussSheet({ wKey, onClose }) {
@@ -50,6 +51,16 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
   const [wunsch, setWunsch] = useState({ mail: true, onedrive: true })
   const [eb, setEb] = useState({ einsatzWeiter: null, beendetAm: '', bewertung: null }) // Angaben des Einsatzbetriebs
   const [laeuft, setLaeuft] = useState(false), [ergebnis, setErgebnis] = useState(null)
+  // Ort der Unterschrift: gespeicherter Ort, sonst Standort des Handys, sonst Wohnort (änderbar)
+  const [ort, setOrt] = useState(null), [ortQuelle, setOrtQuelle] = useState('')
+  useEffect(() => {
+    if (status === undefined) return
+    if (status?.maOrt) { setOrt(status.maOrt); setOrtQuelle('gespeichert'); return }
+    setOrt(einst.profil?.ort || ''); setOrtQuelle(einst.profil?.ort ? 'Wohnort' : '')
+    let aus = false
+    ortVomStandort().then((x) => { if (!aus && x?.ort) { setOrt(x.ort); setOrtQuelle('Standort') } })
+    return () => { aus = true }
+  }, [status === undefined]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (status === undefined) return
     setMa(status?.maBild || einst.unterschrift?.bild || null)
@@ -67,13 +78,14 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
   const total = wochenRechnung({ schichten: g.schichten, absenzen: g.absenzen, einst: g.einst }).total
   const jetzt = Date.now()
   const unterschriften = { maBild: ma, maAm: ma ? (status?.maBild === ma ? status.maAm : jetzt) : null,
+    maOrt: ort || null, firmaOrt: fi && !fiAm ? (status?.firmaBild === fi && status.firmaOrt ? status.firmaOrt : ort || null) : status?.firmaOrt || null,
     firmaBild: fi, firmaName: wer.name.trim(), firmaFunktion: wer.funktion, firmaId: wer.id || null,
     firmaAm: fi ? (fiAm || (status?.firmaBild === fi ? status.firmaAm : jetzt)) : null,
     vertretungFuer: vertretung?.name || null, kopieCc: vertretung?.email || '',
     kopieEmail: (wer.email || '').trim(), kopieTel: (wer.tel || '').trim(),
     bewertung: eb.bewertung, einsatzWeiter: eb.einsatzWeiter, beendetAm: eb.einsatzWeiter === false ? eb.beendetAm : null }
   // PDF vorab (für das Teilen-Menü ohne Microsoft — iOS verlangt den direkten Klick)
-  const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, wer, fiAm, eb, g]) // eslint-disable-line react-hooks/exhaustive-deps
+  const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, wer, fiAm, eb, g, ort]) // eslint-disable-line react-hooks/exhaustive-deps
   const email = g.einsatz?.bueroEmail
 
   async function los() {
@@ -97,6 +109,12 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
         <div className="shrink-0 text-lg font-extrabold grad-text tabular-nums">{std(total)} h</div>
       </div>
 
+      <label className="flex items-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2">
+        <MapPin className="w-4 h-4 text-white/50 shrink-0" />
+        <span className="text-xs text-white/50 shrink-0">Ort</span>
+        <input value={ort || ''} onChange={(e) => { setOrt(e.target.value); setOrtQuelle('') }} placeholder="Ort der Unterschrift" className="flex-1 min-w-0 bg-transparent text-sm font-semibold outline-none" />
+        {ortQuelle && <span className="text-[10px] text-white/40 shrink-0">{ortQuelle}</span>}
+      </label>
       <div className="space-y-1.5">
         <div className="text-xs text-white/50">Unterschrift Mitarbeiter ({einst.name || 'ich'})</div>
         <Unterschrift wert={ma} onChange={setMa} hoehe={130} />

@@ -339,7 +339,8 @@ function rapportFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [
   // TMA: Zwischenverdienst, Ort | Datum, Unterschrift
   y = 149
   label('Zwischenverdienst', 13, y, 9.5); box(42, y, !!p.rav); label('ja', 46.5, y, 9.5); box(55, y, p.rav === false); label('nein', 59.5, y, 9.5)
-  label('Ort | Datum', 74, y, 9.5); wert(`${p.ort || ''}${u.maAm ? (p.ort ? ', ' : '') + am(u.maAm) : ''}`, 94, y, 10)
+  const maOrt = u.maOrt || p.ort || ''
+  label('Ort | Datum', 74, y, 9.5); wert(`${maOrt}${u.maAm ? (maOrt ? ', ' : '') + am(u.maAm) : ''}`, 94, y, 10)
   label('Unterschrift TMA', 158, y - 0.5, 9.5)
   bild(u.maBild, 190, y + 2.5, 60, 11)
   doc.setDrawColor(...LINIE); doc.line(188, y + 2.8, R - 3, y + 2.8)
@@ -357,7 +358,7 @@ function rapportFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [
   for (let i = 1; i <= 5; i++) { const bx = 208 + (i - 1) * 15; doc.setFillColor(255); doc.rect(bx, 163.2, 3.4, 3.4, 'F'); label(String(i), bx + 1.7, 165.9, 7.5, { align: 'center' }); if (+u.bewertung === i) wert('X', bx + 0.5, 166.3, 10) }
   label('ungenügend', 203, 171.5, 8); label('sehr gut', 263, 171.5, 8)
   y = 189
-  const ortEB = (e?.einsatzort || '').replace(/^\d{4}\s*/, '')
+  const ortEB = u.firmaOrt || (e?.einsatzort || '').replace(/^\d{4}\s*/, '')
   wert(`${ortEB}${u.firmaAm ? (ortEB ? ', ' : '') + am(u.firmaAm) : ''}`, 13, y - 1.5, 11)
   bild(u.firmaBild, 80, y, 70, 15)
   wert(unterzeichnerText(u).toUpperCase(), 172, y - 1.5, 10)
