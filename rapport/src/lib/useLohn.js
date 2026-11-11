@@ -8,13 +8,13 @@ import { quellensteuerPflichtig, tarif } from './profil'
 import { tarifLaden, satzFuer } from './quellensteuer'
 
 /** Monatsgrenzen (YYYY-MM-DD) des Monats, in dem `tag` liegt */
-function monatVon(tag) {
+export function monatVon(tag) {
   const d = new Date(tag + 'T12:00')
   return [isoDatum(new Date(d.getFullYear(), d.getMonth(), 1)), isoDatum(new Date(d.getFullYear(), d.getMonth() + 1, 0))]
 }
 
 /** Werktage (Mo–Fr) zwischen a und b inkl. */
-function werktage(a, b) {
+export function werktage(a, b) {
   let n = 0
   for (const d = new Date(a + 'T12:00'), e = new Date(b + 'T12:00'); d <= e; d.setDate(d.getDate() + 1)) if (d.getDay() % 6) n++
   return n
@@ -49,8 +49,18 @@ export function useLohn(von, bis, einst, jetzt) {
   }, [auto, jahr, p?.wohnkanton, code])
 
   if (!daten) return null
+  return lohnMitQst({ daten, einst, qstTarif: auto ? qstTarif : null, von, bis, jetzt })
+}
+
+/**
+ * Lohn für [von, bis] mit automatischer Quellensteuer (Satz aus dem Tarif beim — ggf. hochgerechneten —
+ * Monatslohn des Monats von `bis`). daten = { schichten, absenzen, spesen, einsaetze } (Monat von `bis` enthalten).
+ */
+export function lohnMitQst({ daten, einst, qstTarif, von, bis, jetzt }) {
   let e = einst
-  if (auto && qstTarif) {
+  const p = einst?.profil
+  if (qstTarif) {
+    const [mVon, mBis] = monatVon(bis)
     const heute = isoDatum(new Date())
     const monat = lohnBerechnen({ ...daten, spesen: [], einst, von: mVon, bis: mBis, jetzt })
     let monatsBrutto = monat.brutto
@@ -58,7 +68,7 @@ export function useLohn(von, bis, einst, jetzt) {
       const bisher = werktage(mVon, heute), gesamt = werktage(mVon, mBis)
       if (bisher > 0) monatsBrutto = monat.brutto * gesamt / bisher
     }
-    e = { ...einst, qstAuto: { satz: satzFuer(qstTarif, monatsBrutto), jahr: qstTarif.jahr, monatsBrutto, code, kanton: p.wohnkanton } }
+    e = { ...einst, qstAuto: { satz: satzFuer(qstTarif, monatsBrutto), jahr: qstTarif.jahr, monatsBrutto, code: tarif(p), kanton: p.wohnkanton } }
   }
   return lohnBerechnen({ ...daten, einst: e, von, bis, jetzt })
 }

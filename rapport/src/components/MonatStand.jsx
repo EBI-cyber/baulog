@@ -1,12 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
-import { Gauge, Clock, TrendingUp, TrendingDown, Banknote, CalendarOff, Wallet, AlertTriangle, CheckCircle2, ChevronRight, CalendarClock } from 'lucide-react'
+import { Gauge, Clock, TrendingUp, TrendingDown, Banknote, CalendarOff, Wallet, AlertTriangle, CheckCircle2, ChevronRight, CalendarClock, PiggyBank, FileCheck2, XCircle, Camera } from 'lucide-react'
 import { db } from '../lib/db'
 import { zahl } from '../lib/settings'
 import { feiertagAm } from '../lib/feiertage'
-import { absenzArt } from '../lib/arten'
+import { sollIst } from '../lib/soll'
 import { chf } from '../lib/lohn'
 import { useLohn } from '../lib/useLohn'
+import { useKonten } from '../lib/konten'
 import { tageBisEnde, einsatzEnde } from '../lib/einsatzende'
 import { isoDatum, arbeitMs, datumKurz, TAGE } from '../lib/zeit'
 
@@ -28,42 +29,16 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
   const bis = laufend ? heuteIso : mBis
   const erster = useLiveQuery(() => db.schichten.orderBy('start').first(), [], null)
   const lohn = useLohn(mVon, zukunft ? mVon : bis, einst)
+  const konten = useKonten(einst, bis)
+  const abrechnung = useLiveQuery(async () => (await db.lohnabrechnungen.toArray())
+    .filter((g) => g.von <= mBis && g.bis >= mVon).sort((a, b) => (b.erstellt || 0) - (a.erstellt || 0))[0] || null, [mVon, mBis], null)
   if (zukunft) return null
 
-  const imMonat = (d) => d >= mVon && d <= bis
-  const sch = schichten.filter((s) => imMonat(s.datum))
-  const abw = absenzen.filter((a) => imMonat(a.datum))
-  const sp = spesen.filter((x) => imMonat(x.datum))
+  const sp = spesen.filter((x) => x.datum >= mVon && x.datum <= bis)
+  const r = sollIst({ von: mVon, bis, schichten, absenzen, einsaetze, einst, kanton, ersterTag: erster?.datum })
+  const { arbeit, tage, abwBezahlt, soll, sollTage, tagSoll, sollAngenommen, ist, saldo, luecken, einsatz, hatEintrag } = r
+  const abwNachArt = r.nachArt
   const jetzt = Date.now()
-  const arbeit = sch.reduce((s, x) => s + arbeitMs(x, jetzt), 0) / 36e5
-  const tage = new Set(sch.map((s) => s.datum)).size
-  const abwBezahlt = abw.reduce((s, a) => s + zahl(a.stunden), 0)
-  const abwNachArt = {}
-  for (const a of abw) { const k = absenzArt(a.art).kurz || absenzArt(a.art).label; abwNachArt[k] = (abwNachArt[k] || 0) + (a.halbtag ? 0.5 : 1) }
-
-  // Soll bis heute
-  const firma = sch[sch.length - 1]?.firma || einst.firma
-  const einsatz = einsaetze.find((e) => e.firma === firma)
-  const wochenStd = zahl(einsatz?.wochenstunden) || zahl(einst.wochenSoll)
-  const sollAngenommen = !wochenStd
-  const tagSoll = (wochenStd || 40) / 5
-  const start = [mVon, einsatz?.beginn, erster?.datum].filter(Boolean).sort().pop()
-  const hatEintrag = (d) => sch.some((s) => s.datum === d && s.ende != null) || abw.some((a) => a.datum === d)
-  let sollTage = 0
-  const luecken = []
-  for (const d = new Date(start + 'T12:00'), e = new Date(bis + 'T12:00'); d <= e; d.setDate(d.getDate() + 1)) {
-    const iso = tagIso(d)
-    if (d.getDay() === 0 || d.getDay() === 6 || feiertagAm(kanton, iso)) continue
-    if (iso === heuteIso && !hatEintrag(iso)) continue // heute zählt erst, wenn etwas eingetragen ist
-    const tagAbw = abw.filter((a) => a.datum === iso)
-    const frei = tagAbw.find((a) => !absenzArt(a.art).bezahlt && a.art !== 'kompensation')
-    if (frei) { sollTage += frei.halbtag ? 0.5 : 0; continue }
-    sollTage += 1
-    if (iso < heuteIso && !hatEintrag(iso)) luecken.push(new Date(d))
-  }
-  const soll = sollTage * tagSoll
-  const ist = arbeit + abwBezahlt
-  const saldo = ist - soll
 
   // Wochen des Monats mit Rapport-Status
   const wochenListe = wochen.map(({ w, key, tage: wt }) => {
@@ -141,6 +116,39 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
           <div className="text-lg font-bold tabular-nums">{sp.length ? chf(sp.reduce((s, x) => s + zahl(x.betrag), 0), einst.waehrung) : '–'}</div>
         </Kachel>
       </div>
+
+      <div className="glass rounded-3xl p-4">
+        <div className="text-white/45 text-xs inline-flex items-center gap-1.5"><PiggyBank className="w-3.5 h-3.5" /> Guthaben beim Büro</div>
+        {konten?.length ? konten.map((k) => (
+          <div key={k.firma} className="mt-1 space-y-0.5">
+            {Object.entries(k.konten).map(([key, x]) => (
+              <div key={key} className="flex justify-between text-sm"><span>{x.label}</span>
+                <span className="font-bold tabular-nums">{chf(x.saldo, einst.waehrung)}{key !== 'dreizehnter' && x.tage > 0 ? <span className="font-normal text-white/45"> ≈ {x.tage.toFixed(1)} Tage</span> : ''}</span></div>
+            ))}
+          </div>
+        )) : <div className="text-sm text-white/60 mt-0.5">Ferien, Feiertage und 13. ML werden laufend mit dem Stundenlohn ausbezahlt — kein Guthaben. <Link to="/einstellungen" className="underline text-white/80">Im Einsatz ändern</Link>, falls das Büro sie anspart.</div>}
+      </div>
+
+      {abrechnung ? (() => {
+        const n = (abrechnung.pruefung || []).filter((c) => c.status === 'abweichung' && c.id !== 'auszahlung').length
+        const ne = (abrechnung.pruefung || []).find((c) => c.id === 'netto')
+        return (
+          <Link to="/lohn" className={'rounded-3xl p-4 flex gap-3 items-start border ' + (n ? 'bg-ember/10 border-ember/30' : 'bg-emerald-400/10 border-emerald-400/30')}>
+            {n ? <XCircle className="w-5 h-5 text-ember shrink-0 mt-0.5" /> : <FileCheck2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />}
+            <div className="min-w-0 flex-1 text-sm">
+              <div className="font-semibold">Lohnabrechnung {monatsName}: {n ? `${n} Abweichung${n > 1 ? 'en' : ''}` : 'stimmt'}</div>
+              {ne && <div className="text-white/60 tabular-nums">netto laut Büro {chf(ne.ab, einst.waehrung)} · laut App {chf(ne.app, einst.waehrung)}</div>}
+            </div>
+            <ChevronRight className="w-4 h-4 text-white/30 shrink-0 mt-1" />
+          </Link>
+        )
+      })() : !laufend && lohnOk ? (
+        <Link to="/lohn" className="rounded-3xl p-4 flex gap-3 items-center bg-white/[0.04] border border-dashed border-white/15 text-sm">
+          <Camera className="w-5 h-5 text-white/60 shrink-0" />
+          <div className="flex-1">Lohnabrechnung {monatsName} erhalten? <b>Foto machen & prüfen lassen</b></div>
+          <ChevronRight className="w-4 h-4 text-white/30" />
+        </Link>
+      ) : null}
 
       {(luecken.length > 0 || offen.length > 0 || (ende != null && ende >= 0 && ende <= 7)) && (
         <div className="space-y-2">

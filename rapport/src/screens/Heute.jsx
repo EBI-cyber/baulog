@@ -46,10 +46,16 @@ export default function Heute() {
   const absenzen = useLiveQuery(() => db.absenzen.where('datum').equals(tag).toArray(), [tag], [])
   const spesen = useLiveQuery(() => db.spesen.where('datum').equals(tag).toArray(), [tag], [])
   const vorwoche = wocheVersetzt(woche, -1)
-  const offen = useLiveQuery(async () => {
-    const key = wochenKey(vorwoche)
-    return (await offeneRapporte(key, einst)).length ? key : null
-  }, [wochenKey(vorwoche), einst.firma, einst.buero], null)
+  // Erinnerung: ungesendete Rapporte der letzten 8 Wochen (älteste zuerst)
+  const offeneWochen = useLiveQuery(async () => {
+    const liste = []
+    for (let i = 8; i >= 1; i--) {
+      const key = wochenKey(wocheVersetzt(woche, -i))
+      if ((await offeneRapporte(key, einst)).length) liste.push(key)
+    }
+    return liste
+  }, [wochenKey(vorwoche), einst.firma, einst.buero], [])
+  const offen = offeneWochen?.[0] || null
 
   const jetzt = useJetzt(!!laufend)
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], [])
@@ -174,8 +180,8 @@ export default function Heute() {
         <button onClick={() => setAbschluss(offen)} className="w-full text-left rounded-3xl p-4 flex items-center gap-3 bg-aqua/10 border border-aqua/30">
           <IconChip icon={Send} variant="grad" />
           <div className="min-w-0">
-            <div className="font-semibold">KW {+offen.slice(-2)} ist vorbei</div>
-            <div className="text-sm text-white/60">Unterschreiben & ans Büro senden</div>
+            <div className="font-semibold">Rapport KW {+offen.slice(-2)} noch nicht gesendet</div>
+            <div className="text-sm text-white/60">Unterschreiben & ans Büro senden{offeneWochen.length > 1 ? ` · offen: ${offeneWochen.map((k) => 'KW ' + +k.slice(-2)).join(', ')}` : ''}</div>
           </div>
         </button>
       )}
