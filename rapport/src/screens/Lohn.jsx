@@ -11,6 +11,7 @@ import { lohnPdf } from '../lib/pdf'
 import { teileDatei } from '../lib/teilen'
 import EinsatzSheet from '../components/EinsatzSheet'
 import KontenKarte from '../components/KontenKarte'
+import ZahlungenKarte from '../components/ZahlungenKarte'
 import LohnPruefung from '../components/LohnPruefung'
 import { db } from '../lib/db'
 import { Link } from 'react-router-dom'
@@ -137,6 +138,7 @@ export default function Lohn() {
           )}
 
           <KontenKarte einst={einst} bis={z.bis} w={w} />
+          {modus === 'monat' && <ZahlungenKarte monat={z.von.slice(0, 7)} anspruch={lohn.fehlendeLoehne.length ? null : lohn.auszahlung} w={w} laufend={z.von <= isoDatum(new Date()) && z.bis >= isoDatum(new Date())} />}
 
           {lohn.qstAuto && lohn.brutto > 0 && (
             <div className="text-xs text-white/45 px-1">

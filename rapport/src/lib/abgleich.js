@@ -44,7 +44,11 @@ export async function appLohn(von, bis, einst) {
   // Arbeitstage im Zeitraum (für die Stunden-Kontrolle)
   const tage = {}
   for (const s of daten.schichten) if (s.ende && s.datum >= von && s.datum <= bis) tage[s.datum] = (tage[s.datum] || 0) + arbeitMs(s) / 36e5
-  return { lohn, konten, tage, qstTarif }
+  // erfasste Vorschüsse für die Monate der Periode (aus dem Bankauszug oder von Hand)
+  const monate = new Set([von.slice(0, 7), bis.slice(0, 7)])
+  const zahlungen = (await db.zahlungen.toArray()).filter((z) => monate.has(z.fuerMonat))
+  const vorschuesse = zahlungen.filter((z) => z.art === 'vorschuss').reduce((a, z) => a + z.betrag, 0)
+  return { lohn, konten, tage, qstTarif, vorschuesse, vorschussAnzahl: zahlungen.filter((z) => z.art === 'vorschuss').length }
 }
 
 const sum = (l, f = (x) => x) => l.reduce((a, x) => a + (zahl(f(x)) || 0), 0)
@@ -160,7 +164,15 @@ export function vergleichen(ki, app, einst) {
   if (ki.netto != null) geld('netto', 'Summen', 'Nettolohn', app.lohn.netto, zahl(ki.netto))
   const appSp = app.lohn.spesen + app.lohn.mittag, abSp = sum(pos.filter((x) => ['spesen', 'mittag'].includes(x.art)), (x) => x.betrag)
   if (appSp > 0.005 || abSp > 0.005) geld('spesen', 'Summen', 'Spesen und Zulagen', appSp, abSp)
-  if (ki.auszahlung != null) geld('auszahlung', 'Summen', 'Auszahlung', app.lohn.auszahlung, zahl(ki.auszahlung), { tol: 0.06 })
+  // Vorschüsse: was das Büro abzieht, muss dem entsprechen, was auf dem Konto eingegangen ist
+  const kiV = ki.vorschuesse != null ? zahl(ki.vorschuesse) : sum(Array.isArray(ki.vorschussZeilen) ? ki.vorschussZeilen : [], (x) => x.betrag)
+  if (app.vorschuesse > 0.005 || kiV > 0.005) {
+    if (app.vorschussAnzahl) geld('vorschuesse', 'Summen', 'Verrechnete Vorschüsse', app.vorschuesse, kiV, { abzug: true })
+    else add({ id: 'vorschuesse', gruppe: 'Summen', titel: 'Verrechnete Vorschüsse', app: 0, ab: kiV, einheit: w, status: 'hinweis',
+      text: 'Keine Vorschüsse erfasst — Bankauszug unter Lohn → Zahlungen einfügen, dann prüft die App, ob die abgezogenen Vorschüsse wirklich eingegangen sind.' })
+  }
+  const vAbzug = app.vorschussAnzahl ? app.vorschuesse : kiV
+  if (ki.auszahlung != null) geld('auszahlung', 'Summen', 'Auszahlung', app.lohn.auszahlung - vAbzug, zahl(ki.auszahlung), { tol: 0.06 })
   // 9) Guthaben
   const kt = app.konten.find((k) => !P || k.firma === P.firma)
   for (const [k, l] of [['ferien', 'Ferienguthaben'], ['feiertag', 'Feiertagsguthaben'], ['dreizehnter', '13. ML angespart']]) {

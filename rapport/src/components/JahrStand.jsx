@@ -30,6 +30,7 @@ export default function JahrStand({ jahr, kanton, einst }) {
       spesen: await db.spesen.where('datum').between(von, ende, true, true).toArray(),
       einsaetze: await db.einsaetze.toArray(),
       erster: await db.schichten.orderBy('start').first(),
+      zahlungen: (await db.zahlungen.toArray()).filter((z) => z.fuerMonat?.startsWith(String(jahr))),
     }
   }, [jahr], null)
 
@@ -53,12 +54,13 @@ export default function JahrStand({ jahr, kanton, einst }) {
       const l = lohnMitQst({ daten, einst, qstTarif: auto ? qstTarif : null, von: mVon, bis: mBis })
       const std = daten.schichten.filter((s) => s.datum >= mVon && s.datum <= mBis).reduce((s, x) => s + arbeitMs(x), 0) / 36e5
       const qst = l.posten.reduce((s, x) => s + x.abzuege.filter((a) => a.k === 'quellensteuer').reduce((t, a) => t + a.betrag, 0), 0)
-      if (std > 0 || l.brutto > 0) monate.push({ m, std, brutto: l.brutto, netto: l.netto, qst, spesen: l.spesen + l.mittag, fehlt: l.fehlendeLoehne.length > 0 })
+      if (std > 0 || l.brutto > 0) monate.push({ m, std, brutto: l.brutto, netto: l.netto, auszahlung: l.auszahlung, qst, spesen: l.spesen + l.mittag, fehlt: l.fehlendeLoehne.length > 0 })
     }
     const s = sollIst({ von, bis, schichten: daten.schichten, absenzen: daten.absenzen, einsaetze: daten.einsaetze, einst, kanton, ersterTag: daten.erster?.datum })
     const sum = (k) => monate.reduce((a, x) => a + x[k], 0)
     const firmen = [...new Set(daten.schichten.filter((x) => x.datum >= von && x.datum <= bis).map((x) => x.firma).filter(Boolean))]
-    return { monate, s, brutto: sum('brutto'), netto: sum('netto'), qst: sum('qst'), spesen: sum('spesen'), fehlt: monate.some((x) => x.fehlt), firmen }
+    const erhalten = daten.zahlungen.reduce((a, z) => a + z.betrag, 0)
+    return { erhalten, anspruch: sum('auszahlung'), monate, s, brutto: sum('brutto'), netto: sum('netto'), qst: sum('qst'), spesen: sum('spesen'), fehlt: monate.some((x) => x.fehlt), firmen }
   }, [daten, qstTarif, einst, kanton, jahr, bis]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!r || !r.monate.length) return null
@@ -80,6 +82,8 @@ export default function JahrStand({ jahr, kanton, einst }) {
           <span className="text-white/55">Bruttolohn</span><span className="text-right font-semibold tabular-nums">{chf(r.brutto, w)}</span>
           {r.qst > 0 && <><span className="text-white/55">Quellensteuer</span><span className="text-right font-semibold tabular-nums">{chf(r.qst, w)}</span></>}
           <span className="text-white/55">Nettolohn</span><span className="text-right font-semibold tabular-nums">{chf(r.netto, w)}</span>
+          {r.erhalten > 0 && !r.fehlt && <><span className="text-white/55">Vom Büro erhalten</span><span className="text-right font-semibold tabular-nums">{chf(r.erhalten, w)}</span>
+            <span className="text-white/55">{r.anspruch - r.erhalten >= 0 ? 'Noch ausstehend' : 'Zu viel erhalten'}</span><span className={'text-right font-semibold tabular-nums ' + (r.anspruch - r.erhalten > 0.5 ? 'text-amber-300' : r.anspruch - r.erhalten < -0.5 ? 'text-rose-300' : 'text-emerald-400')}>{chf(Math.abs(r.anspruch - r.erhalten), w)}</span></>}
           {r.spesen > 0 && <><span className="text-white/55">Spesen/Zulagen</span><span className="text-right font-semibold tabular-nums">{chf(r.spesen, w)}</span></>}
           {Object.keys(r.s.nachArt).length > 0 && <><span className="text-white/55">Abwesend</span><span className="text-right font-semibold">{Object.entries(r.s.nachArt).map(([k, n]) => `${n} T. ${k}`).join(', ')}</span></>}
           {r.firmen.length > 0 && <><span className="text-white/55">Einsätze</span><span className="text-right">{r.firmen.join(', ')}</span></>}

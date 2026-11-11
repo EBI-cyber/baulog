@@ -27,6 +27,11 @@ db.version(4).stores({
   lohnabrechnungen: '++id, firma, von',
 })
 
+db.version(5).stores({
+  // Zahlung vom Büro (aus dem Bankauszug oder von Hand): { datum, betrag, art: vorschuss|lohn|sonstig, fuerMonat: 'YYYY-MM', firma, buero, text, quelle, schluessel }
+  zahlungen: '++id, datum, fuerMonat, schluessel',
+})
+
 // Browser bitten, die Daten nicht automatisch zu löschen
 navigator.storage?.persist?.().catch(() => {})
 
@@ -58,15 +63,16 @@ export async function exportieren() {
   return { app: 'rapport', version: 3, exportiertAm: new Date().toISOString(),
     schichten: await db.schichten.toArray(), wochen: await db.wochen.toArray(),
     absenzen: await db.absenzen.toArray(), spesen: await db.spesen.toArray(), einsaetze: await db.einsaetze.toArray(),
-    kontobewegungen: await db.kontobewegungen.toArray(), lohnabrechnungen: await db.lohnabrechnungen.toArray(),
+    kontobewegungen: await db.kontobewegungen.toArray(), lohnabrechnungen: await db.lohnabrechnungen.toArray(), zahlungen: await db.zahlungen.toArray(),
     // Einstellungen inkl. Fragebogen und Unterschrift (ohne Microsoft-Anmeldung — die liegt getrennt)
     einstellungen: ladeEinstellungen() }
 }
 
 export async function importieren(daten) {
   if (daten?.app !== 'rapport') throw new Error('Keine Rapport-Sicherung')
-  await db.transaction('rw', [db.schichten, db.wochen, db.absenzen, db.spesen, db.einsaetze, db.kontobewegungen, db.lohnabrechnungen], async () => {
-    for (const t of ['schichten', 'wochen', 'absenzen', 'spesen', 'einsaetze', 'kontobewegungen', 'lohnabrechnungen']) {
+  await db.transaction('rw', [db.schichten, db.wochen, db.absenzen, db.spesen, db.einsaetze, db.kontobewegungen, db.lohnabrechnungen, db.zahlungen], async () => {
+    for (const t of ['schichten', 'wochen', 'absenzen', 'spesen', 'einsaetze', 'kontobewegungen', 'lohnabrechnungen', 'zahlungen']) {
+      if (t === 'zahlungen' && !daten[t]) continue // ältere Sicherung ohne Zahlungen: vorhandene behalten
       await db[t].clear(); await db[t].bulkAdd(daten[t] || [])
     }
   })

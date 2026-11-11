@@ -8,6 +8,7 @@ import { sollIst } from '../lib/soll'
 import { chf } from '../lib/lohn'
 import { useLohn } from '../lib/useLohn'
 import { useKonten } from '../lib/konten'
+import ZahlungenKarte from './ZahlungenKarte'
 import { tageBisEnde, einsatzEnde } from '../lib/einsatzende'
 import { isoDatum, arbeitMs, datumKurz, TAGE } from '../lib/zeit'
 
@@ -106,6 +107,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
             <div className="text-sm text-amber-300 mt-1">{lohn?.fehlendeLoehne?.length ? `Stundenlohn fehlt — Einsatzvertrag von ${lohn.fehlendeLoehne[0]} in den Einstellungen erfassen (Foto genügt).` : 'Noch kein Lohn in diesem Monat.'}</div>
           )}
         </Link>
+        <div className="col-span-2"><ZahlungenKarte monat={mVon.slice(0, 7)} anspruch={lohnOk ? lohn.auszahlung : null} w={einst.waehrung} laufend={laufend} /></div>
         <Kachel icon={CalendarOff} titel="Abwesend">
           {Object.keys(abwNachArt).length
             ? <div className="text-sm font-semibold mt-0.5">{Object.entries(abwNachArt).map(([k, n]) => `${n} ${n === 1 ? 'Tag' : 'Tage'} ${k}`).join(' · ')}</div>
