@@ -17,7 +17,8 @@ export function rapportTage({ woche, schichten, absenzen = [], spesen = [], eins
   const nach = Object.fromEntries(tage.map((t) => [t.datum, t]))
   for (const a of absenzen) {
     const t = nach[a.datum]
-    if (t) t.absenzen.push({ label: absenzArt(a.art).label + (a.halbtag ? ' ½' : ''), std: zahl(a.stunden) })
+    const art = absenzArt(a.art)
+    if (t) t.absenzen.push({ label: art.label + (a.halbtag ? ' ½' : ''), kurz: (art.kurz || art.label) + (a.halbtag ? ' ½' : ''), std: zahl(a.stunden) })
   }
   const soll = e?.ueberstundenModus === 'keine' ? 0 : zahl(e?.wochenstunden) || zahl(einst?.wochenSoll)
   let kumuliert = absenzen.reduce((x, a) => x + zahl(a.stunden), 0)
@@ -44,7 +45,9 @@ export function rapportTage({ woche, schichten, absenzen = [], spesen = [], eins
     kumuliert += h
     buche(ueber, wert(e, 'ueberstundenZuschlag'))
     t.normal += rest
-    t.orte.add(s.notiz?.trim() || e?.einsatzort || '')
+    // Notiz als Baustelle, ohne den automatischen Vermerk „(vom Papier-Rapport) nachgetragen“
+    const notiz = (s.notiz || '').replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '').trim()
+    t.orte.add(notiz || e?.einsatzort || '')
   }
   for (const x of spesen) {
     const t = nach[x.datum]
