@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, Send, CloudUpload, FileText, Plus, CheckCircle2, MessageCircle, AlertTriangle, CalendarOff, Wallet, PartyPopper, Banknote, CalendarPlus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Send, CloudUpload, FileText, Plus, CheckCircle2, MessageCircle, AlertTriangle, CalendarOff, Wallet, PartyPopper, Banknote, CalendarPlus, CalendarDays } from 'lucide-react'
 import { db, wocheMarkieren, speichereAbsenz } from '../lib/db'
 import { feiertagAm } from '../lib/feiertage'
 import { kantonFuer } from '../lib/kanton'
@@ -70,6 +70,9 @@ export default function Woche() {
 
   return (
     <div className="space-y-5">
+      <Link to={`/kalender/${isoDatum(tage[3]).slice(0, 7)}`} className="inline-flex items-center gap-1 text-sm text-white/55 -mb-2">
+        <CalendarDays className="w-4 h-4" /> Kalender
+      </Link>
       <header className="flex items-center justify-between gap-2">
         <button onClick={() => nav(`/woche/${wochenKey(wocheVersetzt(woche, -1))}`)} className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0" aria-label="Vorherige Woche">
           <ChevronLeft className="w-5 h-5" />

@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Nav from './components/Nav'
 import Heute from './screens/Heute'
 import Woche from './screens/Woche'
+import Kalender from './screens/Kalender'
 import Einstellungen from './screens/Einstellungen'
 import Lohn from './screens/Lohn'
 import Unterschreiben from './screens/Unterschreiben'
@@ -29,6 +30,8 @@ function Hauptlayout() {
           <div className="max-w-2xl mx-auto w-full px-4 pt-5 md:pt-10">
             <Routes>
               <Route path="/" element={<Heute />} />
+              <Route path="/kalender" element={<Kalender />} />
+              <Route path="/kalender/:monat" element={<Kalender />} />
               <Route path="/woche" element={<Woche />} />
               <Route path="/woche/:key" element={<Woche />} />
               <Route path="/lohn" element={<Lohn />} />
