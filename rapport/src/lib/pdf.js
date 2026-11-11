@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf'
-import { TAGE, wochenTage, isoDatum, datumLang, datumKurz, uhr, pauseMs, arbeitMs, hm, dezimal } from './zeit'
+import { TAGE, wochenTage, isoDatum, datumLang, datumKurz, uhr, pauseMs, arbeitMs, hm, dezimal, bloecke } from './zeit'
 import { absenzArt, spesenArt } from './arten'
 import { zahl } from './settings'
 import { wochenRechnung, std } from './woche'
@@ -7,8 +7,62 @@ import { unterzeichnerText } from './unterschreiber'
 import { rapportTage } from './rapporttage'
 
 const sauber = (t) => String(t || '').trim().replace(/\s+/g, '_').replace(/[^\wäöüÄÖÜß-]/g, '')
-export function dateiName(einst, w, firma) {
-  return `Rapport_KW${String(w.kw).padStart(2, '0')}_${w.jahr}_${sauber(einst.name) || 'Mitarbeiter'}${firma ? '_' + sauber(firma) : ''}.pdf`
+/** Dateiname mit KW vorne — so stehen Rapport und Zeitnachweis einer Woche im Ordner nebeneinander */
+export function dateiName(einst, w, firma, art = 'Rapport') {
+  return `KW${String(w.kw).padStart(2, '0')}_${w.jahr}_${art}_${sauber(einst.name) || 'Mitarbeiter'}${firma ? '_' + sauber(firma) : ''}.pdf`
+}
+
+/**
+ * Zeitnachweis: jede Schicht mit Arbeitsblöcken (Beginn–Pause–…–Ende), Pausen, Netto-Stunden und Notiz/Projekt,
+ * dazu Abwesenheiten und Spesen — zur Kontrolle durch den Einsatzbetrieb.
+ */
+export function zeitnachweisPdf({ einst, woche, schichten, absenzen = [], spesen = [], einsatz = null }) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const tage = wochenTage(woche)
+  const L = 14, R = 196
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Zeitnachweis', L, 20)
+  doc.setFontSize(12); doc.text(`KW ${woche.kw} / ${woche.jahr}`, R, 20, { align: 'right' })
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(90)
+  doc.text(`${datumLang(tage[0])} – ${datumLang(tage[6])}`, R, 26, { align: 'right' })
+  const kopf = [['Mitarbeiter', einst.name], ['Einsatzbetrieb', [einsatz?.firma || schichten[0]?.firma, [einsatz?.baustelle, einsatz?.einsatzort].filter(Boolean).join(', ')].filter(Boolean).join(' · ')], ['Temporärbüro', einst.buero]]
+  kopf.forEach(([k, v], i) => { doc.setTextColor(90); doc.setFont('helvetica', 'normal'); doc.text(k, L, 34 + i * 6); doc.setTextColor(0); doc.setFont('helvetica', 'bold'); doc.text(String(v || '—'), L + 30, 34 + i * 6) })
+  let y = 56
+  const sp = [{ t: 'Datum', x: L, w: 22 }, { t: 'Arbeitszeiten', x: L + 22, w: 74 }, { t: 'Pause', x: L + 96, w: 16 }, { t: 'Netto', x: L + 112, w: 16 }, { t: 'Projekt / Bemerkung', x: L + 128, w: R - L - 128 }]
+  doc.setFillColor(235, 238, 242); doc.rect(L, y - 5, R - L, 7.5, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); sp.forEach((c) => doc.text(c.t, c.x + 1.2, y))
+  y += 7
+  const zeile = (werte, grau, fett) => {
+    if (y > 270) { doc.addPage(); y = 20 }
+    doc.setFont('helvetica', fett ? 'bold' : 'normal'); doc.setFontSize(9.3); doc.setTextColor(grau ? 150 : 0)
+    let h = 1
+    werte.forEach((v, i) => { const t = doc.splitTextToSize(String(v ?? ''), sp[i].w - 2); h = Math.max(h, t.length); doc.text(t, sp[i].x + 1.2, y) })
+    doc.setDrawColor(225); doc.line(L, y + 2 + (h - 1) * 4, R, y + 2 + (h - 1) * 4)
+    y += 6.5 + (h - 1) * 4
+  }
+  let total = 0, abwTotal = 0
+  for (const tag of tage) {
+    const d = isoDatum(tag), dl = `${TAGE[tag.getDay()]} ${datumKurz(tag)}`
+    const s = schichten.filter((x) => x.datum === d && x.ende != null).sort((a, b) => a.start - b.start)
+    const abw = absenzen.filter((x) => x.datum === d)
+    if (!s.length && !abw.length) { zeile([dl, '–', '', '', ''], true); continue }
+    for (const x of abw) { abwTotal += zahl(x.stunden); zeile([dl, absenzArt(x.art).label + (x.halbtag ? ' (½ Tag)' : ''), '', zahl(x.stunden) ? zahl(x.stunden).toFixed(2) : '–', x.notiz || '']) }
+    for (const x of s) {
+      const a = arbeitMs(x) / 36e5; total += a
+      const b = bloecke(x).map(([v, bis]) => `${uhr(v)}–${uhr(bis)}`).join(' · ')
+      const pm = Math.round(pauseMs(x) / 6e4)
+      zeile([dl, b, pm ? `${pm} Min.` : '–', a.toFixed(2), [x.firma && x.firma !== (einsatz?.firma || '') ? x.firma : '', (x.notiz || '').replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '')].filter(Boolean).join(' · ')])
+    }
+  }
+  y += 2
+  doc.setFillColor(235, 238, 242); doc.rect(L, y - 5, R - L, 8, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+  doc.text('Total gearbeitet', L + 1.2, y); doc.text(`${total.toFixed(2)} h`, sp[3].x + 1.2, y)
+  if (abwTotal) { y += 7; doc.setFont('helvetica', 'normal'); doc.text(`Abwesenheiten angerechnet: ${abwTotal.toFixed(2)} h`, L + 1.2, y) }
+  const sp2 = spesen.filter((x) => zahl(x.betrag))
+  if (sp2.length) { y += 7; doc.setFont('helvetica', 'normal'); doc.text(`Spesen: ${sp2.map((x) => `${datumKurz(new Date(x.datum + 'T12:00'))} ${spesenArt(x.art).label} ${zahl(x.betrag).toFixed(2)}`).join(', ')}`, L + 1.2, y, { maxWidth: R - L - 2 }) }
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120)
+  doc.text(`Zeiten wie in der Rapport-App erfasst (Stempeln mit Uhrzeit). Erstellt am ${datumLang(new Date())} ${uhr(Date.now())}.`, L, 285)
+  return doc.output('blob')
 }
 
 /**

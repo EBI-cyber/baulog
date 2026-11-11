@@ -3,8 +3,8 @@ import { useParams } from 'react-router-dom'
 import { FileText, Loader2, CheckCircle2, AlertTriangle, Timer, PenLine, MessageSquareWarning, Download, Mail, Phone } from 'lucide-react'
 import Unterschrift from '../components/Unterschrift'
 import { signaturLesen, signaturAntworten } from '../lib/signatur'
-import { rapportPdf } from '../lib/pdf'
-import { wochenTage, isoDatum, TAGE, datumKurz, datumLang, uhr, pauseMs, arbeitMs, hm } from '../lib/zeit'
+import { rapportPdf, zeitnachweisPdf } from '../lib/pdf'
+import { wochenTage, isoDatum, TAGE, datumKurz, datumLang, uhr, pauseMs, arbeitMs, hm, bloecke } from '../lib/zeit'
 import { absenzArt } from '../lib/arten'
 import { wochenRechnung, std } from '../lib/woche'
 import { zahl } from '../lib/settings'
@@ -41,6 +41,10 @@ function Inhalt({ token }) {
   const gewaehlt = bekannte.find((x) => x.id === wer)
   const nameOk = gewaehlt || (wer === 'neu' && name.trim() && funktion)
 
+  const znUrl = useMemo(() => {
+    if (!d) return null
+    try { return URL.createObjectURL(zeitnachweisPdf({ einst: d.einst, woche: d.woche, schichten: d.schichten, absenzen: d.absenzen, spesen: d.spesen, einsatz: d.einsatz })) } catch { return null }
+  }, [d])
   const pdfUrl = useMemo(() => {
     if (!d) return null
     return URL.createObjectURL(rapportPdf({ einst: d.einst, woche: d.woche, schichten: d.schichten, absenzen: d.absenzen, spesen: d.spesen, einsatz: d.einsatz }))
@@ -105,7 +109,7 @@ function Inhalt({ token }) {
 
       <section className="glass rounded-3xl p-4">
         <table className="w-full text-sm tabular-nums">
-          <thead><tr className="text-white/40 text-xs text-left"><th className="pb-2">Tag</th><th>Beginn</th><th>Ende</th><th>Pause</th><th className="text-right">Std.</th></tr></thead>
+          <thead><tr className="text-white/40 text-xs text-left"><th className="pb-2">Tag</th><th colSpan={2}>Arbeitszeiten</th><th>Pause</th><th className="text-right">Std.</th></tr></thead>
           <tbody>
             {tage.map((t) => {
               const iso = isoDatum(t)
@@ -114,13 +118,19 @@ function Inhalt({ token }) {
               if (!s.length && !a.length) return <tr key={iso} className="text-white/25 border-t border-white/5"><td className="py-1.5">{TAGE[t.getDay()]} {datumKurz(t)}</td><td colSpan={4}>–</td></tr>
               return [
                 ...a.map((x, i) => <tr key={iso + 'a' + i} className="border-t border-white/5"><td className="py-1.5">{TAGE[t.getDay()]} {datumKurz(t)}</td><td colSpan={3} className="text-white/70">{absenzArt(x.art).label}{x.halbtag ? ' (½)' : ''}</td><td className="text-right">{std(zahl(x.stunden))}</td></tr>),
-                ...s.map((x, i) => <tr key={iso + 's' + i} className="border-t border-white/5"><td className="py-1.5">{TAGE[t.getDay()]} {datumKurz(t)}</td><td>{uhr(x.start)}</td><td>{uhr(x.ende)}</td><td>{hm(pauseMs(x))}</td><td className="text-right font-semibold">{hm(arbeitMs(x))}</td></tr>),
+                ...s.map((x, i) => <tr key={iso + 's' + i} className="border-t border-white/5 align-top"><td className="py-1.5">{TAGE[t.getDay()]} {datumKurz(t)}</td>
+                  <td colSpan={2} className="py-1.5 text-xs leading-5">{bloecke(x).map(([a, b]) => `${uhr(a)}–${uhr(b)}`).join(' · ')}
+                    {(x.notiz || '').replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '') && <div className="text-white/45">{x.notiz.replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '')}</div>}</td>
+                  <td className="py-1.5">{hm(pauseMs(x))}</td><td className="py-1.5 text-right font-semibold">{hm(arbeitMs(x))}</td></tr>),
               ]
             })}
           </tbody>
           <tfoot><tr className="border-t border-white/15 font-bold"><td className="pt-2" colSpan={4}>Total</td><td className="pt-2 text-right">{std(total)} h</td></tr></tfoot>
         </table>
-        {pdfUrl && <a href={pdfUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm text-white/70 underline"><FileText className="w-4 h-4" /> Rapport als PDF ansehen</a>}
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+          {pdfUrl && <a href={pdfUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-white/70 underline"><FileText className="w-4 h-4" /> Rapport als PDF</a>}
+          {znUrl && <a href={znUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-white/70 underline"><FileText className="w-4 h-4" /> Zeitnachweis als PDF</a>}
+        </div>
       </section>
 
       {!nein ? (

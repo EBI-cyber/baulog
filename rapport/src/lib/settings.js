@@ -14,7 +14,7 @@ const STANDARD = {
   kmSatz: '0.70',
   kanton: '',        // Kanton für Feiertage, wenn kein Einsatz zugeordnet ist
   unterschrift: null, // meine Unterschrift { bild (PNG-DataURL), am }
-  onedriveOrdner: 'Rapporte/{jahr}/{buero}',
+  onedriveOrdner: 'Rapporte/{jahr}/{monat}',
   abschlussTag: 5,   // ab diesem Wochentag fragt „Feierabend" nach dem Wochenabschluss (5 = Freitag)
   kopieAnMich: true, // Rapport-Mail in Kopie an mich    // Entschädigung pro km (für Spesen „Fahrt")
 }
@@ -29,6 +29,7 @@ export const zahl = (v) => parseFloat(String(v ?? '').replace(',', '.')) || 0
 export function ladeEinstellungen() {
   try {
     const e = { ...STANDARD, ...JSON.parse(localStorage.getItem(KEY) || '{}') }
+    if (e.onedriveOrdner === 'Rapporte/{jahr}/{buero}') e.onedriveOrdner = STANDARD.onedriveOrdner // alter Standard → nach Monat sortiert
     return { ...e, profil: { ...PROFIL_STANDARD, ...(e.profil || {}) } }
   } catch { return { ...STANDARD, profil: { ...PROFIL_STANDARD } } }
 }
