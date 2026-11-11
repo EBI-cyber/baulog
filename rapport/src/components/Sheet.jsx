@@ -1,7 +1,9 @@
+import { createPortal } from 'react-dom'
 import IconChip from '../ui/IconChip'
 
 export default function Sheet({ titel, icon, onClose, children }) {
-  return (
+  // Portal: sonst wird das Fenster in Karten mit backdrop-filter (Glas) eingesperrt
+  return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-30" onClick={onClose}>
       <div className="glass bg-[#0b1f2a]/95 w-full max-w-md mx-auto rounded-t-4xl md:rounded-4xl p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] space-y-3 md:m-4 max-h-[90dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
@@ -10,6 +12,7 @@ export default function Sheet({ titel, icon, onClose, children }) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

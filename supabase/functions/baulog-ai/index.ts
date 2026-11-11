@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
           'ferien (Ferienentschädigung ausbezahlt), feiertag (Feiertagsentschädigung ausbezahlt), dreizehnter (13. Monatslohn/Gratifikation ausbezahlt), ferienbezug (Ferienlohn bei bezogenen Ferien/Auszahlung Ferienguthaben), ' +
           'feiertagbezug (bezahlte Feiertage aus Guthaben), absenz (Krankheit, Unfall, Militär, Arzt, Schlechtwetter u.ä.), spesen (nicht AHV-pflichtige Spesen/Pauschalen), mittag (Mittags-/Verpflegungszulage), sonstiges; ' +
           'brutto (AHV-pflichtiger Bruttolohn), abzuege: jede Abzugszeile als {text, art, prozent, basis, betrag} mit art aus ahv (AHV/IV/EO), alv, nbu, ktg, bvg (Pensionskasse/BVG), gav (Vollzugskosten/VZK/Weiterbildung), far, parifonds, quellensteuer, sonstiges; ' +
-          'netto (Nettolohn), auszahlung (ausbezahlter Betrag), stundenTotal (gesamte Stunden, falls angegeben), ' +
+          'netto (Nettolohn), vorschuesse (Summe der verrechneten Vorschüsse/Akontozahlungen/bereits ausbezahlten Beträge, positiv; sonst null), vorschussZeilen: [{text, datum (YYYY-MM-DD oder null), betrag (positiv)}], auszahlung (ausbezahlter Restbetrag nach Abzug der Vorschüsse), stundenTotal (gesamte Stunden, falls angegeben), ' +
           'guthaben: {ferien (Saldo Ferienguthaben in CHF), ferienStunden, feiertag (Saldo CHF), dreizehnter (Saldo angesparter 13. ML in CHF)} — nur wenn auf der Abrechnung ein Saldo/Guthaben steht. ' +
           'Antworte NUR als JSON mit genau diesen Feldern.' },
         { role: 'user', content: [
@@ -182,11 +182,27 @@ Deno.serve(async (req) => {
           ...bilder.map((url: string) => ({ type: 'image_url', image_url: { url, detail: 'high' } })),
         ] },
       ]
+    } else if (task === 'zahlungen') {
+      // Rapport-App: Bankauszug / Buchungsverlauf (kopierter Text oder Screenshots) → Buchungen
+      jsonMode = true
+      const bilder = (Array.isArray(body.bilder) ? body.bilder : []).filter(Boolean).slice(0, 6)
+      const text = String(body.text || '').slice(0, 20000)
+      if (!bilder.length && !text.trim()) return out({ error: 'Kein Text und kein Bild übergeben.' }, 400)
+      messages = [
+        { role: 'system', content: 'Du liest einen Buchungsverlauf/Kontoauszug einer Schweizer Bank-App (kopierter Text oder Screenshots, Sprache meist Deutsch). ' +
+          'Liste JEDE einzelne Buchung genau einmal auf: {datum (YYYY-MM-DD; „Heute“/„Gestern“ und Daten ohne Jahr relativ zu ' + String(body.heute || '') + '), betrag (Zahl in CHF: Gutschrift/Eingang positiv, Belastung/Ausgang negativ), text (Gegenpartei bzw. Auftraggeber und Mitteilung, z.B. „Bellini Personal AG Vorschuss KW45“)}. ' +
+          'Saldo-/Kontostand-Zeilen sind keine Buchungen. Zahlen Ziffer für Ziffer übernehmen, nichts erfinden. Antworte NUR als JSON {"buchungen": [...]}.' },
+        { role: 'user', content: bilder.length
+          ? [{ type: 'text', text: text ? 'Buchungen (Text):\n' + text + '\n\nund Screenshots:' : 'Screenshots des Buchungsverlaufs:' },
+            ...bilder.map((url: string) => ({ type: 'image_url', image_url: { url, detail: 'high' } }))]
+          : 'Buchungsverlauf:\n' + text },
+      ]
+      if (bilder.length) body.__bild = true
     } else {
       return out({ error: 'unbekannter task' }, 400)
     }
 
-    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen', 'einsatzvertrag', 'lohnabrechnung'].includes(task) ? 'gpt-4o' : 'gpt-4o-mini'
+    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen', 'einsatzvertrag', 'lohnabrechnung'].includes(task) || (task === 'zahlungen' && body.__bild) ? 'gpt-4o' : 'gpt-4o-mini'
     const temperature = task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2
     const ask = async (msgs, temp) => {
       const payload = { model, temperature: temp, messages: msgs }
@@ -259,7 +275,7 @@ Deno.serve(async (req) => {
         const neu = await ask([
           ...messages,
           { role: 'assistant', content },
-          { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen die Fotos. Kontrolliere: Summe der AHV-pflichtigen Positionen = brutto; brutto − Summe abzuege = netto; netto + spesen/mittag ± Sonstiges = auszahlung. Geht etwas nicht auf, hast du dich verlesen oder eine Zeile übersehen — lies erneut. Stimmt die Zuordnung jeder Zeile zu art? Nichts erfinden. Antworte NUR mit dem vollständigen korrigierten JSON.' },
+          { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen die Fotos. Kontrolliere: Summe der AHV-pflichtigen Positionen = brutto; brutto − Summe abzuege = netto; netto + spesen/mittag ± Sonstiges − vorschuesse = auszahlung. Geht etwas nicht auf, hast du dich verlesen oder eine Zeile übersehen — lies erneut. Stimmt die Zuordnung jeder Zeile zu art? Nichts erfinden. Antworte NUR mit dem vollständigen korrigierten JSON.' },
         ], 0)
         JSON.parse(neu); content = neu
       } catch { /* erste Antwort behalten */ }
