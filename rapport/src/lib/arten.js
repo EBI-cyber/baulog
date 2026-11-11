@@ -5,18 +5,18 @@ import { Palmtree, Thermometer, Ambulance, PartyPopper, Shield, Stethoscope, Cal
  * zeugnis = Arztzeugnis/Bestätigung ist üblich und wird abgefragt.
  */
 export const ABSENZEN = [
-  { id: 'ferien', label: 'Ferien', icon: Palmtree, farbe: 'sky', bezahlt: true },
-  { id: 'krank', label: 'Krank', icon: Thermometer, farbe: 'rose', bezahlt: true, zeugnis: true },
-  { id: 'unfall', label: 'Unfall', icon: Ambulance, farbe: 'rose', bezahlt: true, zeugnis: true },
-  { id: 'feiertag', label: 'Feiertag', icon: PartyPopper, farbe: 'violet', bezahlt: true },
-  { id: 'arzt', label: 'Arzt / Zahnarzt', icon: Stethoscope, farbe: 'rose', bezahlt: true, zeugnis: true },
-  { id: 'militaer', label: 'Militär / Zivildienst', icon: Shield, farbe: 'emerald', bezahlt: true, zeugnis: true },
-  { id: 'bezahlt', label: 'Bezahlte Absenz', hinweis: 'Umzug, Hochzeit, Todesfall, Behörde …', icon: CalendarCheck, farbe: 'emerald', bezahlt: true },
-  { id: 'eltern', label: 'Mutter- / Vaterschaft', icon: Baby, farbe: 'violet', bezahlt: true, zeugnis: true },
-  { id: 'kompensation', label: 'Überzeit kompensiert', icon: RotateCcw, farbe: 'amber', bezahlt: false },
-  { id: 'schlechtwetter', label: 'Schlechtwetter', icon: CloudRain, farbe: 'sky', bezahlt: false },
-  { id: 'unbezahlt', label: 'Unbezahlter Urlaub', icon: CalendarX, farbe: 'stone', bezahlt: false },
-  { id: 'kein_einsatz', label: 'Kein Einsatz', hinweis: 'Betrieb hat keine Arbeit', icon: Ban, farbe: 'stone', bezahlt: false },
+  { id: 'ferien', kurz: 'Ferien', label: 'Ferien', icon: Palmtree, farbe: 'sky', bezahlt: true },
+  { id: 'krank', kurz: 'Krank', label: 'Krank', icon: Thermometer, farbe: 'rose', bezahlt: true, zeugnis: true },
+  { id: 'unfall', kurz: 'Unfall', label: 'Unfall', icon: Ambulance, farbe: 'rose', bezahlt: true, zeugnis: true },
+  { id: 'feiertag', kurz: 'Feiertag', label: 'Feiertag', icon: PartyPopper, farbe: 'violet', bezahlt: true },
+  { id: 'arzt', kurz: 'Arzt', label: 'Arzt / Zahnarzt', icon: Stethoscope, farbe: 'rose', bezahlt: true, zeugnis: true },
+  { id: 'militaer', kurz: 'Militär/ZD', label: 'Militär / Zivildienst', icon: Shield, farbe: 'emerald', bezahlt: true, zeugnis: true },
+  { id: 'bezahlt', kurz: 'bez. Absenz', label: 'Bezahlte Absenz', hinweis: 'Umzug, Hochzeit, Todesfall, Behörde …', icon: CalendarCheck, farbe: 'emerald', bezahlt: true },
+  { id: 'eltern', kurz: 'Mutter/Vater', label: 'Mutter- / Vaterschaft', icon: Baby, farbe: 'violet', bezahlt: true, zeugnis: true },
+  { id: 'kompensation', kurz: 'Kompensation', label: 'Überzeit kompensiert', icon: RotateCcw, farbe: 'amber', bezahlt: false },
+  { id: 'schlechtwetter', kurz: 'Schlechtwetter', label: 'Schlechtwetter', icon: CloudRain, farbe: 'sky', bezahlt: false },
+  { id: 'unbezahlt', kurz: 'Unbez. Urlaub', label: 'Unbezahlter Urlaub', icon: CalendarX, farbe: 'stone', bezahlt: false },
+  { id: 'kein_einsatz', kurz: 'Kein Einsatz', label: 'Kein Einsatz', hinweis: 'Betrieb hat keine Arbeit', icon: Ban, farbe: 'stone', bezahlt: false },
 ]
 export const absenzArt = (id) => ABSENZEN.find((a) => a.id === id) || ABSENZEN[0]
 

@@ -282,29 +282,37 @@ function rapportFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [
     ['Normalstunden', (t) => zahlTxt(t.normal), () => zahlTxt(total.normal)],
     ['Stunden zu 125 %', (t) => zahlTxt(t.h125), () => zahlTxt(total.h125)],
     ['Stunden zu 150 %', (t) => zahlTxt(t.h150), () => zahlTxt(total.h150)],
+    ...(hat200 ? [['Stunden zu 200 %', (t) => zahlTxt(t.h200), () => zahlTxt(total.h200)]] : []),
     ['Spesen Essen', (t) => (t.spesen > 0 ? t.spesen.toFixed(2) : ''), () => (total.spesen > 0 ? total.spesen.toFixed(2) : '')],
-    hat200 ? ['Stunden zu 200 %', (t) => zahlTxt(t.h200), () => zahlTxt(total.h200)]
-      : ['Abwesenheit (Std.)', (t) => zahlTxt(t.absenzen.reduce((a, x) => a + x.std, 0)), () => zahlTxt(total.absenz)],
   ]
+  const raster = (h) => { doc.setDrawColor(200); doc.rect(x0, y, R - L, h); for (let i = 0; i <= 7; i++) doc.line(cx(i), y, cx(i), y + h) }
+  const titelTxt = (t, dy = 5.3) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(60); doc.text(t, x0 + 2, y + dy); doc.setTextColor(0) }
   for (const [titel, f, fT] of zeilen) {
-    doc.setDrawColor(200); doc.rect(x0, y, R - L, 8)
-    for (let i = 0; i <= 7; i++) doc.line(cx(i), y, cx(i), y + 8)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(60); doc.text(titel, x0 + 2, y + 5.3); doc.setTextColor(0)
+    raster(8); titelTxt(titel)
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5)
     tage.forEach((t, i) => { const v = f(t); if (v) doc.text(v, cx(i) + dw / 2, y + 5.5, { align: 'center' }) })
     const vt = fT(); if (vt) doc.text(vt, R - tw / 2, y + 5.5, { align: 'center' })
     y += 8
   }
-  // Einsatzort | Baustelle (+ Abwesenheiten als Text)
-  doc.setDrawColor(200); doc.rect(x0, y, R - L - tw, 11)
-  for (let i = 0; i <= 7; i++) doc.line(cx(i), y, cx(i), y + 11)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(60); doc.text(['Einsatzort |', 'Baustelle'], x0 + 2, y + 4.3); doc.setTextColor(0)
-  doc.setFontSize(7.5)
+  // Abwesenheit: Art (Ferien, krank, unbezahlt …) + angerechnete Stunden — immer sichtbar, auch bei 0 Std.
+  raster(11); titelTxt(['Abwesenheit', '(Art | Std.)'], 4.5)
   tage.forEach((t, i) => {
-    const txt = [t.ort, ...t.absenzen.map((a) => `${a.label} ${a.std ? a.std.toFixed(2) : ''}`.trim())].filter(Boolean).join(' · ')
-    if (txt) doc.text(doc.splitTextToSize(txt, dw - 2).slice(0, 2), cx(i) + 1, y + 4.2)
+    if (!t.absenzen.length) return
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5)
+    doc.text(t.absenzen.map((a) => a.kurz).join(' + '), cx(i) + dw / 2, y + 4, { align: 'center', maxWidth: dw - 1.5 })
+    const std = t.absenzen.reduce((a, x) => a + x.std, 0)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+    doc.text(std > 0.004 ? std.toFixed(2) : '–', cx(i) + dw / 2, y + 8.8, { align: 'center' })
   })
-  y += 18
+  if (total.absenz > 0.004) { doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.text(zahlTxt(total.absenz), R - tw / 2, y + 7, { align: 'center' }) }
+  y += 11
+  // Einsatzort | Baustelle
+  doc.setDrawColor(200); doc.rect(x0, y, R - L - tw, 10)
+  for (let i = 0; i <= 7; i++) doc.line(cx(i), y, cx(i), y + 10)
+  titelTxt(['Einsatzort |', 'Baustelle'], 4.3)
+  doc.setFontSize(7.5)
+  tage.forEach((t, i) => { if (t.ort) doc.text(doc.splitTextToSize(t.ort, dw - 2).slice(0, 2), cx(i) + 1, y + 4.2) })
+  y += 16
 
   // TMA: Zwischenverdienst, Ort/Datum, Unterschrift
   label('Zwischenverdienst', L + 2, y); box(L + 31, y, !!p.rav); label('ja', L + 36, y); box(L + 44, y, p.rav === false); label('nein', L + 49, y)
