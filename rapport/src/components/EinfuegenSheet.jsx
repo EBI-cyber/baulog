@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ClipboardPaste, CheckCircle2 } from 'lucide-react'
 import Sheet from './Sheet'
 import { db } from '../lib/db'
@@ -19,16 +19,26 @@ export default function EinfuegenSheet({ onClose }) {
   const [fehler, setFehler] = useState('')
   const funde = linksLesen(text)
 
+  const feld = useRef(null)
+  const insFeld = (msg) => { setFehler(msg); setTimeout(() => feld.current?.focus(), 50) }
+
   async function einfuegen() {
     setFehler('')
-    try { setText(await navigator.clipboard.readText()) }
-    catch { setFehler('Kein Zugriff auf die Zwischenablage — bitte unten ins Feld tippen und „Einsetzen“ wählen.') }
+    try {
+      // iOS hängt hier manchmal ohne Antwort → nach 4 s aufgeben
+      const t = await Promise.race([navigator.clipboard.readText(), new Promise((_, nein) => setTimeout(() => nein(new Error('zeit')), 4000))])
+      if (!t || !t.trim()) return insFeld('Die Zwischenablage war leer. Tippe lange ins Feld unten und wähle „Einsetzen“.')
+      setText(t)
+    } catch {
+      insFeld('Die Zwischenablage liess sich nicht lesen. Tippe lange ins Feld unten und wähle „Einsetzen“.')
+    }
   }
 
   // Vorschau: pro Woche Tage/Stunden und was schon erfasst ist
   useEffect(() => {
     let aus = false
     ;(async () => {
+      try {
       const liste = []
       for (const f of funde) {
         const vorhanden = await db.schichten.where('wocheKey').equals(wochenKey(f.woche)).toArray()
@@ -39,6 +49,7 @@ export default function EinfuegenSheet({ onClose }) {
         liste.push({ ...f, zeilen, neu: neu.length, schon: schon.length, std: neu.reduce((s, z) => s + z.min, 0) / 60 })
       }
       if (!aus) setVorschau(liste)
+      } catch (err) { if (!aus) setFehler('Fehler beim Lesen: ' + err.message) }
     })()
     return () => { aus = true }
   }, [text]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -78,8 +89,9 @@ export default function EinfuegenSheet({ onClose }) {
       <button onClick={einfuegen} className="w-full rounded-2xl py-3 font-semibold bg-white/10 inline-flex items-center justify-center gap-2">
         <ClipboardPaste className="w-4 h-4" /> Aus Zwischenablage einfügen
       </button>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="…oder hier einfügen" className="eingabe text-xs" />
-      {text && !funde.length && <div className="text-sm text-amber-300">Kein Nachtrag-Link erkannt.</div>}
+      <textarea ref={feld} value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="…oder hier einfügen" className="eingabe text-xs" />
+      {text.trim() && !funde.length && <div className="text-sm text-amber-300">
+        {text.trim().length} Zeichen eingefügt, aber kein Wochen-Link erkannt. Bitte den ganzen Block kopieren (beginnt mit https://…/woche/2026-W44?…).</div>}
       {vorschau.map((w) => (
         <div key={w.key} className="glass rounded-2xl px-4 py-3 text-sm">
           <div className="flex justify-between font-semibold"><span>KW {w.woche.kw} / {w.woche.jahr}</span><span className="tabular-nums">{w.std.toFixed(2)} h</span></div>
