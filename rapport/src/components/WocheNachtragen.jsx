@@ -6,6 +6,7 @@ import FirmaWahl from './FirmaWahl'
 import { db, speichern } from '../lib/db'
 import { useEinstellungen } from '../lib/settings'
 import { mindestPause } from '../lib/profil'
+import { LOHN_STANDARD } from '../lib/lohn'
 import { statusKey } from '../lib/rapporte'
 import { wochenTage, wochenKey, isoDatum, TAGE_LANG, datumKurz, uhr } from '../lib/zeit'
 
@@ -33,8 +34,14 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
   const wKey = wochenKey(woche)
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], null)
   const vorhanden = useLiveQuery(() => db.schichten.where('wocheKey').equals(wKey).toArray(), [wKey], null)
-  const firmaVorgabe = vorgabe.firma && (einst.firmen || []).find((f) => f.toLowerCase().includes(vorgabe.firma.toLowerCase()))
-  const [firma, setFirma] = useState(firmaVorgabe || einst.firma || einst.firmen?.[0] || vorgabe.firma || '')
+  // "Stüssi" / "Stüssi AG" / "Stüssi Betonvorfabrikation AG" = dieselbe Firma (erstes Wort)
+  const kern = (x) => String(x || '').toLowerCase().trim().split(/\s+/)[0]
+  const firmaVorgabe = vorgabe.firma && (einst.firmen || []).find((f) => kern(f) === kern(vorgabe.firma))
+  const [firma, setFirma] = useState(firmaVorgabe || vorgabe.firma || einst.firma || einst.firmen?.[0] || '')
+  const firmen = [...new Set([...(einst.firmen || []), ...(firma ? [firma] : [])])]
+  const einsatz = (einsaetze || []).find((e) => e.firma === firma)
+  const [buero, setBuero] = useState(null) // null = aus Einsatz/Link/Einstellungen
+  const bueroWert = buero ?? (einsatz?.buero || vorgabe.buero || einst.buero || '')
   const [beginn, setBeginn] = useState(vorgabe.beginn || '')
   const [stunden, setStunden] = useState(() => tage.map((_, i) => vorgabe.stunden?.[i] ?? ''))
   const [pausen, setPausen] = useState(() => tage.map(() => null)) // null = automatisch
@@ -72,8 +79,21 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
 
   async function uebernehmen() {
     if (!firma) return setFehler('Bitte den Einsatzbetrieb wählen.')
+    if (!bueroWert.trim()) return setFehler('Bitte das Temporärbüro eintragen.')
     if (!neu.length && !papier) return setFehler('Keine neuen Stunden eingetragen.')
     if (neu.some((z) => z.start > Date.now())) return setFehler('Ein Tag liegt in der Zukunft.')
+    // Firma + Temporärbüro dauerhaft speichern (Einsatz anlegen bzw. ergänzen)
+    const b = bueroWert.trim()
+    const ergaenzt = {
+      ...(einsatz || { firma, rapportVorlage: 'formular', fotos: [], unterschreiber: [], ...LOHN_STANDARD }),
+      buero: b,
+      firmaAdresse: einsatz?.firmaAdresse || vorgabe.adresse || '',
+      einsatzort: einsatz?.einsatzort || vorgabe.ort || '',
+      kanton: einsatz?.kanton || vorgabe.kanton || '',
+      ueberstundenModus: einsatz?.ueberstundenModus || vorgabe.ueberstunden || 'woche',
+    }
+    await db.einsaetze.put(ergaenzt)
+    setEinst({ firmen, firma: einst.firma && firmen.includes(einst.firma) ? einst.firma : firma, buero: einst.buero || b })
     for (const z of neu) {
       const notiz = [z.notiz, papier ? 'vom Papier-Rapport nachgetragen' : 'nachgetragen'].filter(Boolean).join(' · ')
       await speichern(z.genau
@@ -91,8 +111,12 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
   return (
     <Sheet titel={`KW ${woche.kw} nachtragen`} icon={CalendarPlus} onClose={() => onClose(0)}>
       <label className="block text-xs text-white/50">Einsatzbetrieb</label>
-      <FirmaWahl firmen={einst.firmen || []} wert={firma} onWahl={setFirma}
+      <FirmaWahl firmen={firmen} wert={firma} onWahl={(f) => { setFirma(f); setBuero(null) }}
         onNeu={(n) => setEinst({ firmen: [...(einst.firmen || []), n] })} />
+      <div>
+        <label className="block text-xs text-white/50 mb-1">Temporärbüro</label>
+        <input value={bueroWert} onChange={(e) => setBuero(e.target.value)} placeholder="z.B. Bellini Personal AG" className="eingabe" />
+      </div>
 
       <div className="flex items-center gap-3">
         <label className="text-sm text-white/60 flex-1">Arbeitsbeginn</label>

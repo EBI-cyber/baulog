@@ -41,7 +41,8 @@ export default function Woche() {
     stunden: (such.get('h') || '').split(/[;,]/).map((x) => x.trim()),
     zeiten: (such.get('z') || '').split(';').map((tag) => tag.split('_').map((b) => b.split('-').map((x) => x.trim())).filter((b) => b.length === 2 && b[0] && b[1])),
     notizen: (such.get('n') || '').split(';'),
-    firma: such.get('f') || '', beginn: such.get('b') || '', papier: such.get('papier') === '1',
+    firma: such.get('f') || '', buero: such.get('bu') || '', adresse: such.get('a') || '', ort: such.get('o') || '',
+    kanton: such.get('kt') || '', ueberstunden: such.get('ueb') || '', beginn: such.get('b') || '', papier: such.get('papier') === '1',
   } : null)
   const nachtragenZu = () => { setNachtragen(null); if ([...such.keys()].length) setSuch({}, { replace: true }) }
   const tage = wochenTage(woche)
