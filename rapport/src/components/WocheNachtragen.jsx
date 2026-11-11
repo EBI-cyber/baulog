@@ -1,26 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { CalendarPlus, Info } from 'lucide-react'
+import { CalendarPlus, Info, Copy } from 'lucide-react'
 import Sheet from './Sheet'
 import FirmaWahl from './FirmaWahl'
-import { db, speichern } from '../lib/db'
+import { db } from '../lib/db'
 import { useEinstellungen } from '../lib/settings'
-import { mindestPause } from '../lib/profil'
-import { LOHN_STANDARD } from '../lib/lohn'
-import { statusKey } from '../lib/rapporte'
-import { wochenTage, wochenKey, isoDatum, TAGE_LANG, datumKurz, uhr } from '../lib/zeit'
-
-/** "9,50" / "9.5" / "9:30" → Minuten (Rapportzettel rechnen dezimal: 10,75 = 10 h 45 min) */
-export function stundenMinuten(t) {
-  const s = String(t ?? '').trim().replace(',', '.')
-  if (!s) return 0
-  if (s.includes(':')) {
-    const [h, m] = s.split(':').map((x) => parseInt(x, 10) || 0)
-    return h * 60 + m
-  }
-  const v = parseFloat(s)
-  return isNaN(v) || v < 0 ? 0 : Math.round(v * 60)
-}
+import { wochenTage, wochenKey, TAGE_LANG, datumKurz, uhr } from '../lib/zeit'
+import { kern, zeilenBerechnen, einsatzSichern, zeilenSpeichern } from '../lib/nachtragen'
 
 /**
  * Ganze Woche auf einmal nachtragen, z.B. vom Papier-Rapport: Stunden pro Tag → Schichten
@@ -34,8 +20,6 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
   const wKey = wochenKey(woche)
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], null)
   const vorhanden = useLiveQuery(() => db.schichten.where('wocheKey').equals(wKey).toArray(), [wKey], null)
-  // "Stüssi" / "Stüssi AG" / "Stüssi Betonvorfabrikation AG" = dieselbe Firma (erstes Wort)
-  const kern = (x) => String(x || '').toLowerCase().trim().split(/\s+/)[0]
   const firmaVorgabe = vorgabe.firma && (einst.firmen || []).find((f) => kern(f) === kern(vorgabe.firma))
   const [firma, setFirma] = useState(firmaVorgabe || vorgabe.firma || einst.firma || einst.firmen?.[0] || '')
   const firmen = [...new Set([...(einst.firmen || []), ...(firma ? [firma] : [])])]
@@ -48,6 +32,9 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
   const [zeiten, setZeiten] = useState(() => tage.map((_, i) => vorgabe.zeiten?.[i]?.length ? vorgabe.zeiten[i] : null))
   const [papier, setPapier] = useState(!!vorgabe.papier)
   const [fehler, setFehler] = useState('')
+  // Per Link im Browser geöffnet (nicht die App vom Home-Bildschirm)? Dann landen die Daten nicht in der App.
+  const imBrowser = !!(vorgabe.stunden || vorgabe.zeiten) && !(window.navigator.standalone || window.matchMedia?.('(display-mode: standalone)').matches)
+  const [kopiert, setKopiert] = useState(false)
 
   // Beginn aus dem Einsatzvertrag, sonst 07:00
   useEffect(() => {
@@ -55,24 +42,8 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
     setBeginn(einsaetze.find((e) => e.firma === firma)?.arbeitsbeginn || '07:00')
   }, [einsaetze]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const zeilen = useMemo(() => tage.map((t, i) => {
-    const datum = isoDatum(t)
-    const schon = (vorhanden || []).filter((s) => s.datum === datum)
-    const notiz = vorgabe.notizen?.[i] || ''
-    if (zeiten[i]) {
-      // genaue Zeiten: Beginn = erstes Von, Ende = letztes Bis, Lücken = Pausen
-      const ts = zeiten[i].map(([a, b]) => [new Date(`${datum}T${a}`).getTime(), new Date(`${datum}T${b}`).getTime()])
-      const min = ts.reduce((s, [a, b]) => s + Math.max(0, b - a), 0) / 60000
-      const luecken = ts.slice(1).map(([a], k) => ({ start: ts[k][1], ende: a })).filter((x) => x.ende > x.start)
-      const pause = luecken.reduce((s, x) => s + (x.ende - x.start), 0) / 60000
-      return { t, i, datum, min, pause, start: ts[0][0], ende: ts[ts.length - 1][1], luecken, genau: true, notiz, schon }
-    }
-    const min = stundenMinuten(stunden[i])
-    const pause = pausen[i] ?? mindestPause(min)
-    const start = new Date(`${datum}T${beginn || '07:00'}`).getTime()
-    const ende = start + (min + pause) * 60000
-    return { t, i, datum, min, pause, start, ende, notiz, schon }
-  }), [tage, stunden, pausen, zeiten, beginn, vorhanden]) // eslint-disable-line react-hooks/exhaustive-deps
+  const zeilen = useMemo(() => zeilenBerechnen({ woche, stunden, zeiten: zeiten.map((z) => z || []), pausen, notizen: vorgabe.notizen, beginn, vorhanden: vorhanden || [] }),
+    [woche, stunden, pausen, zeiten, beginn, vorhanden]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const neu = zeilen.filter((z) => z.min > 0 && !z.schon.length)
   const total = zeilen.reduce((s, z) => s + z.min, 0) / 60
@@ -82,34 +53,22 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
     if (!bueroWert.trim()) return setFehler('Bitte das Temporärbüro eintragen.')
     if (!neu.length && !papier) return setFehler('Keine neuen Stunden eingetragen.')
     if (neu.some((z) => z.start > Date.now())) return setFehler('Ein Tag liegt in der Zukunft.')
-    // Firma + Temporärbüro dauerhaft speichern (Einsatz anlegen bzw. ergänzen)
     const b = bueroWert.trim()
-    const ergaenzt = {
-      ...(einsatz || { firma, rapportVorlage: 'formular', fotos: [], unterschreiber: [], ...LOHN_STANDARD }),
-      buero: b,
-      firmaAdresse: einsatz?.firmaAdresse || vorgabe.adresse || '',
-      einsatzort: einsatz?.einsatzort || vorgabe.ort || '',
-      kanton: einsatz?.kanton || vorgabe.kanton || '',
-      ueberstundenModus: einsatz?.ueberstundenModus || vorgabe.ueberstunden || 'woche',
-    }
-    await db.einsaetze.put(ergaenzt)
+    await einsatzSichern({ firma, buero: b, vorgabe })
     setEinst({ firmen, firma: einst.firma && firmen.includes(einst.firma) ? einst.firma : firma, buero: einst.buero || b })
-    for (const z of neu) {
-      const notiz = [z.notiz, papier ? 'vom Papier-Rapport nachgetragen' : 'nachgetragen'].filter(Boolean).join(' · ')
-      await speichern(z.genau
-        ? { start: z.start, ende: z.ende, pausen: z.luecken, firma, notiz }
-        : { start: z.start, ende: z.ende, pausen: [], pauseMin: z.pause, firma, notiz })
-    }
-    if (papier) {
-      const k = statusKey(wKey, firma)
-      const alt = (await db.wochen.get(k)) || { key: k }
-      await db.wochen.put({ ...alt, gesendetAm: alt.gesendetAm || Date.now(), gesendetAn: alt.gesendetAn || 'Büro (Papier-Rapport)' })
-    }
+    await zeilenSpeichern({ woche, zeilen, firma, papier })
     onClose(neu.length)
   }
 
   return (
     <Sheet titel={`KW ${woche.kw} nachtragen`} icon={CalendarPlus} onClose={() => onClose(0)}>
+      {imBrowser && (
+        <div className="text-sm rounded-2xl px-4 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-200 space-y-2">
+          <div>Dieser Link ist im <b>Browser</b> offen, nicht in deiner Rapport-App. Was du hier speicherst, erscheint nicht in der App. Besser: Link kopieren, App öffnen → Kalender → „Wochen einfügen“.</div>
+          <button onClick={async () => { try { await navigator.clipboard.writeText(location.href); setKopiert(true) } catch { /* */ } }}
+            className="rounded-xl px-3 py-1.5 bg-white/10 text-white font-semibold inline-flex items-center gap-1.5"><Copy className="w-4 h-4" /> {kopiert ? 'Kopiert' : 'Link kopieren'}</button>
+        </div>
+      )}
       <label className="block text-xs text-white/50">Einsatzbetrieb</label>
       <FirmaWahl firmen={firmen} wert={firma} onWahl={(f) => { setFirma(f); setBuero(null) }}
         onNeu={(n) => setEinst({ firmen: [...(einst.firmen || []), n] })} />

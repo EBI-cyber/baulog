@@ -20,6 +20,7 @@ import { wochenRechnung, std } from '../lib/woche'
 import SchichtZeile from '../components/SchichtZeile'
 import IconChip from '../ui/IconChip'
 import WocheNachtragen from '../components/WocheNachtragen'
+import { vorgabeAus } from '../lib/nachtragen'
 
 
 export default function Woche() {
@@ -37,13 +38,7 @@ export default function Woche() {
   // Woche nachtragen — auch per Link: #/woche/2026-W44?h=9.5,8.5,8,10.75,8&f=Stüssi&b=07:00&papier=1
   // genaue Zeiten: z=06:45-09:00_09:15-12:00;…  (Tage mit ; , Blöcke mit _), Notizen: n=…;…
   const [such, setSuch] = useSearchParams()
-  const [nachtragen, setNachtragen] = useState(() => such.has('h') || such.has('z') ? {
-    stunden: (such.get('h') || '').split(/[;,]/).map((x) => x.trim()),
-    zeiten: (such.get('z') || '').split(';').map((tag) => tag.split('_').map((b) => b.split('-').map((x) => x.trim())).filter((b) => b.length === 2 && b[0] && b[1])),
-    notizen: (such.get('n') || '').split(';'),
-    firma: such.get('f') || '', buero: such.get('bu') || '', adresse: such.get('a') || '', ort: such.get('o') || '',
-    kanton: such.get('kt') || '', ueberstunden: such.get('ueb') || '', beginn: such.get('b') || '', papier: such.get('papier') === '1',
-  } : null)
+  const [nachtragen, setNachtragen] = useState(() => vorgabeAus(such))
   const nachtragenZu = () => { setNachtragen(null); if ([...such.keys()].length) setSuch({}, { replace: true }) }
   const tage = wochenTage(woche)
   const aktuelleWoche = wKey === wochenKey(isoWoche())
