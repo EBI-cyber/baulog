@@ -18,6 +18,7 @@ import Unterschrift from '../components/Unterschrift'
 import { teileDatei } from '../lib/teilen'
 import { isoDatum } from '../lib/zeit'
 import IconChip from '../ui/IconChip'
+import OrtSuche from '../components/OrtSuche'
 
 function Karte({ icon, titel, children }) {
   return (
@@ -83,6 +84,10 @@ export default function Einstellungen() {
       <Karte icon={User} titel="Ich">
         <Feld label="Mein Name (steht im Rapport)" value={einst.name} autoComplete="name"
           onChange={(e) => setEinst({ name: e.target.value })} placeholder="Vorname Nachname" />
+        <Feld label="Meine Adresse (steht im Rapport)" value={einst.profil?.strasse || ''} autoComplete="street-address"
+          onChange={(e) => setEinst({ profil: { ...einst.profil, strasse: e.target.value } })} placeholder="Strasse und Nr." />
+        <OrtSuche wert={einst.profil?.ort ? `${einst.profil.plz || ''} ${einst.profil.ort}`.trim() : ''} placeholder="Wohnort oder PLZ"
+          onWahl={(t) => setEinst({ profil: { ...einst.profil, plz: t.plz, ort: t.ort, wohnkanton: t.kanton } })} />
       </Karte>
 
       <Karte icon={PenLine} titel="Meine Unterschrift">
