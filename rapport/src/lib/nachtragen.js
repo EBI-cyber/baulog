@@ -37,11 +37,24 @@ export function vorgabeAus(such) {
 /** Alle Nachtrag-Links aus einem Text (z.B. aus der Zwischenablage) → [{ woche, key, vorgabe }] */
 export function linksLesen(text) {
   const funde = []
+  // tolerant: Zeilenumbrüche/Leerzeichen mitten im Link (Umbruch beim Kopieren) entfernen, Links neu trennen
+  const chunks = []
+  for (const zeile of String(text || '').replace(/&amp;/g, '&').replace(/\s*\bKW\s*\d{1,2}\s*:\s*/gi, '\n').split(/\r?\n/)) {
+    const z = zeile.trim()
+    if (!z) continue
+    if (/woche\/\d{4}-W\d{2}/.test(z) || /^https?:/.test(z)) chunks.push(z)
+    else if (chunks.length && !/^(KW|Woche)\s*\d/i.test(z)) chunks[chunks.length - 1] += z // umgebrochener Link
+  }
+  // Leerzeichen im Link (dekodiert kopiert) wieder kodieren; mehrere Links in einer Zeile trennen
+  const roh = chunks.map((c) => c.replace(/(.)(https?:\/\/)/g, '$1\n$2').split('\n').map((x) => x.trim().replace(/ /g, '%20')).join('\n')).join('\n')
   const re = /woche\/(\d{4}-W\d{2})\?([^\s<>"']+)/g
+  const seen = new Set()
   let m
-  while ((m = re.exec(String(text || '')))) {
+  while ((m = re.exec(roh))) {
+    if (seen.has(m[1])) continue
+    seen.add(m[1])
     const woche = ausKey(m[1])
-    const vorgabe = woche && vorgabeAus(new URLSearchParams(m[2].replace(/&amp;/g, '&')))
+    const vorgabe = woche && vorgabeAus(new URLSearchParams(m[2]))
     if (vorgabe) funde.push({ woche, key: m[1], vorgabe })
   }
   return funde
