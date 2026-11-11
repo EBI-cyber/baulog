@@ -1,7 +1,7 @@
 // Persönliche Situation (Fragebogen in den Einstellungen) und was die App daraus ableitet.
 
 export const PROFIL_STANDARD = {
-  geburtsdatum: '', plz: '', ort: '', wohnkanton: '',
+  geburtsdatum: '', strasse: '', plz: '', ort: '', wohnkanton: '',
   status: '',            // CH | C | B | L | G | F | N
   ausweisBis: '',        // Ablaufdatum der Bewilligung
   zivilstand: '',        // ledig | verheiratet | partnerschaft | geschieden | verwitwet

@@ -25,6 +25,7 @@ function Inhalt({ token }) {
   const [email, setEmail] = useState(''), [tel, setTel] = useState('')
   const [wer, setWer] = useState(null) // id einer bekannten Person | 'neu'
   const [funktion, setFunktion] = useState('')
+  const [weiter, setWeiter] = useState(null), [beendetAm, setBeendetAm] = useState(''), [bewertung, setBewertung] = useState(null)
   const [durchschlag, setDurchschlag] = useState(null) // Blob-URL des PDFs mit beiden Unterschriften
 
   useEffect(() => {
@@ -51,12 +52,12 @@ function Inhalt({ token }) {
       const person = bekannte.find((x) => x.id === wer)
       const n = person ? person.name : name.trim(), fn = person ? person.funktion : funktion
       await signaturAntworten(token, einverstanden
-        ? { einverstanden: true, bild, name: n, funktion: fn, unterschreiberId: person?.id || null, email, tel }
+        ? { einverstanden: true, bild, name: n, funktion: fn, unterschreiberId: person?.id || null, email, tel, bewertung, einsatzWeiter: weiter, beendetAm: weiter === false ? beendetAm : null }
         : { einverstanden: false, name: n, funktion: fn, bemerkung })
       if (einverstanden) {
         // Durchschlag sofort: PDF mit beiden Unterschriften, hier auf dem Handy erzeugt
         const blob = rapportPdf({ einst: d.einst, woche: d.woche, schichten: d.schichten, absenzen: d.absenzen, spesen: d.spesen, einsatz: d.einsatz,
-          unterschriften: { maBild: d.ma?.bild, maAm: d.ma?.am, firmaBild: bild, firmaName: n, firmaFunktion: fn, firmaAm: Date.now(),
+          unterschriften: { maBild: d.ma?.bild, maAm: d.ma?.am, firmaBild: bild, firmaName: n, firmaFunktion: fn, firmaAm: Date.now(), bewertung, einsatzWeiter: weiter, beendetAm: weiter === false ? beendetAm : null,
             vertretungFuer: haupt && haupt.id !== person?.id ? haupt.name : null } })
         setDurchschlag(URL.createObjectURL(blob))
       }
@@ -152,6 +153,21 @@ function Inhalt({ token }) {
               Sie unterschreiben in Vertretung von <b>{haupt.name}</b> ({haupt.funktion}). {haupt.name} erhält eine Kopie.
             </div>
           )}
+          <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
+            <div className="text-sm font-semibold">Arbeitseinsatz</div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setWeiter(true)} className={'flex-1 rounded-xl py-2 text-sm border ' + (weiter === true ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/65')}>geht weiter</button>
+              <button type="button" onClick={() => setWeiter(false)} className={'flex-1 rounded-xl py-2 text-sm border ' + (weiter === false ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/65')}>ist beendet</button>
+            </div>
+            {weiter === false && <input type="date" className="eingabe" value={beendetAm} onChange={(e) => setBeendetAm(e.target.value)} />}
+            <div className="text-sm font-semibold pt-1">Leistungsbeurteilung <span className="font-normal text-white/40">(freiwillig)</span></div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button key={n} type="button" onClick={() => setBewertung(bewertung === n ? null : n)} className={'rounded-xl py-2 text-sm border ' + (bewertung === n ? 'btn-grad border-transparent font-bold' : 'border-white/15 text-white/65')}>{n}</button>
+              ))}
+            </div>
+            <div className="flex justify-between text-[11px] text-white/40"><span>ungenügend</span><span>sehr gut</span></div>
+          </div>
           <Unterschrift wert={bild} onChange={setBild} hoehe={170} />
           <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
             <div className="text-sm font-semibold">Durchschlag für Sie — wohin?</div>

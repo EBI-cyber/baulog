@@ -20,8 +20,11 @@ export function schnappschuss(g, woche, ma = null) {
   const s = (x) => ({ start: x.start, ende: x.ende, pausen: x.pausen, pauseMin: x.pauseMin, firma: x.firma, notiz: x.notiz, datum: x.datum, wocheKey: x.wocheKey })
   return {
     v: 1, woche, firma: g.firma,
-    einst: { name: g.einst.name, buero: g.einst.buero, waehrung: g.einst.waehrung, wochenSoll: g.einst.wochenSoll },
-    einsatz: g.einsatz ? { firma: g.einsatz.firma, einsatznummer: g.einsatz.einsatznummer, funktion: g.einsatz.funktion, einsatzort: g.einsatz.einsatzort } : null,
+    einst: { name: g.einst.name, buero: g.einst.buero, waehrung: g.einst.waehrung, wochenSoll: g.einst.wochenSoll,
+      profil: { strasse: g.einst.profil?.strasse, plz: g.einst.profil?.plz, ort: g.einst.profil?.ort, rav: g.einst.profil?.rav } },
+    // nur was der Rapport zeigt — kein Lohn
+    einsatz: g.einsatz ? Object.fromEntries(['firma', 'firmaAdresse', 'einsatznummer', 'funktion', 'einsatzort', 'kanton', 'rapportVorlage', 'ueberstundenModus', 'wochenstunden',
+      'nachtVon', 'nachtBis', 'nachtZuschlag', 'samstagZuschlag', 'sonntagZuschlag', 'feiertagArbeitZuschlag', 'ueberstundenZuschlag'].map((k) => [k, g.einsatz[k]])) : null,
     schichten: g.schichten.map(s),
     absenzen: g.absenzen.map((a) => ({ datum: a.datum, wocheKey: a.wocheKey, art: a.art, stunden: a.stunden, halbtag: a.halbtag, zeugnis: a.zeugnis, notiz: a.notiz })),
     spesen: g.spesen.map((x) => ({ datum: x.datum, art: x.art, betrag: x.betrag, km: x.km, notiz: x.notiz })),

@@ -137,7 +137,8 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     for (const s of [...w.s].sort((x, y) => x.start - y.start)) {
       const t = holeTopf(s.firma)
       const h = arbeitMs(s, jetzt) / 36e5
-      const soll = zahl(t.einsatz?.wochenstunden) || zahl(einst?.wochenSoll)
+      // „durchschnittliche“ Arbeitszeit (z.B. Bellini) → keine automatischen Überstunden pro Woche
+      const soll = t.einsatz?.ueberstundenModus === 'keine' ? 0 : zahl(t.einsatz?.wochenstunden) || zahl(einst?.wochenSoll)
       const ueberStd = soll ? Math.max(0, kumuliert + h - Math.max(soll, kumuliert)) : 0
       kumuliert += h
       if (!imZeitraum(s.datum)) continue
