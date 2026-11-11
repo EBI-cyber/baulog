@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, Send, CloudUpload, FileText, Plus, CheckCircle2, MessageCircle, AlertTriangle, CalendarOff, Wallet, PartyPopper, Banknote } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Send, CloudUpload, FileText, Plus, CheckCircle2, MessageCircle, AlertTriangle, CalendarOff, Wallet, PartyPopper, Banknote, CalendarPlus } from 'lucide-react'
 import { db, wocheMarkieren, speichereAbsenz } from '../lib/db'
 import { feiertagAm } from '../lib/feiertage'
 import { kantonFuer } from '../lib/kanton'
@@ -19,6 +19,7 @@ import { AbsenzZeile, SpesenZeile } from '../components/Zeilen'
 import { wochenRechnung, std } from '../lib/woche'
 import SchichtZeile from '../components/SchichtZeile'
 import IconChip from '../ui/IconChip'
+import WocheNachtragen from '../components/WocheNachtragen'
 
 
 export default function Woche() {
@@ -33,6 +34,13 @@ export default function Woche() {
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], [])
   const [sheet, setSheet] = useState(null)
   const [abschluss, setAbschluss] = useState(false)
+  // Woche nachtragen — auch per Link: #/woche/2026-W44?h=9.5,8.5,8,10.75,8&f=Stüssi&b=07:00&papier=1
+  const [such, setSuch] = useSearchParams()
+  const [nachtragen, setNachtragen] = useState(() => such.has('h') ? {
+    stunden: such.get('h').split(/[;,]/).map((x) => x.trim()),
+    firma: such.get('f') || '', beginn: such.get('b') || '', papier: such.get('papier') === '1',
+  } : null)
+  const nachtragenZu = () => { setNachtragen(null); if ([...such.keys()].length) setSuch({}, { replace: true }) }
   const tage = wochenTage(woche)
   const aktuelleWoche = wKey === wochenKey(isoWoche())
 
@@ -165,12 +173,17 @@ export default function Woche() {
         })}
       </section>
 
+      <button onClick={() => setNachtragen({})}
+        className="w-full rounded-2xl py-3 bg-white/[0.06] border border-dashed border-white/15 text-white/60 inline-flex items-center justify-center gap-2">
+        <CalendarPlus className="w-4 h-4" /> Ganze Woche nachtragen (z.B. vom Papier-Rapport)
+      </button>
       <button onClick={() => setSheet({ typ: 'absenz', datum: isoDatum(tage[0]) })}
         className="w-full rounded-2xl py-3 bg-white/[0.06] border border-dashed border-white/15 text-white/60 inline-flex items-center justify-center gap-2">
         <CalendarOff className="w-4 h-4" /> Ferien / Abwesenheit über mehrere Tage
       </button>
 
       <Erfassen wert={sheet} setWert={setSheet} />
+      {nachtragen && <WocheNachtragen woche={woche} vorgabe={nachtragen} onClose={nachtragenZu} />}
       {abschluss && <AbschlussSheet wKey={wKey} onClose={() => setAbschluss(false)} />}
     </div>
   )
