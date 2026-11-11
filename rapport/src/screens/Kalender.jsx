@@ -12,6 +12,7 @@ import { isoWoche, wochenKey, wochenTage, isoDatum, TAGE_LANG, datumLang, arbeit
 import Sheet from '../components/Sheet'
 import Erfassen from '../components/Erfassen'
 import EinfuegenSheet from '../components/EinfuegenSheet'
+import MonatStand from '../components/MonatStand'
 import SchichtZeile from '../components/SchichtZeile'
 import { AbsenzZeile, SpesenZeile } from '../components/Zeilen'
 
@@ -71,13 +72,6 @@ export default function Kalender() {
     return firmen.every((f) => status.some((x) => (x.key === `${key}|${f}` || x.key === key) && x.gesendetAm))
   }
 
-  // Monatssumme (nur Tage dieses Monats)
-  const imMonat = (d) => d.startsWith(monatKey(jahr, mon))
-  const summe = {
-    arbeit: schichten.filter((s) => imMonat(s.datum)).reduce((s, x) => s + arbeitMs(x, jetzt), 0) / 36e5,
-    abw: absenzen.filter((a) => imMonat(a.datum)).reduce((s, a) => s + zahl(a.stunden), 0),
-    tage: new Set(schichten.filter((s) => imMonat(s.datum)).map((s) => s.datum)).size,
-  }
 
   const versetzen = (delta) => {
     const d = new Date(jahr, mon + delta, 1)
@@ -147,9 +141,6 @@ export default function Kalender() {
         </div>
       </section>
 
-      <button onClick={() => setEinfuegen(true)} className="w-full rounded-2xl py-3 bg-white/[0.06] border border-dashed border-white/15 text-white/60 text-sm inline-flex items-center justify-center gap-2">
-        <ClipboardPaste className="w-4 h-4" /> Wochen einfügen (kopierte Links)
-      </button>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-white/45 px-1">
         <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded bg-white/[0.12]" /> gearbeitet (Std.)</span>
@@ -160,11 +151,12 @@ export default function Kalender() {
         <span className="inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-mint" /> Rapport gesendet</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass rounded-3xl p-3"><div className="text-white/40 text-xs">Gearbeitet</div><div className="text-lg font-bold tabular-nums">{std(summe.arbeit)} h</div></div>
-        <div className="glass rounded-3xl p-3"><div className="text-white/40 text-xs">Arbeitstage</div><div className="text-lg font-bold tabular-nums">{summe.tage}</div></div>
-        <div className="glass rounded-3xl p-3"><div className="text-white/40 text-xs">Abwesend</div><div className="text-lg font-bold tabular-nums">{std(summe.abw)} h</div></div>
-      </div>
+      <MonatStand jahr={jahr} mon={mon} wochen={wochen} schichten={schichten} absenzen={absenzen} spesen={spesen}
+        einsaetze={einsaetze} status={status} kanton={kanton} einst={einst} monatsName={MONATE[mon]} />
+
+      <button onClick={() => setEinfuegen(true)} className="w-full rounded-2xl py-3 bg-white/[0.06] border border-dashed border-white/15 text-white/60 text-sm inline-flex items-center justify-center gap-2">
+        <ClipboardPaste className="w-4 h-4" /> Wochen einfügen (kopierte Links)
+      </button>
 
       {tag && <TagSheet datum={tag} x={proTag(tag)} waehrung={einst.waehrung}
         onClose={() => setTag(null)}
