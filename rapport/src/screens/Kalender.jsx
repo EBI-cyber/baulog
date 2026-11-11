@@ -13,6 +13,7 @@ import Sheet from '../components/Sheet'
 import Erfassen from '../components/Erfassen'
 import EinfuegenSheet from '../components/EinfuegenSheet'
 import MonatStand from '../components/MonatStand'
+import JahrStand from '../components/JahrStand'
 import SchichtZeile from '../components/SchichtZeile'
 import { AbsenzZeile, SpesenZeile } from '../components/Zeilen'
 
@@ -153,6 +154,7 @@ export default function Kalender() {
 
       <MonatStand jahr={jahr} mon={mon} wochen={wochen} schichten={schichten} absenzen={absenzen} spesen={spesen}
         einsaetze={einsaetze} status={status} kanton={kanton} einst={einst} monatsName={MONATE[mon]} />
+      <JahrStand jahr={jahr} kanton={kanton} einst={einst} />
 
       <button onClick={() => setEinfuegen(true)} className="w-full rounded-2xl py-3 bg-white/[0.06] border border-dashed border-white/15 text-white/60 text-sm inline-flex items-center justify-center gap-2">
         <ClipboardPaste className="w-4 h-4" /> Wochen einfügen (kopierte Links)
