@@ -14,7 +14,7 @@ import { einsatzEnde } from '../lib/einsatzende'
 import OrtSuche from './OrtSuche'
 import VertragsCheck from './VertragsCheck'
 
-const NEU = { firma: '', firmaAdresse: '', rapportVorlage: 'formular', ueberstundenModus: 'woche', branche: '', wegKm: '', maxDauerTage: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
+const NEU = { firma: '', firmaAdresse: '', rapportVorlage: 'formular', ueberstundenModus: 'woche', branche: '', wegKm: '', maxDauerTage: '', einsatznummer: '', arbeitsbeginn: '', qualifikation: '', meldenBei: '', buero: '', bueroTel: '', bueroKontakt: '', bueroEmail: '', einsatzort: '', baustelle: '', kanton: '', funktion: '', beginn: '', ende: '', stundenlohnTotalVertrag: '',
   gavName: '', kuendigungsfrist: '', spesenInfo: '', bemerkungen: '', fotos: [], ...LOHN_STANDARD }
 
 const ZAHLEN = ['stundenlohn', 'wochenstunden', 'feiertagProzent', 'ferienProzent', 'dreizehnterProzent', 'ueberstundenZuschlag',
@@ -175,6 +175,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
           <label className="block text-xs text-white/50 mb-1">Einsatzort (setzt den Kanton für die Feiertage)</label>
           <OrtSuche wert={f.einsatzort} onWahl={(t) => setF((x) => ({ ...x, einsatzort: `${t.plz} ${t.ort}`, kanton: t.kanton }))} />
         </div>
+        <Feld breit label="Strasse / Baustelle (für den Rapport)" value={f.baustelle || ''} onChange={set('baustelle')} placeholder="z.B. Buchserstrasse" />
         <div>
           <label className="block text-xs text-white/50 mb-1">Kanton (Feiertage)</label>
           <select value={f.kanton} onChange={set('kanton')} className="eingabe">

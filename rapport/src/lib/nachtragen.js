@@ -29,7 +29,7 @@ export function vorgabeAus(such) {
     stunden: (such.get('h') || '').split(/[;,]/).map((x) => x.trim()),
     zeiten: (such.get('z') || '').split(';').map((tag) => tag.split('_').map((b) => b.split('-').map((x) => x.trim())).filter((b) => b.length === 2 && b[0] && b[1])),
     notizen: (such.get('n') || '').split(';'),
-    firma: such.get('f') || '', buero: such.get('bu') || '', adresse: such.get('a') || '', ort: such.get('o') || '',
+    firma: such.get('f') || '', buero: such.get('bu') || '', adresse: such.get('a') || '', ort: such.get('o') || '', baustelle: such.get('bs') || '',
     kanton: such.get('kt') || '', ueberstunden: such.get('ueb') || '', beginn: such.get('b') || '', papier: such.get('papier') === '1',
   }
 }
@@ -88,6 +88,7 @@ export async function einsatzSichern({ firma, buero, vorgabe = {} }) {
     buero,
     firmaAdresse: einsatz?.firmaAdresse || vorgabe.adresse || '',
     einsatzort: einsatz?.einsatzort || vorgabe.ort || '',
+    baustelle: einsatz?.baustelle || vorgabe.baustelle || '',
     kanton: einsatz?.kanton || vorgabe.kanton || '',
     ueberstundenModus: einsatz?.ueberstundenModus || vorgabe.ueberstunden || 'woche',
   })

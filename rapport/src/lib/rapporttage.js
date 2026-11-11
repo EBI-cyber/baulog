@@ -48,7 +48,8 @@ export function rapportTage({ woche, schichten, absenzen = [], spesen = [], eins
     // Notiz als Baustelle, ohne den automatischen Vermerk „(vom Papier-Rapport) nachgetragen“
     const notiz = (s.notiz || '').replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '').trim()
     // Einsatzbetrieb + Ort (+ Baustelle/Notiz), z.B. „Stüssi Betonvorfabrikation AG · Dällikon“
-    for (const teil of [s.firma || e?.firma, (e?.einsatzort || '').replace(/^\d{4}\s+/, ''), notiz]) if (teil?.trim()) t.orte.add(teil.trim())
+    const ort = [e?.baustelle, (e?.einsatzort || '').replace(/^\d{4}\s+/, '')].map((x) => (x || '').trim()).filter(Boolean).join(', ')
+    for (const teil of [s.firma || e?.firma, ort, notiz]) if (teil?.trim()) t.orte.add(teil.trim())
   }
   for (const x of spesen) {
     const t = nach[x.datum]
