@@ -5,7 +5,7 @@ import Sheet from './Sheet'
 import { db } from '../lib/db'
 import { useEinstellungen, zahl } from '../lib/settings'
 import { kiVerfuegbar } from '../lib/ki'
-import { verkleinern } from '../lib/bild'
+import { alsDataUrl } from '../lib/bild'
 import { chf } from '../lib/lohn'
 import { ARTEN, buchungenKI, buchungenLokal, einordnen, schluessel, zahlungenSpeichern, monatFuer, muster } from '../lib/zahlungen'
 import { isoDatum } from '../lib/zeit'
@@ -38,7 +38,7 @@ export default function ZahlungenSheet({ onClose }) {
   async function fotos(e) {
     const f = [...(e.target.files || [])]; e.target.value = ''
     const neu = []
-    for (const x of f) neu.push(await verkleinern(x, 1600, 0.8))
+    for (const x of f) neu.push(await alsDataUrl(x, 1600, 0.8))
     setBilder((b) => [...b, ...neu].slice(0, 6))
   }
 
@@ -95,12 +95,12 @@ export default function ZahlungenSheet({ onClose }) {
         <div className="flex flex-wrap gap-2 items-center">
           {bilder.map((b, i) => (
             <div key={i} className="relative">
-              <img src={b} alt="" className="w-14 h-20 object-cover rounded-lg border border-white/15" />
+              {b.startsWith('data:application/pdf') ? <div className="w-14 h-20 rounded-lg border border-white/15 bg-white/10 flex items-center justify-center text-xs font-bold">PDF</div> : <img src={b} alt="" className="w-14 h-20 object-cover rounded-lg border border-white/15" />}
               <button onClick={() => setBilder(bilder.filter((_, j) => j !== i))} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center" aria-label="Entfernen"><X className="w-3 h-3" /></button>
             </div>
           ))}
-          {kiVerfuegbar && <button onClick={() => datei.current?.click()} className="px-3 py-2 rounded-xl border border-dashed border-white/25 text-sm text-white/65 inline-flex items-center gap-1.5"><ImagePlus className="w-4 h-4" /> Screenshot</button>}
-          <input ref={datei} type="file" accept="image/*" multiple className="hidden" onChange={fotos} />
+          {kiVerfuegbar && <button onClick={() => datei.current?.click()} className="px-3 py-2 rounded-xl border border-dashed border-white/25 text-sm text-white/65 inline-flex items-center gap-1.5"><ImagePlus className="w-4 h-4" /> Screenshot / PDF</button>}
+          <input ref={datei} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={fotos} />
         </div>
         <button disabled={laeuft || (!text.trim() && !bilder.length)} onClick={lesen} className="w-full rounded-2xl py-3 font-bold btn-grad disabled:opacity-40 inline-flex items-center justify-center gap-2">
           {laeuft ? <><Loader2 className="w-4 h-4 animate-spin" /> Lese Buchungen …</> : 'Buchungen lesen'}

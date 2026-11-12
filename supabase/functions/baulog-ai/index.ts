@@ -7,6 +7,12 @@ const cors = {
 }
 const OPENAI = 'https://api.openai.com/v1/chat/completions'
 
+// Bild oder PDF als Inhaltsteil für die Chat-API (PDFs z.B. Lohnabrechnung aus der Mail)
+function teil(url: string, i = 0) {
+  if (String(url).startsWith('data:application/pdf')) return { type: 'file', file: { filename: `dokument-${i + 1}.pdf`, file_data: url } }
+  return { type: 'image_url', image_url: { url, detail: 'high' } }
+}
+
 function out(o, code = 200) {
   return new Response(JSON.stringify(o), { status: code, headers: { ...cors, 'Content-Type': 'application/json' } })
 }
@@ -176,10 +182,12 @@ Deno.serve(async (req) => {
           'brutto (AHV-pflichtiger Bruttolohn), abzuege: jede Abzugszeile als {text, art, prozent, basis, betrag} mit art aus ahv (AHV/IV/EO), alv, nbu, ktg, bvg (Pensionskasse/BVG), gav (Vollzugskosten/VZK/Weiterbildung), far, parifonds, quellensteuer, sonstiges; ' +
           'netto (Nettolohn), vorschuesse (Summe der verrechneten Vorschüsse/Akontozahlungen/bereits ausbezahlten Beträge, positiv; sonst null), vorschussZeilen: [{text, datum (YYYY-MM-DD oder null), betrag (positiv)}], auszahlung (ausbezahlter Restbetrag nach Abzug der Vorschüsse), stundenTotal (gesamte Stunden, falls angegeben), ' +
           'guthaben: {ferien (Saldo Ferienguthaben in CHF), ferienStunden, feiertag (Saldo CHF), dreizehnter (Saldo angesparter 13. ML in CHF)} — nur wenn auf der Abrechnung ein Saldo/Guthaben steht. ' +
+          'rueckstellungen: {ferien, feiertag, dreizehnter} — Beträge, die nach dem Nettolohn zurückbehalten werden (z.B. „Rückstellung Feriengeld Netto“), positiv; sonst null. ' +
+          'Bei Abzügen ist basis der Betrag, auf den der Prozentsatz angewendet wird (z.B. Pensionskasse auf dem koordinierten Lohn). ' +
           'Antworte NUR als JSON mit genau diesen Feldern.' },
         { role: 'user', content: [
           { type: 'text', text: bilder.length > 1 ? `Lohnabrechnung, ${bilder.length} Seiten:` : 'Lohnabrechnung:' },
-          ...bilder.map((url: string) => ({ type: 'image_url', image_url: { url, detail: 'high' } })),
+          ...bilder.map((url: string, i: number) => teil(url, i)),
         ] },
       ]
     } else if (task === 'zahlungen') {
@@ -194,7 +202,7 @@ Deno.serve(async (req) => {
           'Saldo-/Kontostand-Zeilen sind keine Buchungen. Zahlen Ziffer für Ziffer übernehmen, nichts erfinden. Antworte NUR als JSON {"buchungen": [...]}.' },
         { role: 'user', content: bilder.length
           ? [{ type: 'text', text: text ? 'Buchungen (Text):\n' + text + '\n\nund Screenshots:' : 'Screenshots des Buchungsverlaufs:' },
-            ...bilder.map((url: string) => ({ type: 'image_url', image_url: { url, detail: 'high' } }))]
+            ...bilder.map((url: string, i: number) => teil(url, i))]
           : 'Buchungsverlauf:\n' + text },
       ]
       if (bilder.length) body.__bild = true
@@ -275,7 +283,7 @@ Deno.serve(async (req) => {
         const neu = await ask([
           ...messages,
           { role: 'assistant', content },
-          { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen die Fotos. Kontrolliere: Summe der AHV-pflichtigen Positionen = brutto; brutto − Summe abzuege = netto; netto + spesen/mittag ± Sonstiges − vorschuesse = auszahlung. Geht etwas nicht auf, hast du dich verlesen oder eine Zeile übersehen — lies erneut. Stimmt die Zuordnung jeder Zeile zu art? Nichts erfinden. Antworte NUR mit dem vollständigen korrigierten JSON.' },
+          { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen die Fotos. Kontrolliere: Summe der AHV-pflichtigen Positionen = brutto; brutto − Summe abzuege = netto; netto + spesen/mittag − rueckstellungen ± Sonstiges − vorschuesse = auszahlung. Geht etwas nicht auf, hast du dich verlesen oder eine Zeile übersehen — lies erneut. Stimmt die Zuordnung jeder Zeile zu art? Nichts erfinden. Antworte NUR mit dem vollständigen korrigierten JSON.' },
         ], 0)
         JSON.parse(neu); content = neu
       } catch { /* erste Antwort behalten */ }

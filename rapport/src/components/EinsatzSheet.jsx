@@ -19,7 +19,7 @@ const NEU = { firma: '', firmaAdresse: '', rapportVorlage: 'formular', ueberstun
 
 const ZAHLEN = ['stundenlohn', 'wochenstunden', 'feiertagProzent', 'ferienProzent', 'dreizehnterProzent', 'ueberstundenZuschlag',
   'nachtVon', 'nachtBis', 'nachtZuschlag', 'samstagZuschlag', 'sonntagZuschlag', 'feiertagArbeitZuschlag', 'zulageStunde', 'mittagszulage',
-  'krankFaktor', 'schlechtwetterFaktor', 'ahv', 'alv', 'nbu', 'ktg', 'bvg', 'gav', 'far', 'parifonds', 'quellensteuer']
+  'krankFaktor', 'schlechtwetterFaktor', 'ahv', 'alv', 'nbu', 'ktg', 'bvg', 'bvgKoordStunde', 'gav', 'far', 'parifonds', 'quellensteuer']
 
 function Feld({ label, einheit, breit, ...rest }) {
   return (
@@ -243,11 +243,11 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         <Feld label="Total / Std. laut Vertrag" einheit={w} {...zahlFeld('stundenlohnTotalVertrag')} />
       </div>
       <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
-        <div className="text-xs text-white/55">Wie zahlt das Büro die Entschädigungen aus? (steht auf der Lohnabrechnung — „Guthaben“/„Saldo“ heisst angespart)</div>
+        <div className="text-xs text-white/55">Wie zahlt das Büro die Entschädigungen aus? Steht auf der Lohnabrechnung: „Rückstellung … Netto“ / „Guthaben“ → netto zurückbehalten (z.B. Bellini); nicht im Brutto, nur als Saldo → brutto angespart.</div>
         {[['ferien', 'Ferien'], ['feiertag', 'Feiertage'], ['dreizehnter', '13. Monatslohn']].map(([k, l]) => (
           <div key={k} className="flex items-center gap-2 text-sm">
             <span className="w-28 shrink-0 text-white/70">{l}</span>
-            {[['laufend', 'mit jedem Lohn'], ['konto', 'angespart']].map(([m, ml]) => (
+            {[['laufend', 'mit jedem Lohn'], ['netto', 'netto zurückbehalten'], ['konto', 'brutto angespart']].map(([m, ml]) => (
               <button key={m} type="button" onClick={() => setF((x) => ({ ...x, [`${k}Modus`]: m }))}
                 className={'flex-1 px-2 py-1.5 rounded-lg text-xs border ' + ((f[`${k}Modus`] || 'laufend') === m ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{ml}</button>
             ))}
@@ -306,7 +306,9 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
       <Titel>Abzüge (Arbeitnehmer)</Titel>
       <div className="grid grid-cols-2 gap-3">
         {ABZUEGE.filter(([k]) => f.branche === 'bau' || !['far', 'parifonds'].includes(k) || f[k]).map(([k, label]) => <Feld key={k} label={label} einheit="%" {...zahlFeld(k)} />)}
+        <Feld label="BVG-Koordinationsabzug" einheit={`${w}/h`} {...zahlFeld('bvgKoordStunde')} />
       </div>
+      <div className="text-xs text-white/35">BVG-Koordinationsabzug: steht die Pensionskasse auf einer kleineren Basis als dem Bruttolohn (z.B. Bellini: Basis 1'114.30 bei 1'655.76 brutto und 44.75 h), dann (Brutto − Basis) ÷ Stunden ≈ 12.10.</div>
       <div className="text-xs text-white/35">AHV/IV/EO 5,3 % und ALV 1,1 % sind gesetzlich. Die übrigen Sätze stehen im Vertrag oder auf der ersten Lohnabrechnung.</div>
 
       <Titel>Weitere Angaben</Titel>

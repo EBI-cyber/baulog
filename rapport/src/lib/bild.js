@@ -10,3 +10,11 @@ export async function verkleinern(datei, max = 1800, qualitaet = 0.82) {
     return c.toDataURL('image/jpeg', qualitaet)
   } finally { URL.revokeObjectURL(url) }
 }
+
+/** Datei als Data-URL: Bilder verkleinert, PDFs unverändert (z.B. Lohnabrechnung oder Kontoauszug als PDF) */
+export async function alsDataUrl(datei, max = 2000, qualitaet = 0.85) {
+  if (datei.type === 'application/pdf' || /\.pdf$/i.test(datei.name || '')) {
+    return await new Promise((ok, nein) => { const r = new FileReader(); r.onload = () => ok(String(r.result).replace(/^data:[^;]*;/, 'data:application/pdf;')); r.onerror = nein; r.readAsDataURL(datei) })
+  }
+  return verkleinern(datei, max, qualitaet)
+}

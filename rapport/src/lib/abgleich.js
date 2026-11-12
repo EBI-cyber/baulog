@@ -47,8 +47,9 @@ export async function appLohn(von, bis, einst) {
   // erfasste Vorschüsse für die Monate der Periode (aus dem Bankauszug oder von Hand)
   const monate = new Set([von.slice(0, 7), bis.slice(0, 7)])
   const zahlungen = (await db.zahlungen.toArray()).filter((z) => monate.has(z.fuerMonat))
-  const vorschuesse = zahlungen.filter((z) => z.art === 'vorschuss').reduce((a, z) => a + z.betrag, 0)
-  return { lohn, konten, tage, qstTarif, vorschuesse, vorschussAnzahl: zahlungen.filter((z) => z.art === 'vorschuss').length }
+  // „Bereits ausbezahlt“ = alle Zahlungen des Büros für die Periode (Vorschüsse und Lohnzahlungen)
+  const vorschuesse = zahlungen.reduce((a, z) => a + z.betrag, 0)
+  return { lohn, konten, tage, qstTarif, vorschuesse, vorschussAnzahl: zahlungen.length }
 }
 
 const sum = (l, f = (x) => x) => l.reduce((a, x) => a + (zahl(f(x)) || 0), 0)
@@ -103,20 +104,28 @@ export function vergleichen(ki, app, einst) {
     if (appZ > 0.005 || abZ > 0.005) geld(k, 'Zuschläge', l === 'Zulage pro Stunde' ? 'Zulagen' : `${l}-Zuschlag`, appZ, abZ)
   }
   // 4) Entschädigungen: laufend vs. angespart
+  const entsch = ['ferien', 'feiertag', 'dreizehnter']
+  const totalApp = sum(posten, (p) => sum(p.zeilen.filter((z) => entsch.includes(z.k)), (z) => z.betrag)), totalAb = sum(pos.filter((x) => entsch.includes(x.art)), (x) => x.betrag)
+  const totalStimmt = totalAb > 0 && Math.abs(totalApp - totalAb) <= 0.1
   for (const [k, l] of [['ferien', 'Ferienentschädigung'], ['feiertag', 'Feiertagsentschädigung'], ['dreizehnter', '13. Monatslohn']]) {
     const appL = sum(posten, (p) => sum(p.zeilen.filter((z) => z.k === k && !z.konto), (z) => z.betrag))
     const appKonto = sum(posten, (p) => sum(p.zeilen.filter((z) => z.k === k && z.konto), (z) => z.betrag))
     const abL = sum(art(k), (x) => x.betrag)
     const hatGuthaben = ki.guthaben && zahl(ki.guthaben[k]) > 0
     const e = P?.einsatz
-    if (appKonto > 0 && abL > 0.005 && e) {
+    const abRueck = zahl(ki.rueckstellungen?.[k])
+    if (abL > 0.005 && abRueck > 0.005 && e && modus(e, k) !== 'netto') {
+      add({ id: k + '-modus', gruppe: 'Entschädigungen', titel: l, app: appL + appKonto, ab: abL, einheit: w, status: 'hinweis',
+        text: `Das Büro rechnet die ${l} im Bruttolohn ab und behält netto ${chf(abRueck, w)} als Guthaben zurück.`,
+        fix: { einsatzId: e.id, feld: `${k}Modus`, wert: 'netto', label: 'Auf „netto zurückbehalten“ umstellen' } })
+    } else if (appKonto > 0 && abL > 0.005 && e) {
       add({ id: k + '-modus', gruppe: 'Entschädigungen', titel: l, app: appKonto, ab: abL, einheit: w, status: 'hinweis',
         text: `Das Büro zahlt die ${l} laufend aus — in deinem Einsatz steht „angespart“.`, fix: { einsatzId: e.id, feld: `${k}Modus`, wert: 'laufend', label: 'Auf „mit jedem Lohn“ umstellen' } })
     } else if (appL > 0.005 && abL < 0.005 && (hatGuthaben || !art(k).length) && e) {
       add({ id: k + '-modus', gruppe: 'Entschädigungen', titel: l, app: appL, ab: 0, einheit: w, status: hatGuthaben ? 'hinweis' : 'abweichung', zuUngunsten: !hatGuthaben,
         text: hatGuthaben ? `Nicht ausbezahlt, aber ein Guthaben ausgewiesen — das Büro spart die ${l} an.` : `${l} fehlt auf der Abrechnung (${chf(appL, w)}). Nachfragen, ob sie angespart wird.`,
         fix: hatGuthaben ? { einsatzId: e.id, feld: `${k}Modus`, wert: 'konto', label: 'Auf „angespart“ umstellen' } : null })
-    } else if (appL > 0.005 || abL > 0.005) geld(k, 'Entschädigungen', l, appL, abL)
+    } else if (appL > 0.005 || abL > 0.005) geld(k, 'Entschädigungen', l, appL, abL, totalStimmt ? { tol: 0.5 } : {})
   }
   // 5) Abwesenheiten (Krankheit, Ferienbezug …)
   const appAbs = sum(posten, (p) => sum(p.zeilen.filter((z) => z.art), (z) => z.betrag))
@@ -127,7 +136,7 @@ export function vergleichen(ki, app, einst) {
   // 7) Abzüge — Satz und Betrag
   const appAbz = {}
   for (const p of posten) for (const a of p.abzuege) { const x = (appAbz[a.k] ||= { label: a.label, prozent: a.prozent, betrag: 0 }); x.betrag += a.betrag }
-  const arten = new Set([...Object.keys(appAbz), ...abz.map((a) => a.art || 'sonstiges')])
+  const arten = new Set([...Object.keys(appAbz), ...abz.map((a) => a.art || 'sonstiges'), ...(quellensteuerPflichtig(einst?.profil) ? ['quellensteuer'] : [])])
   for (const k of arten) {
     const a = appAbz[k], b = abz.filter((x) => (x.art || 'sonstiges') === k)
     if (k === 'quellensteuer' && quellensteuerPflichtig(einst?.profil)) {
@@ -137,6 +146,12 @@ export function vergleichen(ki, app, einst) {
       const ist = basis ? Math.round((bBetrag / basis) * 10000) / 100 : 0
       if (soll == null) { add({ id: 'abzug-qst', gruppe: 'Abzüge', titel: 'Quellensteuer', app: 0, ab: bBetrag, einheit: w, status: 'hinweis', text: 'Offizielle Tabelle nicht verfügbar — nicht geprüft.' }); continue }
       const sollBetrag = basis * soll / 100, d = bBetrag - sollBetrag, ok = Math.abs(d) <= Math.max(0.1, sollBetrag * 0.01)
+      if (!b.length && sollBetrag > 0.5) {
+        add({ id: 'abzug-qst', gruppe: 'Abzüge', titel: `Quellensteuer (${tarif(einst.profil)}, ${einst.profil.wohnkanton})`, app: sollBetrag, ab: 0, einheit: w, status: 'hinweis',
+          text: `Keine Quellensteuer abgezogen — laut Fragebogen bist du quellensteuerpflichtig (≈ ${soll.toFixed(2)} %, ${chf(sollBetrag, w)}). Fehlt sie, kann das Steueramt sie später nachfordern. Beim Büro nachfragen, ob der Abzug noch kommt.`,
+          nachricht: `Quellensteuer: Auf der Abrechnung ist keine Quellensteuer abgezogen. Laut offizieller Tabelle (Kanton ${einst.profil.wohnkanton}, Tarif ${tarif(einst.profil)}) wären es ${soll.toFixed(2)} % (${chf(sollBetrag, w)}). Wird sie noch abgerechnet?` })
+        continue
+      }
       add({ id: 'abzug-qst', gruppe: 'Abzüge', titel: `Quellensteuer (${tarif(einst.profil)}, ${einst.profil.wohnkanton})`, app: sollBetrag, ab: bBetrag, einheit: w,
         status: ok ? 'ok' : d > 0 ? 'abweichung' : 'hinweis', zuUngunsten: !ok && d > 0,
         text: ok ? '' : `${ist.toFixed(2)} % abgezogen, laut offizieller Tabelle ${soll.toFixed(2)} % bei ${chf(basis, w)} Monatslohn${d > 0 ? ` — ${chf(d, w)} zu viel` : ''}. Hat das Büro einen anderen Tarif oder den Lohn hochgerechnet (Ein-/Austritt im Monat)? Nachfragen.`,
@@ -145,9 +160,20 @@ export function vergleichen(ki, app, einst) {
     }
     const bBetrag = sum(b, (x) => x.betrag), bProzent = b.find((x) => zahl(x.prozent))?.prozent
     const titel = a?.label || b[0]?.text || k
+    const E = P?.einsatz || posten[0]?.einsatz
+    const bekannt = ['ahv', 'alv', 'nbu', 'ktg', 'bvg', 'gav', 'far', 'parifonds'].includes(k)
+    const satzFix = E?.id && bekannt && bProzent != null ? { einsatzId: E.id, feld: k, wert: String(zahl(bProzent)), label: `${zahl(bProzent)} % im Einsatz übernehmen` } : null
+    // BVG auf kleinerer Basis (koordinierter Lohn) → Koordinationsabzug pro Stunde übernehmen
+    const bBasis = zahl(b.find((x) => zahl(x.basis))?.basis), kiStd = zahl(ki.stundenTotal) || sum(art('grundlohn'), (x) => x.menge)
+    if (k === 'bvg' && E?.id && bBasis && zahl(ki.brutto) - bBasis > 1 && kiStd && !zahl(E.bvgKoordStunde)) {
+      const koord = Math.round(((zahl(ki.brutto) - bBasis) / kiStd) * 100) / 100
+      add({ id: 'abzug-bvg-basis', gruppe: 'Abzüge', titel: 'Pensionskasse — Basis', app: app.lohn.brutto, ab: bBasis, einheit: w, status: 'hinweis',
+        text: `Die Pensionskasse wird auf dem koordinierten Lohn (${chf(bBasis, w)}) berechnet, nicht auf dem Bruttolohn — Abzug ≈ ${koord.toFixed(2)} pro Stunde.`,
+        fix: { einsatzId: E.id, feld: 'bvgKoordStunde', wert: String(koord), label: `Koordinationsabzug ${koord.toFixed(2)}/h übernehmen` } })
+    }
     if (!a && b.length) {
       add({ id: 'abzug-' + k, gruppe: 'Abzüge', titel, app: 0, ab: bBetrag, einheit: w, status: 'hinweis',
-        text: `Abzug, den deine Einstellungen nicht kennen${bProzent ? ` (${bProzent} %)` : ''} — nachfragen oder im Einsatz ergänzen.` })
+        text: `Abzug, den deine Einstellungen nicht kennen${bProzent ? ` (${bProzent} %)` : ''}${satzFix ? '' : ' — nachfragen oder im Einsatz ergänzen'}.`, fix: satzFix })
       continue
     }
     if (a && !b.length) {
@@ -156,7 +182,7 @@ export function vergleichen(ki, app, einst) {
     }
     if (bProzent != null && Math.abs(zahl(bProzent) - a.prozent) > 0.005) {
       add({ id: 'abzug-' + k + '-satz', gruppe: 'Abzüge', titel: `${titel} — Satz`, app: a.prozent, ab: zahl(bProzent), einheit: '%', status: zahl(bProzent) > a.prozent ? 'abweichung' : 'hinweis',
-        zuUngunsten: zahl(bProzent) > a.prozent, text: `${bProzent} % statt ${a.prozent} % laut Vertrag/Gesetz` })
+        zuUngunsten: zahl(bProzent) > a.prozent, text: `${bProzent} % statt ${a.prozent} % laut Vertrag/Gesetz`, fix: ['ahv', 'alv'].includes(k) ? null : satzFix })
     }
     geld('abzug-' + k, 'Abzüge', titel, a.betrag, bBetrag, { abzug: true })
   }
@@ -165,21 +191,32 @@ export function vergleichen(ki, app, einst) {
   const appSp = app.lohn.spesen + app.lohn.mittag, abSp = sum(pos.filter((x) => ['spesen', 'mittag'].includes(x.art)), (x) => x.betrag)
   if (appSp > 0.005 || abSp > 0.005) geld('spesen', 'Summen', 'Spesen und Zulagen', appSp, abSp)
   // Vorschüsse: was das Büro abzieht, muss dem entsprechen, was auf dem Konto eingegangen ist
+  const abRueck = zahl(ki.rueckstellungen?.ferien) + zahl(ki.rueckstellungen?.feiertag) + zahl(ki.rueckstellungen?.dreizehnter)
+  if (app.lohn.rueckstellung > 0.005 || abRueck > 0.005) geld('rueckstellung', 'Summen', 'Zurückbehalten (Guthaben netto)', app.lohn.rueckstellung, abRueck, { tol: Math.max(0.5, abRueck * 0.03), nurHinweis: true })
   const kiV = ki.vorschuesse != null ? zahl(ki.vorschuesse) : sum(Array.isArray(ki.vorschussZeilen) ? ki.vorschussZeilen : [], (x) => x.betrag)
   if (app.vorschuesse > 0.005 || kiV > 0.005) {
-    if (app.vorschussAnzahl) geld('vorschuesse', 'Summen', 'Verrechnete Vorschüsse', app.vorschuesse, kiV, { abzug: true })
-    else add({ id: 'vorschuesse', gruppe: 'Summen', titel: 'Verrechnete Vorschüsse', app: 0, ab: kiV, einheit: w, status: 'hinweis',
-      text: 'Keine Vorschüsse erfasst — Bankauszug unter Lohn → Zahlungen einfügen, dann prüft die App, ob die abgezogenen Vorschüsse wirklich eingegangen sind.' })
+    if (app.vorschussAnzahl) geld('vorschuesse', 'Summen', 'Bereits ausbezahlt (Vorschüsse/Lohn)', app.vorschuesse, kiV, { abzug: true, text: kiV > app.vorschuesse ? `Das Büro verrechnet ${chf(kiV - app.vorschuesse, w)} mehr, als laut deinen erfassten Zahlungen eingegangen ist — Bankauszug prüfen.` : undefined })
+    else add({ id: 'vorschuesse', gruppe: 'Summen', titel: 'Bereits ausbezahlt (Vorschüsse/Lohn)', app: 0, ab: kiV, einheit: w, status: 'hinweis',
+      text: 'Keine Zahlungen erfasst — Bankauszug unter Lohn → Zahlungen einfügen, dann prüft die App, ob die verrechneten Beträge wirklich eingegangen sind.' })
   }
   const vAbzug = app.vorschussAnzahl ? app.vorschuesse : kiV
-  if (ki.auszahlung != null) geld('auszahlung', 'Summen', 'Auszahlung', app.lohn.auszahlung - vAbzug, zahl(ki.auszahlung), { tol: 0.06 })
+  // die Netto-Rückstellung rechnet jedes Büro etwas anders (Abzüge darauf) → kleine Differenz dort ist keine Abweichung
+  if (ki.auszahlung != null) geld('auszahlung', 'Summen', 'Auszahlung', app.lohn.auszahlung - vAbzug, zahl(ki.auszahlung), { tol: Math.max(0.06, app.lohn.rueckstellung * 0.03) })
   // 9) Guthaben
   const kt = app.konten.find((k) => !P || k.firma === P.firma)
   for (const [k, l] of [['ferien', 'Ferienguthaben'], ['feiertag', 'Feiertagsguthaben'], ['dreizehnter', '13. ML angespart']]) {
     const ab = ki.guthaben?.[k]
     if (ab == null && !kt?.konten[k]) continue
-    if (ab != null && kt?.konten[k]) geld('guthaben-' + k, 'Guthaben', l, kt.konten[k].saldo, zahl(ab), { tol: 0.5 })
+    if (ab != null && kt?.konten[k]) geld('guthaben-' + k, 'Guthaben', l, kt.konten[k].saldo, zahl(ab), { tol: Math.max(0.5, Math.abs(zahl(ab)) * 0.03) })
     else if (ab != null) add({ id: 'guthaben-' + k, gruppe: 'Guthaben', titel: l, app: 0, ab: zahl(ab), einheit: w, status: 'hinweis', text: 'Das Büro führt ein Guthaben — im Einsatz auf „angespart“ umstellen, dann rechnet die App mit.' })
+  }
+  // Auszahlung höher nur, weil keine Quellensteuer abgezogen wurde → Folge, keine eigene Abweichung
+  const qstFehlt = pruef.find((c) => c.id === 'abzug-qst' && c.ab === 0 && c.app > 0)
+  for (const id of ['netto', 'auszahlung']) {
+    const c = pruef.find((x) => x.id === id)
+    if (qstFehlt && c && c.status === 'abweichung' && Math.abs(c.ab - c.app - qstFehlt.app) <= Math.max(0.5, app.lohn.rueckstellung * 0.03)) {
+      c.status = 'folge'; c.zuUngunsten = false; c.text = `Folge der fehlenden Quellensteuer (${chf(qstFehlt.app, w)}) — sonst stimmt ${id === 'netto' ? 'der Nettolohn' : 'die Auszahlung'}.`
+    }
   }
   // Folgen erkennen: Stimmt eine Zeile für die Stunden der Abrechnung bzw. für deren Bruttolohn,
   // ist sie nicht selbst falsch, sondern nur eine Folge (z.B. der fehlenden Stunden) → grau statt rot.

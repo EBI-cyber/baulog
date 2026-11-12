@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from './db'
-import { lohnBerechnen, KONTEN, modus } from './lohn'
+import { lohnBerechnen, KONTEN, modus, angespart } from './lohn'
 import { zahl, tagesSoll } from './settings'
 
 /**
@@ -13,11 +13,11 @@ export function kontenBerechnen({ schichten, absenzen, einsaetze, bewegungen, ei
   const ergebnis = []
   for (const p of l.posten) {
     const e = p.einsatz
-    if (!e || !KONTEN.some(([k]) => modus(e, k) === 'konto')) continue
+    if (!e || !KONTEN.some(([k]) => angespart(e, k))) continue
     const tag = (zahl(e.wochenstunden) / 5) || tagesSoll(einst)
     const konten = {}
     for (const [k, label] of KONTEN) {
-      if (modus(e, k) !== 'konto') continue
+      if (!angespart(e, k)) continue
       const bew = bewegungen.filter((b) => b.firma === e.firma && b.konto === k && (!bis || b.datum <= bis))
       const bewegung = bew.reduce((a, b) => a + zahl(b.betrag), 0)
       const saldo = p.konten[k].gutschrift - p.konten[k].bezug + bewegung
