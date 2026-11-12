@@ -17,7 +17,9 @@ export const LOHN_STANDARD = {
   ueberstundenZuschlag: '25', nachtVon: '23', nachtBis: '6', nachtZuschlag: '25',
   samstagZuschlag: '', sonntagZuschlag: '50', feiertagArbeitZuschlag: '50',
   zulageStunde: '', mittagszulage: '', krankFaktor: '80', schlechtwetterFaktor: '0',
-  ahv: '5.3', alv: '1.1', nbu: '', ktg: '', bvg: '', bvgKoordStunde: '', gav: '', far: '', parifonds: '', quellensteuer: '',
+  ahv: '5.3', alv: '1.1', nbu: '', ktg: '', bvg: '', bvgKoordStunde: '', gav: '',
+  // genaue Ansätze pro Stunde laut Lohnabrechnung (überschreiben die %-Rechnung) und Faktor der Netto-Rückstellung
+  ferienAnsatz: '', feiertagAnsatz: '', dreizehnterAnsatz: '', ferienRueckFaktor: '', feiertagRueckFaktor: '', dreizehnterRueckFaktor: '', far: '', parifonds: '', quellensteuer: '',
 }
 
 export const ABZUEGE = [
@@ -31,6 +33,8 @@ const wert = (e, k) => zahl(e?.[k] !== undefined && e?.[k] !== '' ? e[k] : LOHN_
 const prozent = (e, k) => wert(e, k) / 100
 
 const r2 = (n) => Math.round(n * 100) / 100
+/** auf den Rappen, kaufmännisch (0.005 → aufrunden; Gleitkomma-Fehler abfangen) */
+export const rp = (n) => Math.sign(n) * Math.round((Math.abs(n) + 1e-9) * 100) / 100
 
 /**
  * Stundensätze wie im Einsatzvertrag (Schema swissstaffing/GAV Personalverleih):
@@ -107,7 +111,7 @@ export function sonderStunden(s, jetzt = Date.now(), e = null) {
 
 const leerTopf = (einsatz) => ({
   einsatz, firma: einsatz?.firma || 'Ohne Einsatzvertrag', stundenlohn: zahl(einsatz?.stundenlohn),
-  grundStd: 0, ueberStd: 0, nachtStd: 0, samstagStd: 0, sonntagStd: 0, feiertagStd: 0, tage: new Set(), absenzen: {},
+  grundStd: 0, wochenStd: {}, ueberStd: 0, nachtStd: 0, samstagStd: 0, sonntagStd: 0, feiertagStd: 0, tage: new Set(), absenzen: {},
 })
 
 /**
@@ -147,7 +151,7 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
       kumuliert += h
       if (!imZeitraum(s.datum)) continue
       const x = sonderStunden(s, jetzt, t.einsatz)
-      t.grundStd += h; t.ueberStd += ueberStd
+      t.grundStd += h; t.ueberStd += ueberStd; t.wochenStd[s.wocheKey] = (t.wochenStd[s.wocheKey] || 0) + h
       t.nachtStd += x.nacht; t.samstagStd += x.samstag; t.sonntagStd += x.sonntag; t.feiertagStd += x.feiertag
       if (h > 0) t.tage.add(s.datum)
     }
@@ -156,9 +160,10 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
   const posten = Object.values(topf).map((t) => {
     const e = t.einsatz, g = t.stundenlohn
     const zeilen = []
-    const z = (label, betrag, info) => { if (Math.abs(betrag) >= 0.005 || info?.immer) zeilen.push({ label, betrag, info: info?.text }) }
+    const z = (label, betrag, info) => { betrag = rp(betrag); if (Math.abs(betrag) >= 0.005 || info?.immer) zeilen.push({ label, betrag, info: info?.text }) }
     const std = (h) => `${h.toFixed(2)} h`
-    const grund = t.grundStd * g
+    // Grundlohn je Kalenderwoche auf den Rappen (wie auf der Abrechnung „Stundenlohn, KW 44“)
+    const grund = Object.values(t.wochenStd).reduce((a, h) => a + rp(h * g), 0)
     z('Grundlohn', grund, { text: `${std(t.grundStd)} × ${g.toFixed(2)}`, immer: true })
     z(`Überstundenzuschlag ${wert(e, 'ueberstundenZuschlag')} %`, t.ueberStd * g * prozent(e, 'ueberstundenZuschlag'), { text: std(t.ueberStd) })
     z(`Nachtzuschlag ${wert(e, 'nachtZuschlag')} % (${wert(e, 'nachtVon')}–${wert(e, 'nachtBis')} Uhr)`, t.nachtStd * g * prozent(e, 'nachtZuschlag'), { text: std(t.nachtStd) })
@@ -171,56 +176,61 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     for (const [art, a] of Object.entries(t.absenzen)) {
       const ausKonto = (art === 'ferien' || art === 'feiertag') && modus(e, art) === 'konto'
       if (ausKonto) konten[art].bezug += a.betrag
-      zeilen.push({ art, label: art, betrag: a.betrag, ausKonto, info: `${std(a.std)} × ${Math.round(a.faktor * 100)} %${ausKonto ? ' · aus dem Konto' : ''}` })
+      zeilen.push({ art, label: art, betrag: rp(a.betrag), ausKonto, info: `${std(a.std)} × ${Math.round(a.faktor * 100)} %${ausKonto ? ' · aus dem Konto' : ''}` })
     }
     // Entschädigungen wie im Vertrag: pro gearbeitete Stunde; laufend → im Bruttolohn, Konto → angespart
     const sz = stundenSaetze(e), h = t.grundStd.toFixed(2)
-    // Rest so, dass Grundlohn + Entschädigungen = Stunden × Total-Stundenlohn (wie abgerechnet wird)
-    const dz = t.grundStd * sz.total - grund - t.grundStd * sz.ferien - t.grundStd * sz.feiertag
+    // genaue Ansätze laut Abrechnung (falls übernommen), sonst aus den Prozenten des Vertrags
+    const ans = (k, std) => (wert(e, k + 'Ansatz') > 0 ? wert(e, k + 'Ansatz') : std)
+    const aF = ans('ferien', sz.ferien), aH = ans('feiertag', sz.feiertag)
+    const bF = rp(t.grundStd * aF), bH = rp(t.grundStd * aH)
+    // 13. ML: genauer Ansatz, sonst Rest bis Stunden × Total-Stundenlohn (wie im Vertrag)
+    const aD = wert(e, 'dreizehnterAnsatz') > 0 ? wert(e, 'dreizehnterAnsatz') : null
+    const bD = aD ? rp(t.grundStd * aD) : rp(t.grundStd * sz.total - t.grundStd * g - t.grundStd * sz.ferien - t.grundStd * sz.feiertag)
     for (const [k, label, betrag, satz] of [
-      ['ferien', `Ferienentschädigung ${wert(e, 'ferienProzent')} %`, t.grundStd * sz.ferien, sz.ferien],
-      ['feiertag', `Feiertagsentschädigung ${wert(e, 'feiertagProzent')} %`, t.grundStd * sz.feiertag, sz.feiertag],
-      ['dreizehnter', `13. Monatslohn ${wert(e, 'dreizehnterProzent')} %`, dz, sz.dreizehnter],
+      ['ferien', `Ferienentschädigung ${wert(e, 'ferienProzent')} %`, bF, aF],
+      ['feiertag', `Feiertagsentschädigung ${wert(e, 'feiertagProzent')} %`, bH, aH],
+      ['dreizehnter', `13. Monatslohn ${wert(e, 'dreizehnterProzent')} %`, bD, aD || sz.dreizehnter],
     ]) {
       if (Math.abs(betrag) < 0.005) continue
       const konto = modus(e, k) === 'konto'
       if (konto) konten[k].gutschrift += betrag
       zeilen.push({ k, label, betrag, konto, info: `${h} h × ${satz.toFixed(2)}${konto ? ' · angespart, nicht ausbezahlt' : ''}` })
     }
-    const brutto = zeilen.reduce((a, x) => a + (x.konto ? 0 : x.betrag), 0)
+    const brutto = rp(zeilen.reduce((a, x) => a + (x.konto ? 0 : x.betrag), 0))
     // BVG auf den koordinierten Lohn: Brutto − Koordinationsabzug pro Stunde (steht auf der Abrechnung als Basis)
-    const bvgBasis = wert(e, 'bvgKoordStunde') > 0 ? Math.max(0, brutto - t.grundStd * wert(e, 'bvgKoordStunde')) : brutto
+    const bvgBasis = wert(e, 'bvgKoordStunde') > 0 ? rp(Math.max(0, brutto - t.grundStd * wert(e, 'bvgKoordStunde'))) : brutto
     // Quellensteuer hängt von der Person ab (Fragebogen), nicht vom Einsatz
     const p = einst?.profil
     const qst = quellensteuerPflichtig(p) ? (zahl(p.qstSatz) || zahl(einst?.qstAuto?.satz)) : p?.status ? 0 : wert(e, 'quellensteuer')
     const abzuege = ABZUEGE.map(([k, label]) => {
       const pr = k === 'quellensteuer' ? qst : wert(e, k)
       const basis = k === 'bvg' ? bvgBasis : brutto
-      return { k, label: k === 'quellensteuer' && quellensteuerPflichtig(p) ? `${label} (${tarif(p)}, ${p.wohnkanton || '?'}${!zahl(p.qstSatz) && einst?.qstAuto ? `, Tabelle ${einst.qstAuto.jahr}` : ''})` : label, prozent: pr, basis, betrag: basis * pr / 100 }
+      return { k, label: k === 'quellensteuer' && quellensteuerPflichtig(p) ? `${label} (${tarif(p)}, ${p.wohnkanton || '?'}${!zahl(p.qstSatz) && einst?.qstAuto ? `, Tabelle ${einst.qstAuto.jahr}` : ''})` : label, prozent: pr, basis, betrag: rp(basis * pr / 100) }
     }).filter((a) => a.prozent > 0)
-    const abzugTotal = abzuege.reduce((a, x) => a + x.betrag, 0)
+    const abzugTotal = rp(abzuege.reduce((a, x) => a + x.betrag, 0))
     // Netto-Rückstellung: Entschädigung abzüglich der prozentualen Sozialabzüge (ohne BVG/Quellensteuer) wird angespart
     const satzOhne = abzuege.filter((a) => !['bvg', 'quellensteuer'].includes(a.k)).reduce((s, a) => s + a.prozent, 0) / 100
     let rueckstellung = 0
     for (const x of zeilen) {
       if (!x.k || modus(e, x.k) !== 'netto') continue
-      const n = x.betrag * (1 - satzOhne)
+      const n = rp(x.betrag * (wert(e, x.k + 'RueckFaktor') > 0 ? wert(e, x.k + 'RueckFaktor') : 1 - satzOhne))
       konten[x.k].gutschrift += n; rueckstellung += n
       x.info += ` · netto ${n.toFixed(2)} zurückbehalten`
     }
     // nicht AHV-pflichtig, kommt zur Auszahlung
-    const mittag = t.tage.size * wert(e, 'mittagszulage')
-    return { ...t, tage: t.tage.size, zeilen, brutto, abzuege, abzugTotal, netto: brutto - abzugTotal, mittag, konten, rueckstellung }
+    const mittag = rp(t.tage.size * wert(e, 'mittagszulage'))
+    return { ...t, tage: t.tage.size, zeilen, brutto, abzuege, abzugTotal, netto: rp(brutto - abzugTotal), mittag, konten, rueckstellung: rp(rueckstellung) }
   }).filter((p) => p.grundStd > 0 || p.zeilen.length > 1)
 
-  const spesenSumme = spesen.filter((x) => imZeitraum(x.datum)).reduce((a, x) => a + zahl(x.betrag), 0)
-  const mittag = posten.reduce((a, p) => a + p.mittag, 0)
-  const brutto = posten.reduce((a, p) => a + p.brutto, 0)
-  const abzuege = posten.reduce((a, p) => a + p.abzugTotal, 0)
-  const rueckstellung = posten.reduce((a, p) => a + p.rueckstellung, 0)
+  const spesenSumme = rp(spesen.filter((x) => imZeitraum(x.datum)).reduce((a, x) => a + zahl(x.betrag), 0))
+  const mittag = rp(posten.reduce((a, p) => a + p.mittag, 0))
+  const brutto = rp(posten.reduce((a, p) => a + p.brutto, 0))
+  const abzuege = rp(posten.reduce((a, p) => a + p.abzugTotal, 0))
+  const rueckstellung = rp(posten.reduce((a, p) => a + p.rueckstellung, 0))
   return {
-    posten, brutto, abzuege, netto: brutto - abzuege, spesen: spesenSumme, mittag, rueckstellung,
-    auszahlung: brutto - abzuege + spesenSumme + mittag - rueckstellung,
+    posten, brutto, abzuege, netto: rp(brutto - abzuege), spesen: spesenSumme, mittag, rueckstellung,
+    auszahlung: rp(brutto - abzuege + spesenSumme + mittag - rueckstellung),
     fehlendeLoehne: posten.filter((p) => !p.stundenlohn).map((p) => p.firma),
     qstFehlt: quellensteuerPflichtig(einst?.profil) && !zahl(einst?.profil?.qstSatz) && !einst?.qstAuto && brutto > 0,
     qstAuto: einst?.qstAuto || null,

@@ -67,20 +67,20 @@ export default function LohnPruefung({ gespeichert, onClose }) {
   const [erklaert, setErklaert] = useState(() => new Set())
   const umschalten = (id) => setErklaert((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   async function fixAnwenden(fix) {
-    await db.einsaetze.update(fix.einsatzId, { [fix.feld]: fix.wert })
+    await db.einsaetze.update(fix.einsatzId, fix.werte || { [fix.feld]: fix.wert })
     await pruefen(ki)
     setFixMeldung(`✓ ${fix.label.replace(/ übernehmen$| umstellen$/, '')} — neu verglichen`)
   }
   async function alleFixes() {
-    const fixes = [...new Map(pruef.filter((c) => c.fix).map((c) => [c.fix.feld, c.fix])).values()]
-    for (const f of fixes) await db.einsaetze.update(f.einsatzId, { [f.feld]: f.wert })
+    const fixes = [...new Map(pruef.filter((c) => c.fix).map((c) => [c.fix.label, c.fix])).values()]
+    for (const f of fixes) await db.einsaetze.update(f.einsatzId, f.werte || { [f.feld]: f.wert })
     await pruefen(ki)
     setFixMeldung(`✓ ${fixes.length} Einstellungen übernommen — neu verglichen`)
   }
 
   const abw = pruef.filter((c) => c.status === 'abweichung' && c.id !== 'auszahlung'), hin = pruef.filter((c) => c.status === 'hinweis')
   const gesamt = pruef.find((c) => c.id === 'auszahlung')
-  const nFix = new Set(pruef.filter((c) => c.fix).map((c) => c.fix.feld)).size
+  const nFix = new Set(pruef.filter((c) => c.fix).map((c) => c.fix.label)).size
   const gruppen = [...new Set(pruef.map((c) => c.gruppe))]
 
   return (
@@ -127,7 +127,7 @@ export default function LohnPruefung({ gespeichert, onClose }) {
           </button>
           {pruef.filter((c) => c.fix).length > 1 && (
             <button onClick={alleFixes} className="w-full rounded-2xl py-3 btn-grad font-bold inline-flex items-center justify-center gap-2">
-              <Wrench className="w-4 h-4" /> Alle {new Set(pruef.filter((c) => c.fix).map((c) => c.fix.feld)).size} Korrekturen übernehmen
+              <Wrench className="w-4 h-4" /> Alle {nFix} Korrekturen übernehmen
             </button>
           )}
           {fixMeldung && <div className="text-sm rounded-xl px-3 py-2 bg-lime/10 border border-lime/30 text-lime">{fixMeldung}</div>}

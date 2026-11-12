@@ -73,7 +73,7 @@ export function vergleichen(ki, app, einst) {
   const geld = (id, gruppe, titel, appW, abW, opt = {}) => {
     if (appW == null && abW == null) return
     const a = appW ?? 0, b = abW ?? 0, d = b - a
-    const tol = opt.tol ?? Math.max(0.1, Math.abs(a) * 0.002)
+    const tol = opt.tol ?? 0.005 // auf den Rappen
     const ok = Math.abs(d) <= tol
     const zuUngunsten = opt.abzug ? d > 0 : d < 0
     add({ id, gruppe, titel, app: a, ab: b, einheit: w, status: ok ? 'ok' : opt.nurHinweis ? 'hinweis' : 'abweichung',
@@ -106,7 +106,11 @@ export function vergleichen(ki, app, einst) {
   // 4) Entschädigungen: laufend vs. angespart
   const entsch = ['ferien', 'feiertag', 'dreizehnter']
   const totalApp = sum(posten, (p) => sum(p.zeilen.filter((z) => entsch.includes(z.k)), (z) => z.betrag)), totalAb = sum(pos.filter((x) => entsch.includes(x.art)), (x) => x.betrag)
-  const totalStimmt = totalAb > 0 && Math.abs(totalApp - totalAb) <= 0.1
+  // genaue Ansätze pro Stunde laut Abrechnung (Betrag ÷ Stunden, 6 Stellen) — damit rechnet die App auf den Rappen gleich
+  const E0 = P?.einsatz || posten[0]?.einsatz
+  const ansWerte = {}
+  for (const k of entsch) { const x = art(k)[0]; if (x && zahl(x.menge) > 0 && zahl(x.betrag) > 0) ansWerte[k + 'Ansatz'] = String(Math.round(zahl(x.betrag) / zahl(x.menge) * 1e6) / 1e6) }
+  const ansFix = E0?.id && Object.keys(ansWerte).length ? { einsatzId: E0.id, werte: ansWerte, label: 'Genaue Ansätze der Abrechnung übernehmen' } : null
   for (const [k, l] of [['ferien', 'Ferienentschädigung'], ['feiertag', 'Feiertagsentschädigung'], ['dreizehnter', '13. Monatslohn']]) {
     const appL = sum(posten, (p) => sum(p.zeilen.filter((z) => z.k === k && !z.konto), (z) => z.betrag))
     const appKonto = sum(posten, (p) => sum(p.zeilen.filter((z) => z.k === k && z.konto), (z) => z.betrag))
@@ -125,7 +129,10 @@ export function vergleichen(ki, app, einst) {
       add({ id: k + '-modus', gruppe: 'Entschädigungen', titel: l, app: appL, ab: 0, einheit: w, status: hatGuthaben ? 'hinweis' : 'abweichung', zuUngunsten: !hatGuthaben,
         text: hatGuthaben ? `Nicht ausbezahlt, aber ein Guthaben ausgewiesen — das Büro spart die ${l} an.` : `${l} fehlt auf der Abrechnung (${chf(appL, w)}). Nachfragen, ob sie angespart wird.`,
         fix: hatGuthaben ? { einsatzId: e.id, feld: `${k}Modus`, wert: 'konto', label: 'Auf „angespart“ umstellen' } : null })
-    } else if (appL > 0.005 || abL > 0.005) geld(k, 'Entschädigungen', l, appL, abL, totalStimmt ? { tol: 0.5 } : {})
+    } else if ((appL > 0.005 || abL > 0.005) && Math.abs(appL - abL) > 0.005 && ansFix && ansWerte[k + 'Ansatz'] && zahl(e?.[k + 'Ansatz']) !== zahl(ansWerte[k + 'Ansatz'])) {
+      add({ id: k, gruppe: 'Entschädigungen', titel: l, app: appL, ab: abL, einheit: w, status: 'hinweis',
+        text: `Das Büro rechnet mit ${zahl(ansWerte[k + 'Ansatz']).toFixed(4)} pro Stunde (Vertrag ergibt ${(appL / Math.max(0.01, zahl(art(k)[0]?.menge))).toFixed(4)}) — Rappen-Differenz durch Rundung.`, fix: ansFix })
+    } else if (appL > 0.005 || abL > 0.005) geld(k, 'Entschädigungen', l, appL, abL)
   }
   // 5) Abwesenheiten (Krankheit, Ferienbezug …)
   const appAbs = sum(posten, (p) => sum(p.zeilen.filter((z) => z.art), (z) => z.betrag))
@@ -135,7 +142,7 @@ export function vergleichen(ki, app, einst) {
   if (ki.brutto != null) geld('brutto', 'Summen', 'Bruttolohn', app.lohn.brutto, zahl(ki.brutto))
   // 7) Abzüge — Satz und Betrag
   const appAbz = {}
-  for (const p of posten) for (const a of p.abzuege) { const x = (appAbz[a.k] ||= { label: a.label, prozent: a.prozent, betrag: 0 }); x.betrag += a.betrag }
+  for (const p of posten) for (const a of p.abzuege) { const x = (appAbz[a.k] ||= { label: a.label, prozent: a.prozent, betrag: 0, basis: 0 }); x.betrag += a.betrag; x.basis += a.basis || 0 }
   const arten = new Set([...Object.keys(appAbz), ...abz.map((a) => a.art || 'sonstiges'), ...(quellensteuerPflichtig(einst?.profil) ? ['quellensteuer'] : [])])
   for (const k of arten) {
     const a = appAbz[k], b = abz.filter((x) => (x.art || 'sonstiges') === k)
@@ -170,11 +177,11 @@ export function vergleichen(ki, app, einst) {
     const satzFix = E?.id && bekannt && bProzent != null ? { einsatzId: E.id, feld: k, wert: String(zahl(bProzent)), label: `${zahl(bProzent)} % im Einsatz übernehmen` } : null
     // BVG auf kleinerer Basis (koordinierter Lohn) → Koordinationsabzug pro Stunde übernehmen
     const bBasis = zahl(b.find((x) => zahl(x.basis))?.basis), kiStd = zahl(ki.stundenTotal) || sum(art('grundlohn'), (x) => x.menge)
-    if (k === 'bvg' && E?.id && bBasis && zahl(ki.brutto) - bBasis > 1 && kiStd && !zahl(E.bvgKoordStunde)) {
-      const koord = Math.round(((zahl(ki.brutto) - bBasis) / kiStd) * 100) / 100
+    if (k === 'bvg' && E?.id && bBasis && zahl(ki.brutto) - bBasis > 1 && kiStd && (!zahl(E.bvgKoordStunde) || Math.abs((a?.basis || 0) - bBasis) > 0.005)) {
+      const koord = Math.round(((zahl(ki.brutto) - bBasis) / kiStd) * 1e6) / 1e6
       add({ id: 'abzug-bvg-basis', gruppe: 'Abzüge', titel: 'Pensionskasse — Basis', app: app.lohn.brutto, ab: bBasis, einheit: w, status: 'hinweis',
         text: `Die Pensionskasse wird auf dem koordinierten Lohn (${chf(bBasis, w)}) berechnet, nicht auf dem Bruttolohn — Abzug ≈ ${koord.toFixed(2)} pro Stunde.`,
-        fix: { einsatzId: E.id, feld: 'bvgKoordStunde', wert: String(koord), label: `Koordinationsabzug ${koord.toFixed(2)}/h übernehmen` } })
+        fix: { einsatzId: E.id, feld: 'bvgKoordStunde', wert: String(koord), label: `Koordinationsabzug ${koord.toFixed(4)}/h übernehmen` } })
     }
     if (!a && b.length) {
       add({ id: 'abzug-' + k, gruppe: 'Abzüge', titel, app: 0, ab: bBetrag, einheit: w, status: 'hinweis',
@@ -197,7 +204,20 @@ export function vergleichen(ki, app, einst) {
   if (appSp > 0.005 || abSp > 0.005) geld('spesen', 'Summen', 'Spesen und Zulagen', appSp, abSp)
   // Vorschüsse: was das Büro abzieht, muss dem entsprechen, was auf dem Konto eingegangen ist
   const abRueck = zahl(ki.rueckstellungen?.ferien) + zahl(ki.rueckstellungen?.feiertag) + zahl(ki.rueckstellungen?.dreizehnter)
-  if (app.lohn.rueckstellung > 0.005 || abRueck > 0.005) geld('rueckstellung', 'Summen', 'Zurückbehalten (Guthaben netto)', app.lohn.rueckstellung, abRueck, { tol: Math.max(0.5, abRueck * 0.03), nurHinweis: true })
+  if (app.lohn.rueckstellung > 0.005 || abRueck > 0.005) {
+    const E1 = P?.einsatz || posten[0]?.einsatz
+    const faktoren = {}
+    for (const k of ['ferien', 'feiertag', 'dreizehnter']) {
+      const r = zahl(ki.rueckstellungen?.[k]), b = sum(art(k), (x) => x.betrag)
+      if (r > 0 && b > 0) faktoren[k + 'RueckFaktor'] = String(Math.round(r / b * 1e6) / 1e6)
+    }
+    const diff = Math.abs(app.lohn.rueckstellung - abRueck) > 0.005
+    if (diff && E1?.id && Object.keys(faktoren).length && Object.entries(faktoren).some(([f, v]) => zahl(E1[f]) !== zahl(v))) {
+      add({ id: 'rueckstellung', gruppe: 'Summen', titel: 'Zurückbehalten (Guthaben netto)', app: app.lohn.rueckstellung, ab: abRueck, einheit: w, status: 'hinweis',
+        text: `Das Büro behält ${(zahl(Object.values(faktoren)[0]) * 100).toFixed(2)} % der Entschädigung zurück (nach seinen Abzügen) — übernehmen, dann rechnet die App gleich.`,
+        fix: { einsatzId: E1.id, werte: faktoren, label: 'Rückstellungs-Faktor übernehmen' } })
+    } else geld('rueckstellung', 'Summen', 'Zurückbehalten (Guthaben netto)', app.lohn.rueckstellung, abRueck, { nurHinweis: true })
+  }
   const kiV = ki.vorschuesse != null ? zahl(ki.vorschuesse) : sum(Array.isArray(ki.vorschussZeilen) ? ki.vorschussZeilen : [], (x) => x.betrag)
   if (app.vorschuesse > 0.005 || kiV > 0.005) {
     if (app.vorschussAnzahl) geld('vorschuesse', 'Summen', 'Bereits ausbezahlt (Vorschüsse/Lohn)', app.vorschuesse, kiV, { abzug: true, text: kiV > app.vorschuesse ? `Das Büro verrechnet ${chf(kiV - app.vorschuesse, w)} mehr, als laut deinen erfassten Zahlungen eingegangen ist — Bankauszug prüfen.` : undefined })
@@ -206,13 +226,13 @@ export function vergleichen(ki, app, einst) {
   }
   const vAbzug = app.vorschussAnzahl ? app.vorschuesse : kiV
   // die Netto-Rückstellung rechnet jedes Büro etwas anders (Abzüge darauf) → kleine Differenz dort ist keine Abweichung
-  if (ki.auszahlung != null) geld('auszahlung', 'Summen', 'Auszahlung', app.lohn.auszahlung - vAbzug, zahl(ki.auszahlung), { tol: Math.max(0.06, app.lohn.rueckstellung * 0.03) })
+  if (ki.auszahlung != null) geld('auszahlung', 'Summen', 'Auszahlung', Math.round((app.lohn.auszahlung - vAbzug) * 100) / 100, zahl(ki.auszahlung))
   // 9) Guthaben
   const kt = app.konten.find((k) => !P || k.firma === P.firma)
   for (const [k, l] of [['ferien', 'Ferienguthaben'], ['feiertag', 'Feiertagsguthaben'], ['dreizehnter', '13. ML angespart']]) {
     const ab = ki.guthaben?.[k]
     if (ab == null && !kt?.konten[k]) continue
-    if (ab != null && kt?.konten[k]) geld('guthaben-' + k, 'Guthaben', l, kt.konten[k].saldo, zahl(ab), { tol: Math.max(0.5, Math.abs(zahl(ab)) * 0.03) })
+    if (ab != null && kt?.konten[k]) geld('guthaben-' + k, 'Guthaben', l, kt.konten[k].saldo, zahl(ab), { nurHinweis: true })
     else if (ab != null) {
       const E = P?.einsatz || posten[0]?.einsatz
       const netto = zahl(ki.rueckstellungen?.[k]) > 0
@@ -231,7 +251,7 @@ export function vergleichen(ki, app, einst) {
   const qstFehlt = pruef.find((c) => c.id === 'abzug-qst' && c.ab === 0 && c.app > 0)
   for (const id of ['netto', 'auszahlung']) {
     const c = pruef.find((x) => x.id === id)
-    if (qstFehlt && c && c.status === 'abweichung' && Math.abs(c.ab - c.app - qstFehlt.app) <= Math.max(0.5, app.lohn.rueckstellung * 0.03)) {
+    if (qstFehlt && c && c.status === 'abweichung' && Math.abs(c.ab - c.app - qstFehlt.app) <= 0.015) {
       c.status = 'folge'; c.zuUngunsten = false; c.text = `Folge der fehlenden Quellensteuer (${chf(qstFehlt.app, w)}) — sonst stimmt ${id === 'netto' ? 'der Nettolohn' : 'die Auszahlung'}.`
     }
   }
