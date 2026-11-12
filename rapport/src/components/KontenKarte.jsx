@@ -30,7 +30,7 @@ export default function KontenKarte({ einst, bis, w }) {
                 <div className="font-semibold">{x.label}</div>
                 <div className="text-lg font-extrabold tabular-nums">{chf(x.saldo, w)}</div>
               </div>
-              {key !== 'dreizehnter' && x.stunden > 0 && <div className="text-xs text-white/50 text-right tabular-nums">≈ {x.stunden.toFixed(1)} h · {x.tage.toFixed(1)} Tage</div>}
+              {key !== 'dreizehnter' && x.stunden > 0 && <div className="text-xs text-emerald-300/90 text-right tabular-nums">≈ {x.tage.toFixed(1)} freie Tage ({x.stunden.toFixed(1)} Std.){x.proWocheTage > 0 ? ` · +${x.proWocheTage.toFixed(2)} Tage pro Woche` : ''}</div>}
               <div className="text-xs text-white/40 mt-1 tabular-nums">
                 angespart {chf(x.gutschrift, w)}{x.bezug ? ` · bezogen ${chf(x.bezug, w)}` : ''}{x.bewegung ? ` · Auszahlungen/Korrekturen ${chf(x.bewegung, w)}` : ''}
               </div>

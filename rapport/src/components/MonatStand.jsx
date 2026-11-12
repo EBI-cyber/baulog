@@ -124,8 +124,11 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
         {konten?.length ? konten.map((k) => (
           <div key={k.firma} className="mt-1 space-y-0.5">
             {Object.entries(k.konten).map(([key, x]) => (
-              <div key={key} className="flex justify-between text-sm"><span>{x.label}</span>
-                <span className="font-bold tabular-nums">{chf(x.saldo, einst.waehrung)}{key !== 'dreizehnter' && x.tage > 0 ? <span className="font-normal text-white/45"> ≈ {x.tage.toFixed(1)} Tage</span> : ''}</span></div>
+              <div key={key} className="text-sm">
+                <div className="flex justify-between"><span>{x.label}</span><span className="font-bold tabular-nums">{chf(x.saldo, einst.waehrung)}</span></div>
+                {key !== 'dreizehnter' && x.stunden > 0 && <div className="text-xs text-emerald-300/90 tabular-nums">
+                  ≈ {x.tage.toFixed(1).replace('.0', '')} {x.tage >= 0.95 && x.tage < 1.05 ? 'freier Tag' : 'freie Tage'} ({x.stunden.toFixed(1)} Std. à {x.tagStunden.toFixed(1).replace('.0', '')} h){x.proWocheTage > 0 ? ` · +${x.proWocheTage.toFixed(2)} Tage pro voller Woche` : ''}</div>}
+              </div>
             ))}
           </div>
         )) : <div className="text-sm text-white/60 mt-0.5">Ferien, Feiertage und 13. ML werden laufend mit dem Stundenlohn ausbezahlt — kein Guthaben. <Link to="/einstellungen" className="underline text-white/80">Im Einsatz ändern</Link>, falls das Büro sie anspart.</div>}
