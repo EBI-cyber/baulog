@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ScanSearch, Camera, Loader2, CheckCircle2, XCircle, Info, X, Send, MessageCircle, Copy, ChevronDown, Wrench } from 'lucide-react'
+import { ScanSearch, Camera, Loader2, CheckCircle2, XCircle, Info, X, Send, MessageCircle, Copy, ChevronDown, Wrench, BookOpen, HelpCircle } from 'lucide-react'
 import Sheet from './Sheet'
 import { db } from '../lib/db'
 import { alsDataUrl } from '../lib/bild'
 import { lohnabrechnungLesen, appLohn, vergleichen, nachrichtText } from '../lib/abgleich'
 import { useEinstellungen } from '../lib/settings'
 import { chf } from '../lib/lohn'
+import { erklaeren } from '../lib/lohnErklaerung'
 import { useMs, msVersand } from '../lib/microsoft'
 import { whatsappLink } from '../lib/teilen'
 import { isoDatum } from '../lib/zeit'
@@ -62,6 +63,9 @@ export default function LohnPruefung({ gespeichert, onClose }) {
   }
 
   const [fixMeldung, setFixMeldung] = useState('')
+  const [erklaerAlle, setErklaerAlle] = useState(false)
+  const [erklaert, setErklaert] = useState(() => new Set())
+  const umschalten = (id) => setErklaert((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   async function fixAnwenden(fix) {
     await db.einsaetze.update(fix.einsatzId, { [fix.feld]: fix.wert })
     await pruefen(ki)
@@ -118,6 +122,9 @@ export default function LohnPruefung({ gespeichert, onClose }) {
               <div className="text-sm text-white/60">{pruef.filter((c) => c.status === 'ok').length} Punkte stimmen{hin.length ? ` · ${hin.length} Hinweis${hin.length > 1 ? 'e' : ''}` : ''}</div>
             </div>
           </div>
+          <button onClick={() => setErklaerAlle(!erklaerAlle)} className={'w-full rounded-2xl py-2.5 text-sm font-semibold inline-flex items-center justify-center gap-2 border ' + (erklaerAlle ? 'bg-sky-400/15 border-sky-400/40 text-sky-200' : 'bg-white/[0.06] border-white/10 text-white/75')}>
+            <BookOpen className="w-4 h-4" /> {erklaerAlle ? 'Erklärungen ausblenden' : 'Erklären: was bedeutet jede Zeile?'}
+          </button>
           {pruef.filter((c) => c.fix).length > 1 && (
             <button onClick={alleFixes} className="w-full rounded-2xl py-3 btn-grad font-bold inline-flex items-center justify-center gap-2">
               <Wrench className="w-4 h-4" /> Alle {new Set(pruef.filter((c) => c.fix).map((c) => c.fix.feld)).size} Korrekturen übernehmen
@@ -131,7 +138,9 @@ export default function LohnPruefung({ gespeichert, onClose }) {
                 <div key={c.id} className={'rounded-xl border px-3 py-2 ' + (c.status === 'ok' ? 'border-white/10 bg-white/[0.03]' : c.status === 'abweichung' ? 'border-ember/40 bg-ember/10' : c.status === 'folge' ? 'border-white/10 bg-white/[0.02] opacity-70' : 'border-amber-400/35 bg-amber-400/10')}>
                   <div className="flex items-center gap-2">
                     {c.status === 'ok' ? <CheckCircle2 className="w-4 h-4 text-lime shrink-0" /> : c.status === 'abweichung' ? <XCircle className="w-4 h-4 text-ember shrink-0" /> : c.status === 'folge' ? <ChevronDown className="w-4 h-4 text-white/40 shrink-0 -rotate-90" /> : <Info className="w-4 h-4 text-amber-300 shrink-0" />}
-                    <div className="flex-1 min-w-0 text-sm font-semibold truncate">{c.titel}</div>
+                    <button type="button" onClick={() => umschalten(c.id)} className="flex-1 min-w-0 text-sm font-semibold truncate text-left inline-flex items-center gap-1.5">
+                      <span className="truncate">{c.titel}</span><HelpCircle className={'w-3.5 h-3.5 shrink-0 ' + (erklaerAlle || erklaert.has(c.id) ? 'text-sky-300' : 'text-white/30')} />
+                    </button>
                     {!['ok', 'folge'].includes(c.status) && c.id !== 'auszahlung' && <input type="checkbox" className="w-4 h-4 accent-cyan-400" checked={auswahl.has(c.id)} title="In die Nachricht ans Büro"
                       onChange={(e) => { const s = new Set(auswahl); e.target.checked ? s.add(c.id) : s.delete(c.id); setAuswahl(s) }} />}
                   </div>
@@ -140,6 +149,12 @@ export default function LohnPruefung({ gespeichert, onClose }) {
                     <div className="text-right"><span className="text-white/40">laut App </span><b>{fmt(c, w, c.app)}</b></div>
                   </div>
                   {c.text && <div className={'text-xs mt-1 ' + (c.status === 'abweichung' ? 'text-ember' : c.status === 'folge' ? 'text-white/50' : 'text-amber-200')}>{c.text}</div>}
+                  {(erklaerAlle || erklaert.has(c.id)) && (() => { const e = erklaeren(c, ki, w); return (
+                    <div className="mt-2 rounded-lg bg-sky-400/10 border border-sky-400/20 px-2.5 py-2 text-xs text-sky-100/90 space-y-1">
+                      <div>{e.was}</div>
+                      {e.rechnung && <div className="tabular-nums"><span className="text-sky-300/80">Rechnung: </span>{e.rechnung}</div>}
+                      {e.woher && <div><span className="text-sky-300/80">Grundlage: </span>{e.woher}</div>}
+                    </div>) })()}
                   {c.fix && <button onClick={() => fixAnwenden(c.fix)} className="mt-1.5 text-xs rounded-lg px-2 py-1 bg-white/10 inline-flex items-center gap-1"><Wrench className="w-3.5 h-3.5" /> {c.fix.label}</button>}
                   {c.tage?.length > 0 && (
                     <button onClick={() => setOffen(offen === c.id ? null : c.id)} className="mt-1 text-xs text-white/50 inline-flex items-center gap-1">
