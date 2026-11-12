@@ -17,7 +17,7 @@ export const LOHN_STANDARD = {
   ueberstundenZuschlag: '25', nachtVon: '23', nachtBis: '6', nachtZuschlag: '25',
   samstagZuschlag: '', sonntagZuschlag: '50', feiertagArbeitZuschlag: '50',
   zulageStunde: '', mittagszulage: '', krankFaktor: '80', schlechtwetterFaktor: '0',
-  ahv: '5.3', alv: '1.1', nbu: '', ktg: '', bvg: '', gav: '', far: '', parifonds: '', quellensteuer: '',
+  ahv: '5.3', alv: '1.1', nbu: '', ktg: '', bvg: '', bvgKoordStunde: '', gav: '', far: '', parifonds: '', quellensteuer: '',
 }
 
 export const ABZUEGE = [
@@ -50,10 +50,14 @@ export function stundenSaetze(e) {
 export const stundenlohnTotal = (e) => stundenSaetze(e).total
 
 /**
- * Auszahlungsart der Entschädigungen pro Einsatz: 'laufend' (mit jedem Lohn) oder 'konto'
- * (Büro spart sie an — Ferien-/Feiertagskonto, 13. ML). Felder ferienModus, feiertagModus, dreizehnterModus.
+ * Auszahlungsart der Entschädigungen pro Einsatz: 'laufend' (mit jedem Lohn), 'konto' (Büro spart den
+ * Bruttobetrag an — Ferien-/Feiertagskonto, 13. ML) oder 'netto' (im Bruttolohn abgerechnet, der Nettobetrag
+ * wird zurückbehalten — z.B. Bellini „Rückstellung Feriengeld Netto“ / „Guthaben Feriengeld“).
+ * Felder ferienModus, feiertagModus, dreizehnterModus.
  */
-export const modus = (e, k) => (e?.[`${k}Modus`] === 'konto' ? 'konto' : 'laufend')
+export const modus = (e, k) => { const v = e?.[`${k}Modus`]; return v === 'konto' || v === 'netto' ? v : 'laufend' }
+/** angespart (brutto oder netto) → hat ein Guthaben */
+export const angespart = (e, k) => modus(e, k) !== 'laufend'
 export const KONTEN = [['ferien', 'Ferien'], ['feiertag', 'Feiertage'], ['dreizehnter', '13. Monatslohn']]
 
 /** Lohnfaktor einer Abwesenheit (Anteil des Stundenlohns) */
@@ -184,26 +188,39 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
       zeilen.push({ k, label, betrag, konto, info: `${h} h × ${satz.toFixed(2)}${konto ? ' · angespart, nicht ausbezahlt' : ''}` })
     }
     const brutto = zeilen.reduce((a, x) => a + (x.konto ? 0 : x.betrag), 0)
+    // BVG auf den koordinierten Lohn: Brutto − Koordinationsabzug pro Stunde (steht auf der Abrechnung als Basis)
+    const bvgBasis = wert(e, 'bvgKoordStunde') > 0 ? Math.max(0, brutto - t.grundStd * wert(e, 'bvgKoordStunde')) : brutto
     // Quellensteuer hängt von der Person ab (Fragebogen), nicht vom Einsatz
     const p = einst?.profil
     const qst = quellensteuerPflichtig(p) ? (zahl(p.qstSatz) || zahl(einst?.qstAuto?.satz)) : p?.status ? 0 : wert(e, 'quellensteuer')
     const abzuege = ABZUEGE.map(([k, label]) => {
       const pr = k === 'quellensteuer' ? qst : wert(e, k)
-      return { k, label: k === 'quellensteuer' && quellensteuerPflichtig(p) ? `${label} (${tarif(p)}, ${p.wohnkanton || '?'}${!zahl(p.qstSatz) && einst?.qstAuto ? `, Tabelle ${einst.qstAuto.jahr}` : ''})` : label, prozent: pr, betrag: brutto * pr / 100 }
+      const basis = k === 'bvg' ? bvgBasis : brutto
+      return { k, label: k === 'quellensteuer' && quellensteuerPflichtig(p) ? `${label} (${tarif(p)}, ${p.wohnkanton || '?'}${!zahl(p.qstSatz) && einst?.qstAuto ? `, Tabelle ${einst.qstAuto.jahr}` : ''})` : label, prozent: pr, basis, betrag: basis * pr / 100 }
     }).filter((a) => a.prozent > 0)
     const abzugTotal = abzuege.reduce((a, x) => a + x.betrag, 0)
+    // Netto-Rückstellung: Entschädigung abzüglich der prozentualen Sozialabzüge (ohne BVG/Quellensteuer) wird angespart
+    const satzOhne = abzuege.filter((a) => !['bvg', 'quellensteuer'].includes(a.k)).reduce((s, a) => s + a.prozent, 0) / 100
+    let rueckstellung = 0
+    for (const x of zeilen) {
+      if (!x.k || modus(e, x.k) !== 'netto') continue
+      const n = x.betrag * (1 - satzOhne)
+      konten[x.k].gutschrift += n; rueckstellung += n
+      x.info += ` · netto ${n.toFixed(2)} zurückbehalten`
+    }
     // nicht AHV-pflichtig, kommt zur Auszahlung
     const mittag = t.tage.size * wert(e, 'mittagszulage')
-    return { ...t, tage: t.tage.size, zeilen, brutto, abzuege, abzugTotal, netto: brutto - abzugTotal, mittag, konten }
+    return { ...t, tage: t.tage.size, zeilen, brutto, abzuege, abzugTotal, netto: brutto - abzugTotal, mittag, konten, rueckstellung }
   }).filter((p) => p.grundStd > 0 || p.zeilen.length > 1)
 
   const spesenSumme = spesen.filter((x) => imZeitraum(x.datum)).reduce((a, x) => a + zahl(x.betrag), 0)
   const mittag = posten.reduce((a, p) => a + p.mittag, 0)
   const brutto = posten.reduce((a, p) => a + p.brutto, 0)
   const abzuege = posten.reduce((a, p) => a + p.abzugTotal, 0)
+  const rueckstellung = posten.reduce((a, p) => a + p.rueckstellung, 0)
   return {
-    posten, brutto, abzuege, netto: brutto - abzuege, spesen: spesenSumme, mittag,
-    auszahlung: brutto - abzuege + spesenSumme + mittag,
+    posten, brutto, abzuege, netto: brutto - abzuege, spesen: spesenSumme, mittag, rueckstellung,
+    auszahlung: brutto - abzuege + spesenSumme + mittag - rueckstellung,
     fehlendeLoehne: posten.filter((p) => !p.stundenlohn).map((p) => p.firma),
     qstFehlt: quellensteuerPflichtig(einst?.profil) && !zahl(einst?.profil?.qstSatz) && !einst?.qstAuto && brutto > 0,
     qstAuto: einst?.qstAuto || null,

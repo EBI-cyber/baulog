@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ScanSearch, Camera, Loader2, CheckCircle2, XCircle, Info, X, Send, MessageCircle, Copy, ChevronDown, Wrench } from 'lucide-react'
 import Sheet from './Sheet'
 import { db } from '../lib/db'
-import { verkleinern } from '../lib/bild'
+import { alsDataUrl } from '../lib/bild'
 import { lohnabrechnungLesen, appLohn, vergleichen, nachrichtText } from '../lib/abgleich'
 import { useEinstellungen } from '../lib/settings'
 import { chf } from '../lib/lohn'
@@ -37,7 +37,7 @@ export default function LohnPruefung({ gespeichert, onClose }) {
 
   async function fotosDazu(e) {
     const neu = []
-    for (const d of [...(e.target.files || [])]) neu.push(await verkleinern(d, 2000, 0.85))
+    for (const d of [...(e.target.files || [])]) neu.push(await alsDataUrl(d, 2000, 0.85))
     e.target.value = ''
     setFotos((f) => [...f, ...neu].slice(0, 6))
   }
@@ -74,16 +74,16 @@ export default function LohnPruefung({ gespeichert, onClose }) {
     <Sheet titel="Lohnabrechnung prüfen" icon={ScanSearch} onClose={onClose}>
       {schritt === 'fotos' && (
         <>
-          <div className="text-sm text-white/60">Fotografiere deine Lohnabrechnung (alle Seiten). Die App liest sie aus und vergleicht jede Zeile mit deinen Rapporten, deinem Einsatzvertrag und den Guthaben.</div>
+          <div className="text-sm text-white/60">Fotografiere deine Lohnabrechnung (alle Seiten) oder wähle das PDF aus Mail/Dateien. Die App liest sie aus und vergleicht jede Zeile mit deinen Rapporten, deinem Einsatzvertrag und den Guthaben.</div>
           {fotos.length > 0 && <div className="flex gap-2 overflow-x-auto">{fotos.map((f, i) => (
-            <div key={i} className="relative shrink-0"><img src={f} alt="" className="h-24 w-[4.5rem] object-cover rounded-lg border border-white/15" />
+            <div key={i} className="relative shrink-0">{f.startsWith('data:application/pdf') ? <div className="h-24 w-[4.5rem] rounded-lg border border-white/15 bg-white/10 flex items-center justify-center text-xs font-bold">PDF</div> : <img src={f} alt="" className="h-24 w-[4.5rem] object-cover rounded-lg border border-white/15" />}
               <button onClick={() => setFotos(fotos.filter((_, j) => j !== i))} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-black/80 flex items-center justify-center"><X className="w-3.5 h-3.5" /></button></div>
           ))}</div>}
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => datei.current?.click()} className="rounded-2xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> {fotos.length ? 'Seite dazu' : 'Foto machen'}</button>
+            <button onClick={() => datei.current?.click()} className="rounded-2xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> {fotos.length ? 'Seite dazu' : 'Foto oder PDF'}</button>
             <button onClick={lesen} disabled={!fotos.length} className="rounded-2xl py-3 btn-grad font-bold inline-flex items-center justify-center gap-2 disabled:opacity-40"><ScanSearch className="w-5 h-5" /> Prüfen</button>
           </div>
-          <input ref={datei} type="file" accept="image/*" multiple className="hidden" onChange={fotosDazu} />
+          <input ref={datei} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={fotosDazu} />
           {fehler && <div className="text-sm text-ember">{fehler}</div>}
         </>
       )}
@@ -105,7 +105,7 @@ export default function LohnPruefung({ gespeichert, onClose }) {
             {abw.length ? <XCircle className="w-8 h-8 text-ember shrink-0" /> : <CheckCircle2 className="w-8 h-8 text-lime shrink-0" />}
             <div>
               <div className="font-bold text-lg">{abw.length ? `${abw.length} Abweichung${abw.length > 1 ? 'en' : ''}` : 'Abrechnung stimmt'}</div>
-              {gesamt && Math.abs(gesamt.app - gesamt.ab) > 0.05 && <div className="text-sm font-semibold">{gesamt.ab < gesamt.app ? `Dir fehlen ${chf(gesamt.app - gesamt.ab, w)}` : `${chf(gesamt.ab - gesamt.app, w)} mehr als berechnet`} bei der Auszahlung</div>}
+              {gesamt && !['ok', 'folge'].includes(gesamt.status) && Math.abs(gesamt.app - gesamt.ab) > 0.05 && <div className="text-sm font-semibold">{gesamt.ab < gesamt.app ? `Dir fehlen ${chf(gesamt.app - gesamt.ab, w)}` : `${chf(gesamt.ab - gesamt.app, w)} mehr als berechnet`} bei der Auszahlung</div>}
               <div className="text-sm text-white/60">{pruef.filter((c) => c.status === 'ok').length} Punkte stimmen{hin.length ? ` · ${hin.length} Hinweis${hin.length > 1 ? 'e' : ''}` : ''}</div>
             </div>
           </div>
