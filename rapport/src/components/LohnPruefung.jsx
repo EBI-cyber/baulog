@@ -61,13 +61,22 @@ export default function LohnPruefung({ gespeichert, onClose }) {
     catch (e) { setFehler(e.message); setSchritt('fotos') }
   }
 
+  const [fixMeldung, setFixMeldung] = useState('')
   async function fixAnwenden(fix) {
     await db.einsaetze.update(fix.einsatzId, { [fix.feld]: fix.wert })
     await pruefen(ki)
+    setFixMeldung(`✓ ${fix.label.replace(/ übernehmen$| umstellen$/, '')} — neu verglichen`)
+  }
+  async function alleFixes() {
+    const fixes = [...new Map(pruef.filter((c) => c.fix).map((c) => [c.fix.feld, c.fix])).values()]
+    for (const f of fixes) await db.einsaetze.update(f.einsatzId, { [f.feld]: f.wert })
+    await pruefen(ki)
+    setFixMeldung(`✓ ${fixes.length} Einstellungen übernommen — neu verglichen`)
   }
 
   const abw = pruef.filter((c) => c.status === 'abweichung' && c.id !== 'auszahlung'), hin = pruef.filter((c) => c.status === 'hinweis')
   const gesamt = pruef.find((c) => c.id === 'auszahlung')
+  const nFix = new Set(pruef.filter((c) => c.fix).map((c) => c.fix.feld)).size
   const gruppen = [...new Set(pruef.map((c) => c.gruppe))]
 
   return (
@@ -101,14 +110,20 @@ export default function LohnPruefung({ gespeichert, onClose }) {
       {schritt === 'ergebnis' && ki && (
         <>
           <div className="text-xs text-white/45">{ki.buero || einsatz?.buero || ''} · Periode {String(ki.periodeVon || '').split('-').reverse().join('.')}–{String(ki.periodeBis || '').split('-').reverse().join('.')}</div>
-          <div className={'rounded-2xl p-4 flex items-center gap-3 border ' + (abw.length ? 'bg-ember/12 border-ember/40' : 'bg-lime/10 border-lime/35')}>
-            {abw.length ? <XCircle className="w-8 h-8 text-ember shrink-0" /> : <CheckCircle2 className="w-8 h-8 text-lime shrink-0" />}
+          <div className={'rounded-2xl p-4 flex items-center gap-3 border ' + (abw.length ? 'bg-ember/12 border-ember/40' : nFix ? 'bg-amber-400/10 border-amber-400/35' : 'bg-lime/10 border-lime/35')}>
+            {abw.length ? <XCircle className="w-8 h-8 text-ember shrink-0" /> : nFix ? <Wrench className="w-8 h-8 text-amber-300 shrink-0" /> : <CheckCircle2 className="w-8 h-8 text-lime shrink-0" />}
             <div>
-              <div className="font-bold text-lg">{abw.length ? `${abw.length} Abweichung${abw.length > 1 ? 'en' : ''}` : 'Abrechnung stimmt'}</div>
+              <div className="font-bold text-lg">{abw.length ? `${abw.length} Abweichung${abw.length > 1 ? 'en' : ''}` : nFix ? `Noch ${nFix} Einstellung${nFix > 1 ? 'en' : ''} übernehmen` : 'Abrechnung stimmt'}</div>
               {gesamt && !['ok', 'folge'].includes(gesamt.status) && Math.abs(gesamt.app - gesamt.ab) > 0.05 && <div className="text-sm font-semibold">{gesamt.ab < gesamt.app ? `Dir fehlen ${chf(gesamt.app - gesamt.ab, w)}` : `${chf(gesamt.ab - gesamt.app, w)} mehr als berechnet`} bei der Auszahlung</div>}
               <div className="text-sm text-white/60">{pruef.filter((c) => c.status === 'ok').length} Punkte stimmen{hin.length ? ` · ${hin.length} Hinweis${hin.length > 1 ? 'e' : ''}` : ''}</div>
             </div>
           </div>
+          {pruef.filter((c) => c.fix).length > 1 && (
+            <button onClick={alleFixes} className="w-full rounded-2xl py-3 btn-grad font-bold inline-flex items-center justify-center gap-2">
+              <Wrench className="w-4 h-4" /> Alle {new Set(pruef.filter((c) => c.fix).map((c) => c.fix.feld)).size} Korrekturen übernehmen
+            </button>
+          )}
+          {fixMeldung && <div className="text-sm rounded-xl px-3 py-2 bg-lime/10 border border-lime/30 text-lime">{fixMeldung}</div>}
           {gruppen.map((g) => (
             <div key={g} className="space-y-1.5">
               <div className="text-[11px] uppercase tracking-wider text-white/40 pt-1">{g}</div>

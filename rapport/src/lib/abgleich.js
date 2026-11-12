@@ -146,7 +146,12 @@ export function vergleichen(ki, app, einst) {
       const ist = basis ? Math.round((bBetrag / basis) * 10000) / 100 : 0
       if (soll == null) { add({ id: 'abzug-qst', gruppe: 'Abzüge', titel: 'Quellensteuer', app: 0, ab: bBetrag, einheit: w, status: 'hinweis', text: 'Offizielle Tabelle nicht verfügbar — nicht geprüft.' }); continue }
       const sollBetrag = basis * soll / 100, d = bBetrag - sollBetrag, ok = Math.abs(d) <= Math.max(0.1, sollBetrag * 0.01)
-      if (!b.length && sollBetrag > 0.5) {
+      if (!b.length && sollBetrag > 0.5 && sollBetrag < 5) {
+        add({ id: 'abzug-qst', gruppe: 'Abzüge', titel: `Quellensteuer (${tarif(einst.profil)}, ${einst.profil.wohnkanton})`, app: sollBetrag, ab: 0, einheit: w, status: 'ok',
+          text: `Bei diesem Monatslohn fällt laut Tabelle kaum Quellensteuer an (≈ ${soll.toFixed(2)} %, ${chf(sollBetrag, w)}) — dass keine abgezogen wurde, ist plausibel.` })
+        continue
+      }
+      if (!b.length && sollBetrag >= 5) {
         add({ id: 'abzug-qst', gruppe: 'Abzüge', titel: `Quellensteuer (${tarif(einst.profil)}, ${einst.profil.wohnkanton})`, app: sollBetrag, ab: 0, einheit: w, status: 'hinweis',
           text: `Keine Quellensteuer abgezogen — laut Fragebogen bist du quellensteuerpflichtig (≈ ${soll.toFixed(2)} %, ${chf(sollBetrag, w)}). Fehlt sie, kann das Steueramt sie später nachfordern. Beim Büro nachfragen, ob der Abzug noch kommt.`,
           nachricht: `Quellensteuer: Auf der Abrechnung ist keine Quellensteuer abgezogen. Laut offizieller Tabelle (Kanton ${einst.profil.wohnkanton}, Tarif ${tarif(einst.profil)}) wären es ${soll.toFixed(2)} % (${chf(sollBetrag, w)}). Wird sie noch abgerechnet?` })
@@ -208,7 +213,19 @@ export function vergleichen(ki, app, einst) {
     const ab = ki.guthaben?.[k]
     if (ab == null && !kt?.konten[k]) continue
     if (ab != null && kt?.konten[k]) geld('guthaben-' + k, 'Guthaben', l, kt.konten[k].saldo, zahl(ab), { tol: Math.max(0.5, Math.abs(zahl(ab)) * 0.03) })
-    else if (ab != null) add({ id: 'guthaben-' + k, gruppe: 'Guthaben', titel: l, app: 0, ab: zahl(ab), einheit: w, status: 'hinweis', text: 'Das Büro führt ein Guthaben — im Einsatz auf „angespart“ umstellen, dann rechnet die App mit.' })
+    else if (ab != null) {
+      const E = P?.einsatz || posten[0]?.einsatz
+      const netto = zahl(ki.rueckstellungen?.[k]) > 0
+      add({ id: 'guthaben-' + k, gruppe: 'Guthaben', titel: l, app: 0, ab: zahl(ab), einheit: w, status: 'hinweis',
+        text: `Das Büro führt ein Guthaben — im Einsatz auf „${netto ? 'netto zurückbehalten' : 'brutto angespart'}“ umstellen, dann rechnet die App mit.`,
+        fix: E?.id ? { einsatzId: E.id, feld: `${k}Modus`, wert: netto ? 'netto' : 'konto', label: `Auf „${netto ? 'netto zurückbehalten' : 'brutto angespart'}“ umstellen` } : null })
+    }
+  }
+  // Solange Einstellungen fehlen (Ein-Klick-Korrekturen offen), sind Netto/Auszahlung/Rückstellung nur Folgen davon
+  if (pruef.some((c) => c.fix)) {
+    for (const c of pruef) if (['netto', 'auszahlung', 'rueckstellung'].includes(c.id) && ['abweichung', 'hinweis'].includes(c.status)) {
+      c.status = 'folge'; c.zuUngunsten = false; c.text = 'Folge der fehlenden Einstellungen — zuerst die Korrekturen übernehmen, dann wird neu verglichen.'
+    }
   }
   // Auszahlung höher nur, weil keine Quellensteuer abgezogen wurde → Folge, keine eigene Abweichung
   const qstFehlt = pruef.find((c) => c.id === 'abzug-qst' && c.ab === 0 && c.app > 0)
