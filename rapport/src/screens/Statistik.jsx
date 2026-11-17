@@ -9,7 +9,7 @@ import { kantonFuer } from '../lib/kanton'
 import { quellensteuerPflichtig, tarif } from '../lib/profil'
 import { tarifLaden } from '../lib/quellensteuer'
 import { wocheVersetzt, isoDatum } from '../lib/zeit'
-import { perioden, auswerten, zusammenfassen, aktuelleWoche } from '../lib/statistik'
+import { perioden, auswerten, zusammenfassen, aktuelleWoche, MONATE_LANG } from '../lib/statistik'
 
 // Diagrammfarben (geprüft: Helligkeit, Farbsehschwäche, Kontrast auf dunklem Grund)
 const FARBE_A = '#0891b2' // gearbeitet / netto
@@ -33,7 +33,7 @@ function skala(max) {
 }
 
 /** Säulen (gestapelt a + b), optional Soll-Marke je Säule. Antippen wählt einen Zeitraum. */
-function Saeulen({ werte, a, b, soll, wahl, onWahl, format, wert, schnitt, schnittText }) {
+function Saeulen({ werte, a, b, soll, wahl, onWahl, format, wert, schnitt, schnittText, schnittVon = 0, schnittBis = null }) {
   const W = 340, H = 190, L = 34, R = 4, T = 16, B = 22
   const n = werte.length, band = (W - L - R) / n, bw = Math.min(26, band * 0.62)
   const max = Math.max(1, ...werte.map((w) => (w.leer ? 0 : a(w) + b(w))), ...(soll ? werte.map((w) => (w.leer ? 0 : soll(w) || 0)) : []), schnitt || 0)
@@ -75,9 +75,16 @@ function Saeulen({ werte, a, b, soll, wahl, onWahl, format, wert, schnitt, schni
       })}
       <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="rgba(255,255,255,.25)" strokeWidth="1" />
       {schnitt > 0 && <g pointerEvents="none">
-        <line x1={L} x2={W - R} y1={y(schnitt)} y2={y(schnitt)} stroke={FARBE_SCHNITT} strokeWidth="1.5" />
-        <rect x={L + 1} y={y(schnitt) - 13} width={schnittText.length * 5.6 + 8} height="12" rx="3" fill="#0d1d26" opacity=".85" />
-        <text x={L + 5} y={y(schnitt) - 4} fontSize="9.5" fontWeight="700" fill={FARBE_SCHNITT}>{schnittText}</text>
+        {(() => {
+          // Linie nur über den Säulen des Durchschnitts-Zeitraums (z.B. Wochen des Monats); Beschriftung bleibt im Bild
+          const x1 = L + schnittVon * band + 2, x2 = L + ((schnittBis ?? n - 1) + 1) * band - 2
+          const bw2 = schnittText.length * 5.6 + 8, lx = Math.max(L + 1, Math.min(x1, W - R - bw2))
+          return <>
+            <line x1={x1} x2={x2} y1={y(schnitt)} y2={y(schnitt)} stroke={FARBE_SCHNITT} strokeWidth="1.5" />
+            <rect x={lx} y={y(schnitt) - 13} width={bw2} height="12" rx="3" fill="#0d1d26" opacity=".85" />
+            <text x={lx + 4} y={y(schnitt) - 4} fontSize="9.5" fontWeight="700" fill={FARBE_SCHNITT}>{schnittText}</text>
+          </>
+        })()}
       </g>}
     </svg>
   )
@@ -156,8 +163,23 @@ export default function Statistik() {
   const name = (w) => `${art === 'woche' ? `KW ${w.kurz}` : w.kurz}${w.laufend ? ' …' : ''}`
   const fr = (n) => (n || 0).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const pm = (h) => `${h >= 0 ? '+' : '−'}${h2(Math.abs(h))}`
-  // Durchschnitt über abgeschlossene Zeiträume mit Einträgen (laufender zählt nicht)
-  const schnittWert = sum && sum.fertig > 0 ? (mass === 'stunden' ? sum.schnittIst : sum.schnittNetto) : null
+  // Durchschnitt über abgeschlossene Zeiträume mit Einträgen (laufender zählt nicht).
+  // Wochen: Ø pro Woche im Monat der gewählten Woche (Monat = Donnerstag der KW), Linie nur über diesen Wochen.
+  const wert1 = (w) => (mass === 'stunden' ? w.ist : w.netto)
+  let schnittWert = sum && sum.fertig > 0 ? (mass === 'stunden' ? sum.schnittIst : sum.schnittNetto) : null
+  let schnittVon = 0, schnittBis = null, schnittMonat = null, schnittN = sum?.fertig || 0, schnittLaufend = false
+  if (art === 'woche' && werte && gewaehlt?.monat) {
+    const m = gewaehlt.monat
+    const imMonat = werte.filter((w) => w.monat === m && !w.leer)
+    const fertig = imMonat.filter((w) => !w.laufend)
+    const basis = fertig.length ? fertig : imMonat
+    schnittLaufend = !fertig.length && imMonat.length > 0
+    schnittWert = basis.length ? basis.reduce((x, w) => x + wert1(w), 0) / basis.length : null
+    schnittN = basis.length
+    const idx = werte.map((w, i) => (w.monat === m ? i : -1)).filter((i) => i >= 0)
+    schnittVon = idx[0] ?? 0; schnittBis = idx[idx.length - 1] ?? null
+    schnittMonat = MONATE_LANG[+m.slice(5, 7) - 1]
+  }
 
   const blaettern = (d) => {
     setWahl(null)
@@ -209,7 +231,7 @@ export default function Statistik() {
             <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_A }} />{stunden ? 'Gearbeitet' : 'Ausbezahlt'}</span>
             {(stunden || sum.rueckstellung > 0) && <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_B }} />{stunden ? 'Bezahlte Abwesenheit' : 'Ferien einbehalten'}</span>}
             {stunden && art !== 'jahr' && <span className="inline-flex items-center gap-1.5"><span className="w-3.5 border-t-2 border-dashed border-white/75" />Soll</span>}
-            {schnittWert > 0 && <span className="inline-flex items-center gap-1.5"><span className="w-3.5 border-t-2" style={{ borderColor: FARBE_SCHNITT }} />Durchschnitt{sum.fertig < sum.anzahl ? ' (abgeschlossene)' : ''}</span>}
+            {schnittWert > 0 && <span className="inline-flex items-center gap-1.5"><span className="w-3.5 border-t-2" style={{ borderColor: FARBE_SCHNITT }} />{schnittMonat ? `Ø pro Woche im ${schnittMonat}${schnittLaufend ? ' (bisher)' : ''}` : `Durchschnitt${sum.fertig < sum.anzahl ? ' (abgeschlossene)' : ''}`}</span>}
           </div>
 
           {sum.anzahl === 0
@@ -218,7 +240,7 @@ export default function Statistik() {
                 a={(w) => (stunden ? w.arbeit : w.lohnFehlt ? 0 : w.netto - w.rueckstellung)} b={(w) => (stunden ? w.abw : w.lohnFehlt ? 0 : w.rueckstellung)}
                 soll={stunden && art !== 'jahr' ? (w) => w.soll : null}
                 format={stunden ? (v) => String(Math.round(v * 10) / 10) : kurzChf}
-                schnitt={schnittWert} schnittText={stunden ? `Ø ${h2(schnittWert)} h` : `Ø ${Math.round(schnittWert || 0).toLocaleString('de-CH')}`}
+                schnitt={schnittWert} schnittVon={schnittVon} schnittBis={schnittBis} schnittText={`Ø ${schnittMonat ? schnittMonat.slice(0, 3) + ' ' : ''}${stunden ? `${h2(schnittWert)} h` : Math.round(schnittWert || 0).toLocaleString('de-CH')}`}
                 wert={stunden ? (v, band) => (band < 30 ? (Math.round(v * 10) / 10).toFixed(1) : h2(v)) : (v) => Math.round(v).toLocaleString('de-CH')} />}
           <div className="text-xs text-white/60 text-center">{stunden ? 'Stunden je Säule' : `Zahl = Netto in ${w$}`} · antippen für Details{werte.some((w) => w.laufend && !w.leer) ? ' · heller = läuft noch' : ''}</div>
         </section>
@@ -295,12 +317,12 @@ export default function Statistik() {
         {sum.anzahl > 0 && <div className="grid grid-cols-2 gap-3">
           {stunden ? <>
             <Kachel icon={Clock} titel="Total" wert={`${h2(sum.ist)} h`} sub={sum.abw > 0 ? `davon ${h2(sum.ist - sum.arbeit)} h Abwesenheit` : `${sum.anzahl} ${sum.anzahl === 1 ? ART_NAME[art] : ART_MEHR[art]} mit Einträgen`} />
-            <Kachel icon={Gauge} titel={`Ø pro ${ART_NAME[art]}`} wert={sum.schnittIst != null ? `${h2(sum.schnittIst)} h` : '–'} sub={sum.fertig ? `aus ${sum.fertig} abgeschlossenen` : 'noch keiner abgeschlossen'} />
+            <Kachel icon={Gauge} titel={schnittMonat ? `Ø pro Woche im ${schnittMonat}` : `Ø pro ${ART_NAME[art]}`} wert={schnittWert != null ? `${h2(schnittWert)} h` : '–'} sub={schnittN ? `aus ${schnittN} ${schnittLaufend ? 'laufenden' : 'abgeschlossenen'}` : 'noch keiner abgeschlossen'} />
             {art !== 'jahr' && <Kachel icon={TrendingUp} titel={sum.saldo >= 0 ? 'Überstunden' : 'Minusstunden'} wert={`${sum.saldo >= 0 ? '+' : '−'}${h2(Math.abs(sum.saldo))} h`} sub={`Soll ${h2(sum.soll)} h`} farbe={sum.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400'} />}
             {sum.maxIst && <Kachel icon={BarChart3} titel="Meiste Stunden" wert={`${h2(sum.maxIst.ist)} h`} sub={sum.maxIst.titel} />}
           </> : <>
             <Kachel icon={Banknote} titel="Netto total" wert={chf(sum.netto, w$)} sub={sum.rueckstellung > 0 ? `ausbezahlt ${chf(sum.auszahlung, w$)} · Ferien ${chf(sum.rueckstellung, w$)}` : `brutto ${chf(sum.brutto, w$)}`} />
-            <Kachel icon={Gauge} titel={`Ø netto pro ${ART_NAME[art]}`} wert={sum.schnittNetto != null ? chf(sum.schnittNetto, w$) : '–'} sub={sum.fertig ? `brutto ${chf(sum.schnittBrutto, w$)}` : 'noch keiner abgeschlossen'} />
+            <Kachel icon={Gauge} titel={schnittMonat ? `Ø netto pro Woche im ${schnittMonat}` : `Ø netto pro ${ART_NAME[art]}`} wert={schnittWert != null ? chf(schnittWert, w$) : '–'} sub={schnittN ? `aus ${schnittN} ${schnittLaufend ? 'laufenden' : 'abgeschlossenen'} ${art === 'woche' ? (schnittN === 1 ? 'Woche' : 'Wochen') : ''}` : 'noch keiner abgeschlossen'} />
             <Kachel icon={Clock} titel="Netto pro Stunde" wert={sum.proStunde != null ? chf(sum.proStunde, w$) : '–'} sub="inkl. bezahlte Abwesenheit" />
             {sum.maxNetto && <Kachel icon={TrendingUp} titel="Bester Verdienst" wert={chf(sum.maxNetto.netto, w$)} sub={sum.maxNetto.titel} />}
           </>}
