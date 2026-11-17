@@ -1,11 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Clock, CalendarDays, Settings, Timer, Banknote } from 'lucide-react'
+import { Clock, CalendarDays, Settings, Timer, Banknote, BarChart3 } from 'lucide-react'
 
 const LINKS = [
   { to: '/', label: 'Heute', icon: Clock, end: true },
   { to: '/kalender', label: 'Kalender', icon: CalendarDays, auch: '/woche' },
+  { to: '/statistik', label: 'Statistik', icon: BarChart3 },
   { to: '/lohn', label: 'Lohn', icon: Banknote },
-  { to: '/einstellungen', label: 'Einstellungen', icon: Settings },
+  { to: '/einstellungen', label: 'Einstellungen', kurz: 'Optionen', icon: Settings },
 ]
 
 export default function Nav() {
@@ -27,11 +28,11 @@ export default function Nav() {
         ) })}
       </aside>
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 glass border-x-0 border-b-0 rounded-none pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-        <div className="max-w-md mx-auto grid grid-cols-4">
-          {LINKS.map((l) => { const { to, label, icon: I, end } = l; return (
+        <div className="max-w-md mx-auto grid grid-cols-5">
+          {LINKS.map((l) => { const { to, label, kurz, icon: I, end } = l; return (
             <NavLink key={to} to={to} end={end} className={({ isActive }) =>
               'flex flex-col items-center gap-1 text-[12px] font-medium py-1 ' + (aktiv(l, isActive) ? 'text-white' : 'text-white/65')}>
-              <I className="w-6 h-6" strokeWidth={1.9} /> {label}
+              <I className="w-6 h-6" strokeWidth={1.9} /> {kurz || label}
             </NavLink>
           ) })}
         </div>
