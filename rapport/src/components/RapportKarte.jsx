@@ -44,7 +44,7 @@ export default function RapportKarte({ g, woche, wKey, mehrere, onAbschluss }) {
         <IconChip icon={FileText} />
         <div className="min-w-0 flex-1">
           <div className="font-bold truncate">Rapport {g.firma}</div>
-          <div className="text-xs text-white/45 truncate flex items-center gap-1"><Building2 className="w-3 h-3 shrink-0" /> an {g.buero || 'Temporärbüro (in Einsatz eintragen)'} · {std(total)} h</div>
+          <div className="text-xs text-white/65 truncate flex items-center gap-1"><Building2 className="w-3 h-3 shrink-0" /> an {g.buero || 'Temporärbüro (in Einsatz eintragen)'} · {std(total)} h</div>
         </div>
       </div>
       {fehlt.length > 0 && (
@@ -53,25 +53,29 @@ export default function RapportKarte({ g, woche, wKey, mehrere, onAbschluss }) {
           <span>Im Rapport fehlt: <b>{fehlt.join(', ')}</b>. Antippen → Einstellungen → „Ich“ ausfüllen.</span>
         </Link>
       )}
+      {status?.gesendetAm && <div className="rounded-2xl px-4 py-3 bg-emerald-400/10 border border-emerald-400/30 text-emerald-300 text-sm flex gap-2">
+        <CheckCircle2 className="w-5 h-5 shrink-0" />
+        <span><b>Erledigt</b> — gesendet {zeitpunkt(status.gesendetAm)}{status.gesendetAn ? ' an ' + status.gesendetAn : ''}.</span>
+      </div>}
       <button onClick={onAbschluss}
-        className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2">
-        <PenLine className="w-5 h-5" /> Unterschreiben & senden
+        className={'w-full rounded-2xl font-bold inline-flex items-center justify-center gap-2 ' + (status?.gesendetAm ? 'py-3 bg-white/10' : 'py-3.5 btn-grad')}>
+        <PenLine className="w-5 h-5" /> {status?.gesendetAm ? 'Nochmals unterschreiben & senden' : 'Unterschreiben & senden'}
       </button>
       <button onClick={() => teilen('gesendetAm', 'Rapport geteilt — als gesendet markiert.')}
         className="w-full rounded-2xl py-3 font-semibold bg-white/10 inline-flex items-center justify-center gap-2">
         <Share2 className="w-5 h-5" /> Teilen (WhatsApp, Dateien …)
       </button>
-      {(status?.maBild || status?.firmaBild) && <div className="text-xs text-white/50 flex gap-3">
-        <span className="inline-flex items-center gap-1"><CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.maBild ? 'text-mint' : 'text-white/20')} /> Mitarbeiter</span>
-        <span className="inline-flex items-center gap-1"><CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.firmaBild ? 'text-mint' : 'text-white/20')} /> Einsatzbetrieb{status?.firmaName ? ` (${status.firmaName})` : ''}</span>
+      {(status?.maBild || status?.firmaBild) && <div className="text-xs text-white/65 flex gap-3">
+        <span className="inline-flex items-center gap-1"><CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.maBild ? 'text-mint' : 'text-white/40')} /> Mitarbeiter</span>
+        <span className="inline-flex items-center gap-1"><CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.firmaBild ? 'text-mint' : 'text-white/40')} /> Einsatzbetrieb{status?.firmaName ? ` (${status.firmaName})` : ''}</span>
       </div>}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/50">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/65">
         <span className="inline-flex items-center gap-1">
-          <CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.gesendetAm ? 'text-mint' : 'text-white/20')} />
+          <CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.gesendetAm ? 'text-mint' : 'text-white/40')} />
           {status?.gesendetAm ? `Gesendet ${zeitpunkt(status.gesendetAm)}${status.gesendetAn ? ' an ' + status.gesendetAn : ''}` : 'Noch nicht gesendet'}
         </span>
         <span className="inline-flex items-center gap-1">
-          <CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.gespeichertAm ? 'text-mint' : 'text-white/20')} />
+          <CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.gespeichertAm ? 'text-mint' : 'text-white/40')} />
           {status?.gespeichertAm ? `Gesichert ${zeitpunkt(status.gespeichertAm)}` : 'Noch nicht gesichert'}
         </span>
       </div>

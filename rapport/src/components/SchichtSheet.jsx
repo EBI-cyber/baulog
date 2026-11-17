@@ -59,28 +59,28 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
 
   return (
     <Sheet titel={schicht ? 'Eintrag bearbeiten' : 'Zeit nachtragen'} icon={schicht ? Pencil : Plus} onClose={onClose}>
-      <label className="block text-xs text-white/50">Einsatzbetrieb</label>
+      <label className="block text-xs text-white/65">Einsatzbetrieb</label>
       <FirmaWahl firmen={einst.firmen} wert={f.firma} onWahl={set('firma')}
         onNeu={(n) => setEinst({ firmen: [...einst.firmen, n] })} />
       <div className="grid grid-cols-2 gap-3 pt-1">
         <div className="col-span-2">
-          <label className="block text-xs text-white/50 mb-1">Datum</label>
+          <label className="block text-xs text-white/65 mb-1">Datum</label>
           <input type="date" value={f.datum} onChange={set('datum')} className="eingabe" />
         </div>
         <div>
-          <label className="block text-xs text-white/50 mb-1">Beginn</label>
+          <label className="block text-xs text-white/65 mb-1">Beginn</label>
           <input type="time" value={f.beginn} onChange={set('beginn')} className="eingabe" />
         </div>
         {!laeuft && <div>
-          <label className="block text-xs text-white/50 mb-1">Ende</label>
+          <label className="block text-xs text-white/65 mb-1">Ende</label>
           <input type="time" value={f.ende} onChange={set('ende')} className="eingabe" />
         </div>}
         {!laeuft && <div className="col-span-2">
-          <label className="block text-xs text-white/50 mb-1">Pause (Minuten)</label>
+          <label className="block text-xs text-white/65 mb-1">Pause (Minuten)</label>
           <input type="number" inputMode="numeric" min="0" value={f.pause} onChange={set('pause')} className="eingabe" />
         </div>}
         <div className="col-span-2">
-          <label className="block text-xs text-white/50 mb-1">Bemerkung (optional)</label>
+          <label className="block text-xs text-white/65 mb-1">Bemerkung (optional)</label>
           <input value={f.notiz} onChange={set('notiz')} placeholder="z.B. Baustelle, Tätigkeit" className="eingabe" />
         </div>
       </div>
@@ -88,7 +88,7 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
       {fehler && <div className="text-sm rounded-xl px-3 py-2 bg-ember/15 border border-ember/30 text-ember">{fehler}</div>}
       <button onClick={sichern} className="w-full rounded-2xl py-3 font-bold btn-grad">Speichern</button>
       {schicht && !laeuft && (
-        <button onClick={loeschen} className="w-full py-2 text-sm text-white/35 hover:text-ember inline-flex items-center justify-center gap-1.5">
+        <button onClick={loeschen} className="w-full py-2 text-sm text-white/55 hover:text-ember inline-flex items-center justify-center gap-1.5">
           <Trash2 className="w-4 h-4" /> Löschen
         </button>
       )}

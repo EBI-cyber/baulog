@@ -39,22 +39,22 @@ export default function SpesenSheet({ spesen, datum, onClose }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <label className="block text-xs text-white/50 mb-1">Datum</label>
+          <label className="block text-xs text-white/65 mb-1">Datum</label>
           <input type="date" value={f.datum} onChange={set('datum')} className="eingabe" />
         </div>
         {f.art === 'fahrt' && <div>
-          <label className="block text-xs text-white/50 mb-1">Kilometer</label>
+          <label className="block text-xs text-white/65 mb-1">Kilometer</label>
           <input inputMode="decimal" value={f.km} onChange={km} className="eingabe" />
         </div>}
         <div className={f.art === 'fahrt' ? '' : 'col-span-2'}>
-          <label className="block text-xs text-white/50 mb-1">Betrag ({einst.waehrung})</label>
+          <label className="block text-xs text-white/65 mb-1">Betrag ({einst.waehrung})</label>
           <input inputMode="decimal" value={f.betrag} onChange={set('betrag')} placeholder="0.00" className="eingabe" />
         </div>
       </div>
       <input value={f.notiz} onChange={set('notiz')} placeholder="Bemerkung (z.B. Strecke, Beleg-Nr.)" className="eingabe" />
       <button onClick={sichern} disabled={!(zahl(f.betrag) > 0)} className="w-full rounded-2xl py-3 font-bold btn-grad disabled:opacity-40">Speichern</button>
       {spesen && (
-        <button onClick={loeschen} className="w-full py-2 text-sm text-white/35 hover:text-ember inline-flex items-center justify-center gap-1.5">
+        <button onClick={loeschen} className="w-full py-2 text-sm text-white/55 hover:text-ember inline-flex items-center justify-center gap-1.5">
           <Trash2 className="w-4 h-4" /> Löschen
         </button>
       )}

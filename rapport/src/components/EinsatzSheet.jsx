@@ -24,16 +24,16 @@ const ZAHLEN = ['stundenlohn', 'wochenstunden', 'feiertagProzent', 'ferienProzen
 function Feld({ label, einheit, breit, ...rest }) {
   return (
     <div className={breit ? 'col-span-2' : ''}>
-      <label className="block text-xs text-white/50 mb-1">{label}</label>
+      <label className="block text-xs text-white/65 mb-1">{label}</label>
       <div className="relative">
         <input className={'eingabe ' + (einheit ? 'pr-12' : '')} {...rest} />
-        {einheit && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-white/35">{einheit}</span>}
+        {einheit && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-white/55">{einheit}</span>}
       </div>
     </div>
   )
 }
 
-const Titel = ({ children }) => <div className="text-xs font-semibold uppercase tracking-wider text-white/40 pt-3">{children}</div>
+const Titel = ({ children }) => <div className="text-xs font-semibold uppercase tracking-wider text-white/60 pt-3">{children}</div>
 
 export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
   const [einst, setEinst] = useEinstellungen()
@@ -165,19 +165,19 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
           </button>
         ))}
       </div>
-      {br && <div className="text-xs text-white/45">{br.hinweis} <span className="text-white/30">Vorschläge — der Vertrag geht vor.</span></div>}
+      {br && <div className="text-xs text-white/65">{br.hinweis} <span className="text-white/50">Vorschläge — der Vertrag geht vor.</span></div>}
 
       <Titel>Einsatz</Titel>
       <div className="grid grid-cols-2 gap-3">
         <Feld breit label="Einsatzbetrieb (Firma) *" value={f.firma} onChange={set('firma')} />
         <Feld breit label="Adresse Einsatzbetrieb (für den Rapport)" value={f.firmaAdresse || ''} onChange={set('firmaAdresse')} placeholder="Strasse, PLZ Ort" />
         <div className="col-span-2">
-          <label className="block text-xs text-white/50 mb-1">Einsatzort (setzt den Kanton für die Feiertage)</label>
+          <label className="block text-xs text-white/65 mb-1">Einsatzort (setzt den Kanton für die Feiertage)</label>
           <OrtSuche wert={f.einsatzort} onWahl={(t) => setF((x) => ({ ...x, einsatzort: `${t.plz} ${t.ort}`, kanton: t.kanton }))} />
         </div>
         <Feld breit label="Strasse / Baustelle (für den Rapport)" value={f.baustelle || ''} onChange={set('baustelle')} placeholder="z.B. Buchserstrasse" />
         <div>
-          <label className="block text-xs text-white/50 mb-1">Kanton (Feiertage)</label>
+          <label className="block text-xs text-white/65 mb-1">Kanton (Feiertage)</label>
           <select value={f.kanton} onChange={set('kanton')} className="eingabe">
             <option value="">–</option>
             {Object.entries(KANTONE).map(([k, n]) => <option key={k} value={k}>{k} – {n}</option>)}
@@ -198,7 +198,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         <Feld label="Beginn" type="date" value={f.beginn} onChange={set('beginn')} />
         <Feld label="Ende" type="date" value={f.ende} onChange={set('ende')} />
         <Feld label="Max. Dauer (Kalendertage)" inputMode="numeric" value={f.maxDauerTage} onChange={set('maxDauerTage')} placeholder="z.B. 14" />
-        <div className="text-xs text-white/45 self-end pb-3">{einsatzEnde(f) ? `Endet am ${einsatzEnde(f).split('-').reverse().join('.')}` : 'Unbefristet'}</div>
+        <div className="text-xs text-white/65 self-end pb-3">{einsatzEnde(f) ? `Endet am ${einsatzEnde(f).split('-').reverse().join('.')}` : 'Unbefristet'}</div>
       </div>
 
       <Titel>Temporärbüro</Titel>
@@ -210,15 +210,15 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
       </div>
 
       <Titel>Unterschrift Einsatzbetrieb — berechtigt</Titel>
-      <div className="text-xs text-white/45">Wer den Rapport unterschreiben darf. <Star className="w-3 h-3 inline" /> = Standard (z.B. Polier). Unterschreibt jemand anderes, steht „i.V.“ im Rapport und der Standard bekommt eine Kopie. Neue Personen kommen nach deiner Bestätigung automatisch dazu.</div>
+      <div className="text-xs text-white/65">Wer den Rapport unterschreiben darf. <Star className="w-3 h-3 inline" /> = Standard (z.B. Polier). Unterschreibt jemand anderes, steht „i.V.“ im Rapport und der Standard bekommt eine Kopie. Neue Personen kommen nach deiner Bestätigung automatisch dazu.</div>
       <div className="space-y-2">
         {(f.unterschreiber || []).map((p, i) => (
           <div key={p.id || i} className="rounded-2xl bg-white/[0.04] border border-white/10 p-2.5 space-y-2">
             <div className="flex items-center gap-2">
               <button type="button" aria-label="Als Standard setzen" onClick={() => setU((l) => l.map((x, j) => ({ ...x, standard: j === i })))}
-                className={'shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ' + (p.standard ? 'btn-grad' : 'bg-white/10 text-white/40')}><Star className="w-4 h-4" /></button>
+                className={'shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ' + (p.standard ? 'btn-grad' : 'bg-white/10 text-white/60')}><Star className="w-4 h-4" /></button>
               <input className="eingabe py-1.5" placeholder="Name" value={p.name} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
-              <button type="button" aria-label="Entfernen" onClick={() => setU((l) => l.filter((_, j) => j !== i))} className="shrink-0 text-white/30 hover:text-ember p-1"><X className="w-4 h-4" /></button>
+              <button type="button" aria-label="Entfernen" onClick={() => setU((l) => l.filter((_, j) => j !== i))} className="shrink-0 text-white/50 hover:text-ember p-1"><X className="w-4 h-4" /></button>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <select className="eingabe py-1.5 text-sm" value={p.funktion} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, funktion: e.target.value } : x)))}>
@@ -243,7 +243,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         <Feld label="Total / Std. laut Vertrag" einheit={w} {...zahlFeld('stundenlohnTotalVertrag')} />
       </div>
       <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
-        <div className="text-xs text-white/55">Wie zahlt das Büro die Entschädigungen aus? Steht auf der Lohnabrechnung: „Rückstellung … Netto“ / „Guthaben“ → netto zurückbehalten (z.B. Bellini); nicht im Brutto, nur als Saldo → brutto angespart.</div>
+        <div className="text-xs text-white/70">Wie zahlt das Büro die Entschädigungen aus? Steht auf der Lohnabrechnung: „Rückstellung … Netto“ / „Guthaben“ → netto zurückbehalten (z.B. Bellini); nicht im Brutto, nur als Saldo → brutto angespart.</div>
         {[['ferien', 'Ferien'], ['feiertag', 'Feiertage'], ['dreizehnter', '13. Monatslohn']].map(([k, l]) => (
           <div key={k} className="flex items-center gap-2 text-sm">
             <span className="w-28 shrink-0 text-white/70">{l}</span>
@@ -285,7 +285,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
               className={'flex-1 px-2 py-1.5 rounded-lg text-xs border ' + ((f.ueberstundenModus || 'woche') === v ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{l}</button>
           ))}
         </div>
-        <div className="text-xs text-white/40">„Durchschnittliche Arbeitszeit“ (z.B. „40 Std. pro Woche durchschnittlich“): Stunden über dem Wochensoll bleiben Normalstunden — Überstunden nur, wenn angeordnet.</div>
+        <div className="text-xs text-white/60">„Durchschnittliche Arbeitszeit“ (z.B. „40 Std. pro Woche durchschnittlich“): Stunden über dem Wochensoll bleiben Normalstunden — Überstunden nur, wenn angeordnet.</div>
       </div>
 
       <Titel>Zuschläge & Zulagen</Titel>
@@ -308,8 +308,8 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
         {ABZUEGE.filter(([k]) => f.branche === 'bau' || !['far', 'parifonds'].includes(k) || f[k]).map(([k, label]) => <Feld key={k} label={label} einheit="%" {...zahlFeld(k)} />)}
         <Feld label="BVG-Koordinationsabzug" einheit={`${w}/h`} {...zahlFeld('bvgKoordStunde')} />
       </div>
-      <div className="text-xs text-white/35">BVG-Koordinationsabzug: steht die Pensionskasse auf einer kleineren Basis als dem Bruttolohn (z.B. Bellini: Basis 1'114.30 bei 1'655.76 brutto und 44.75 h), dann (Brutto − Basis) ÷ Stunden ≈ 12.10.</div>
-      <div className="text-xs text-white/35">AHV/IV/EO 5,3 % und ALV 1,1 % sind gesetzlich. Die übrigen Sätze stehen im Vertrag oder auf der ersten Lohnabrechnung.</div>
+      <div className="text-xs text-white/55">BVG-Koordinationsabzug: steht die Pensionskasse auf einer kleineren Basis als dem Bruttolohn (z.B. Bellini: Basis 1'114.30 bei 1'655.76 brutto und 44.75 h), dann (Brutto − Basis) ÷ Stunden ≈ 12.10.</div>
+      <div className="text-xs text-white/55">AHV/IV/EO 5,3 % und ALV 1,1 % sind gesetzlich. Die übrigen Sätze stehen im Vertrag oder auf der ersten Lohnabrechnung.</div>
 
       <Titel>Weitere Angaben</Titel>
       <div className="grid grid-cols-2 gap-3">
@@ -323,7 +323,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
 
       <button onClick={sichern} className="w-full rounded-2xl py-3 font-bold btn-grad mt-2">Speichern</button>
       {einsatz && (
-        <button onClick={loeschen} className="w-full py-2 text-sm text-white/35 hover:text-ember inline-flex items-center justify-center gap-1.5">
+        <button onClick={loeschen} className="w-full py-2 text-sm text-white/55 hover:text-ember inline-flex items-center justify-center gap-1.5">
           <Trash2 className="w-4 h-4" /> Einsatz löschen
         </button>
       )}

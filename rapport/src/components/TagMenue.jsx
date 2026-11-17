@@ -16,7 +16,7 @@ export default function TagMenue({ datum, onWahl, onClose }) {
       {punkte.map(([id, I, t, u]) => (
         <button key={id} onClick={() => onWahl(id)} className="w-full glass rounded-2xl p-3 flex items-center gap-3 text-left card-hover">
           <IconChip icon={I} />
-          <div><div className="font-semibold">{t}</div><div className="text-sm text-white/45">{u}</div></div>
+          <div><div className="font-semibold">{t}</div><div className="text-sm text-white/65">{u}</div></div>
         </button>
       ))}
     </Sheet>

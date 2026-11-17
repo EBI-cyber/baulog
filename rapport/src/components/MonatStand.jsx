@@ -68,7 +68,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
 
   const Kachel = ({ icon: I, titel, children, farbe = '' }) => (
     <div className={'glass rounded-3xl p-4 ' + farbe}>
-      <div className="text-white/45 text-xs inline-flex items-center gap-1.5"><I className="w-3.5 h-3.5" /> {titel}</div>
+      <div className="text-white/65 text-xs inline-flex items-center gap-1.5"><I className="w-3.5 h-3.5" /> {titel}</div>
       {children}
     </div>
   )
@@ -76,30 +76,47 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2 px-1">
-        <Gauge className="w-4 h-4 text-white/50" />
+        <Gauge className="w-4 h-4 text-white/65" />
         <h2 className="font-bold">Stand {monatsName}</h2>
-        <span className="text-xs text-white/40">{laufend ? `bis heute, ${datumKurz(heute)}` : 'ganzer Monat'}</span>
+        <span className="text-xs text-white/60">{laufend ? `bis heute, ${datumKurz(heute)}` : 'ganzer Monat'}</span>
       </div>
+      {(luecken.length > 0 || offen.length > 0 || (ende != null && ende >= 0 && ende <= 7)) && (
+        <div className="space-y-2">
+          {luecken.length > 0 && <div className="text-sm rounded-2xl px-4 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>Ohne Eintrag: {luecken.map((d) => `${TAGE[d.getDay()]} ${datumKurz(d)}`).join(', ')} — Arbeitszeit oder Abwesenheit eintragen (zählt sonst als Minusstunden).</div>
+          </div>}
+          {offen.length > 0 && <div className="text-sm rounded-2xl px-4 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>Rapport noch nicht gesendet: {offen.map((x) => `KW ${x.w.kw}`).join(', ')}</div>
+          </div>}
+          {ende != null && ende >= 0 && ende <= 7 && <div className="text-sm rounded-2xl px-4 py-3 bg-sky-400/10 border border-sky-400/30 text-sky-300 flex gap-2">
+            <CalendarClock className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>Einsatz bei {einsatz.firma} endet {ende === 0 ? 'heute' : `in ${ende} ${ende === 1 ? 'Tag' : 'Tagen'}`} ({einsatzEnde(einsatz).split('-').reverse().join('.')}).</div>
+          </div>}
+        </div>
+      )}
+
 
       <div className="grid grid-cols-2 gap-3">
         <Kachel icon={Clock} titel="Gearbeitet">
           <div className="text-2xl font-extrabold grad-text tabular-nums">{dez(arbeit)} h</div>
-          <div className="text-xs text-white/45">an {tage} {tage === 1 ? 'Tag' : 'Tagen'}{abwBezahlt > 0 ? ` · + ${dez(abwBezahlt)} h bez. Abwesenheit` : ''}</div>
+          <div className="text-xs text-white/65">an {tage} {tage === 1 ? 'Tag' : 'Tagen'}{abwBezahlt > 0 ? ` · + ${dez(abwBezahlt)} h bez. Abwesenheit` : ''}</div>
         </Kachel>
         <Kachel icon={saldo >= 0 ? TrendingUp : TrendingDown} titel={saldo >= 0 ? 'Überstunden' : 'Minusstunden'}>
           <div className={'text-2xl font-extrabold tabular-nums ' + (saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{plusMinus(saldo)} h</div>
-          <div className="text-xs text-white/45">Soll {dez(soll)} h ({sollTage} Tage à {dez(tagSoll)}){sollAngenommen ? ' · 40 h/Woche angenommen' : ''}</div>
+          <div className="text-xs text-white/65">Soll {dez(soll)} h ({sollTage} Tage à {dez(tagSoll)}){sollAngenommen ? ' · 40 h/Woche angenommen' : ''}</div>
         </Kachel>
         <Link to="/lohn" className="glass rounded-3xl p-4 col-span-2 card-hover block">
-          <div className="text-white/45 text-xs inline-flex items-center gap-1.5"><Banknote className="w-3.5 h-3.5" /> Lohn {laufend ? 'bisher' : 'im Monat'} (geschätzt)</div>
+          <div className="text-white/65 text-xs inline-flex items-center gap-1.5"><Banknote className="w-3.5 h-3.5" /> Lohn {laufend ? 'bisher' : 'im Monat'} (geschätzt)</div>
           {lohnOk ? (
             <div className="flex items-end justify-between gap-3">
               <div>
-                <div className="text-2xl font-extrabold tabular-nums">{chf(lohn.netto, einst.waehrung)} <span className="text-xs font-normal text-white/40">netto</span></div>
-                <div className="text-xs text-white/45">brutto {chf(lohn.brutto, einst.waehrung)}{lohn.spesen > 0 ? ` · + Spesen ${chf(lohn.spesen, einst.waehrung)}` : ''}</div>
+                <div className="text-2xl font-extrabold tabular-nums">{chf(lohn.netto, einst.waehrung)} <span className="text-xs font-normal text-white/60">netto</span></div>
+                <div className="text-xs text-white/65">brutto {chf(lohn.brutto, einst.waehrung)}{lohn.spesen > 0 ? ` · + Spesen ${chf(lohn.spesen, einst.waehrung)}` : ''}</div>
               </div>
               {laufend && restTage > 0 && hochNetto > 0 && <div className="text-right">
-                <div className="text-xs text-white/40">Monatsende ({restTage} Tage voll)</div>
+                <div className="text-xs text-white/60">Monatsende ({restTage} Tage voll)</div>
                 <div className="font-bold tabular-nums">≈ {chf(hochNetto, einst.waehrung)}</div>
               </div>}
             </div>
@@ -112,7 +129,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
           {Object.keys(abwNachArt).length
             ? <div className="text-sm font-semibold mt-0.5">{Object.entries(abwNachArt).map(([k, n]) => `${n} ${n === 1 ? 'Tag' : 'Tage'} ${k}`).join(' · ')}</div>
             : <div className="text-lg font-bold">–</div>}
-          {abwBezahlt > 0 && <div className="text-xs text-white/45">{dez(abwBezahlt)} h angerechnet</div>}
+          {abwBezahlt > 0 && <div className="text-xs text-white/65">{dez(abwBezahlt)} h angerechnet</div>}
         </Kachel>
         <Kachel icon={Wallet} titel="Spesen">
           <div className="text-lg font-bold tabular-nums">{sp.length ? chf(sp.reduce((s, x) => s + zahl(x.betrag), 0), einst.waehrung) : '–'}</div>
@@ -120,7 +137,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
       </div>
 
       <div className="glass rounded-3xl p-4">
-        <div className="text-white/45 text-xs inline-flex items-center gap-1.5"><PiggyBank className="w-3.5 h-3.5" /> Guthaben beim Büro</div>
+        <div className="text-white/65 text-xs inline-flex items-center gap-1.5"><PiggyBank className="w-3.5 h-3.5" /> Guthaben beim Büro</div>
         {konten?.length ? konten.map((k) => (
           <div key={k.firma} className="mt-1 space-y-0.5">
             {Object.entries(k.konten).map(([key, x]) => (
@@ -144,44 +161,27 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
               <div className="font-semibold">Lohnabrechnung {monatsName}: {n ? `${n} Abweichung${n > 1 ? 'en' : ''}` : 'stimmt'}</div>
               {ne && <div className="text-white/60 tabular-nums">netto laut Büro {chf(ne.ab, einst.waehrung)} · laut App {chf(ne.app, einst.waehrung)}</div>}
             </div>
-            <ChevronRight className="w-4 h-4 text-white/30 shrink-0 mt-1" />
+            <ChevronRight className="w-4 h-4 text-white/50 shrink-0 mt-1" />
           </Link>
         )
       })() : !laufend && lohnOk ? (
         <Link to="/lohn" className="rounded-3xl p-4 flex gap-3 items-center bg-white/[0.04] border border-dashed border-white/15 text-sm">
           <Camera className="w-5 h-5 text-white/60 shrink-0" />
           <div className="flex-1">Lohnabrechnung {monatsName} erhalten? <b>Foto machen & prüfen lassen</b></div>
-          <ChevronRight className="w-4 h-4 text-white/30" />
+          <ChevronRight className="w-4 h-4 text-white/50" />
         </Link>
       ) : null}
-
-      {(luecken.length > 0 || offen.length > 0 || (ende != null && ende >= 0 && ende <= 7)) && (
-        <div className="space-y-2">
-          {luecken.length > 0 && <div className="text-sm rounded-2xl px-4 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>Ohne Eintrag: {luecken.map((d) => `${TAGE[d.getDay()]} ${datumKurz(d)}`).join(', ')} — Arbeitszeit oder Abwesenheit eintragen (zählt sonst als Minusstunden).</div>
-          </div>}
-          {offen.length > 0 && <div className="text-sm rounded-2xl px-4 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>Rapport noch nicht gesendet: {offen.map((x) => `KW ${x.w.kw}`).join(', ')}</div>
-          </div>}
-          {ende != null && ende >= 0 && ende <= 7 && <div className="text-sm rounded-2xl px-4 py-3 bg-sky-400/10 border border-sky-400/30 text-sky-300 flex gap-2">
-            <CalendarClock className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>Einsatz bei {einsatz.firma} endet {ende === 0 ? 'heute' : `in ${ende} ${ende === 1 ? 'Tag' : 'Tagen'}`} ({einsatzEnde(einsatz).split('-').reverse().join('.')}).</div>
-          </div>}
-        </div>
-      )}
 
       {wochenListe.length > 0 && (
         <div className="glass rounded-3xl divide-y divide-white/5">
           {wochenListe.map((x) => (
             <Link key={x.key} to={`/woche/${x.key}`} className="flex items-center gap-3 px-4 py-2.5 text-sm">
               <span className="font-bold w-14">KW {x.w.kw}</span>
-              <span className="flex-1 tabular-nums">{dez(x.h)} h{x.teil && <span className="text-xs text-white/35"> (nur {monatsName})</span>}</span>
-              <span className={'text-xs inline-flex items-center gap-1 ' + (x.gesendet ? 'text-mint' : x.offen ? 'text-amber-300' : 'text-white/40')}>
+              <span className="flex-1 tabular-nums">{dez(x.h)} h{x.teil && <span className="text-xs text-white/55"> (nur {monatsName})</span>}</span>
+              <span className={'text-xs inline-flex items-center gap-1 ' + (x.gesendet ? 'text-mint' : x.offen ? 'text-amber-300' : 'text-white/60')}>
                 {x.gesendet ? <><CheckCircle2 className="w-3.5 h-3.5" /> gesendet</> : x.offen ? 'offen' : 'läuft'}
               </span>
-              <ChevronRight className="w-4 h-4 text-white/25" />
+              <ChevronRight className="w-4 h-4 text-white/45" />
             </Link>
           ))}
         </div>

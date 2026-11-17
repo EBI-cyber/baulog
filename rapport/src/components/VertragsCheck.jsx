@@ -9,7 +9,7 @@ const URTEIL = {
   pruefenswert: { icon: ShieldAlert, titel: 'Prüfenswert', farbe: 'bg-amber-400/10 border-amber-400/40 text-amber-300', text: 'Einige Punkte solltest du vor dem Unterschreiben klären.' },
   problematisch: { icon: ShieldX, titel: 'Problematisch', farbe: 'bg-ember/12 border-ember/45 text-ember', text: 'Der Vertrag enthält Mängel — vor dem Unterschreiben korrigieren lassen.' },
 }
-const ICON = { ok: [CheckCircle2, 'text-lime'], fehler: [XCircle, 'text-ember'], warnung: [AlertTriangle, 'text-amber-300'], info: [Info, 'text-white/45'] }
+const ICON = { ok: [CheckCircle2, 'text-lime'], fehler: [XCircle, 'text-ember'], warnung: [AlertTriangle, 'text-amber-300'], info: [Info, 'text-white/65'] }
 
 /** Vertrags-Check im Einsatz: Urteil, Punkte mit Quelle und Korrektur, Anfrage ans Büro */
 export default function VertragsCheck({ e, einst }) {
@@ -32,26 +32,26 @@ export default function VertragsCheck({ e, einst }) {
           <div className="font-bold">Vertrags-Check: {U.titel}</div>
           <div className="text-xs text-white/60">{U.text} {maengel.length ? `${maengel.length} Punkt${maengel.length > 1 ? 'e' : ''} zu klären.` : ''}</div>
         </div>
-        <ChevronDown className={'w-4 h-4 text-white/50 transition ' + (offen ? 'rotate-180' : '')} />
+        <ChevronDown className={'w-4 h-4 text-white/65 transition ' + (offen ? 'rotate-180' : '')} />
       </button>
       {offen && (
         <div className="space-y-2 text-white">
           {gruppen.map((g) => (
             <div key={g} className="space-y-1">
-              <div className="text-[11px] uppercase tracking-wider text-white/40 pt-1">{g}</div>
+              <div className="text-xs uppercase tracking-wider text-white/60 pt-1">{g}</div>
               {sichtbar.filter((p) => p.gruppe === g).map((p) => {
                 const [I, f] = ICON[p.status]
                 return (
                   <div key={p.id} className="rounded-xl bg-black/20 border border-white/10 px-3 py-2">
                     <div className="flex items-center gap-2 text-sm font-semibold"><I className={'w-4 h-4 shrink-0 ' + f} /> <span className="min-w-0">{p.titel}</span></div>
                     {p.text && <div className="text-xs text-white/65 mt-0.5">{p.text}</div>}
-                    {p.quelle && <div className="text-[11px] text-white/35 mt-0.5">{p.quelle}</div>}
+                    {p.quelle && <div className="text-xs text-white/55 mt-0.5">{p.quelle}</div>}
                   </div>
                 )
               })}
             </div>
           ))}
-          <button type="button" onClick={() => setAlleOk(!alleOk)} className="text-xs text-white/50 underline">{alleOk ? 'Nur offene Punkte zeigen' : `Auch die ${punkte.filter((p) => p.status === 'ok').length} erfüllten Punkte zeigen`}</button>
+          <button type="button" onClick={() => setAlleOk(!alleOk)} className="text-xs text-white/65 underline">{alleOk ? 'Nur offene Punkte zeigen' : `Auch die ${punkte.filter((p) => p.status === 'ok').length} erfüllten Punkte zeigen`}</button>
           {maengel.length > 0 && text == null && (
             <button type="button" onClick={() => setText(vertragNachricht({ e, einst, punkte: maengel }))}
               className="w-full rounded-xl py-2.5 btn-grad text-sm font-bold inline-flex items-center justify-center gap-2"><Send className="w-4 h-4" /> Korrekturen beim Büro anfragen</button>
@@ -72,7 +72,7 @@ export default function VertragsCheck({ e, einst }) {
               {status && <div className="text-xs text-lime">{status}</div>}
             </div>
           )}
-          <div className="text-[11px] text-white/35">Automatische Prüfung, keine Rechtsberatung. Verbindlich helfen Gewerkschaften (Unia, Syna), die paritätische Kommission Personalverleih oder das kantonale Arbeitsinspektorat.</div>
+          <div className="text-xs text-white/55">Automatische Prüfung, keine Rechtsberatung. Verbindlich helfen Gewerkschaften (Unia, Syna), die paritätische Kommission Personalverleih oder das kantonale Arbeitsinspektorat.</div>
         </div>
       )}
     </div>

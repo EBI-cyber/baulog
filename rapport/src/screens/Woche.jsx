@@ -68,7 +68,7 @@ export default function Woche() {
 
   return (
     <div className="space-y-5">
-      <Link to={`/kalender/${isoDatum(tage[3]).slice(0, 7)}`} className="inline-flex items-center gap-1 text-sm text-white/55 -mb-2">
+      <Link to={`/kalender/${isoDatum(tage[3]).slice(0, 7)}`} className="inline-flex items-center gap-1 text-sm text-white/70 -mb-2">
         <CalendarDays className="w-4 h-4" /> Kalender
       </Link>
       <header className="flex items-center justify-between gap-2">
@@ -77,7 +77,7 @@ export default function Woche() {
         </button>
         <div className="text-center min-w-0">
           <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">KW {woche.kw}</h1>
-          <div className="text-sm text-white/50">{datumLang(tage[0])} – {datumLang(tage[6])}{aktuelleWoche ? ' · diese Woche' : ''}</div>
+          <div className="text-sm text-white/65">{datumLang(tage[0])} – {datumLang(tage[6])}{aktuelleWoche ? ' · diese Woche' : ''}</div>
         </div>
         <button onClick={() => nav(`/woche/${wochenKey(wocheVersetzt(woche, 1))}`)} className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0" aria-label="Nächste Woche">
           <ChevronRight className="w-5 h-5" />
@@ -86,40 +86,40 @@ export default function Woche() {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="glass rounded-3xl p-4">
-          <div className="text-white/40 text-xs">Total angerechnet</div>
+          <div className="text-white/60 text-xs">Total angerechnet</div>
           <div className="text-2xl font-extrabold grad-text tabular-nums">{std(r.total)} h</div>
-          <div className="text-xs text-white/40 tabular-nums">dezimal {r.total.toFixed(2)}</div>
+          <div className="text-xs text-white/60 tabular-nums">dezimal {r.total.toFixed(2)}</div>
         </div>
         <div className="glass rounded-3xl p-4">
           {r.soll ? <>
-            <div className="text-white/40 text-xs">Soll {std(r.soll)} h</div>
+            <div className="text-white/60 text-xs">Soll {std(r.soll)} h</div>
             <div className={'text-2xl font-extrabold tabular-nums ' + (r.differenz >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
               {r.differenz >= 0 ? '+' : ''}{std(r.differenz)} h
             </div>
-            <div className="text-xs text-white/40">{r.differenz >= 0 ? 'Überstunden' : 'Minusstunden'}</div>
+            <div className="text-xs text-white/60">{r.differenz >= 0 ? 'Überstunden' : 'Minusstunden'}</div>
           </> : <>
-            <div className="text-white/40 text-xs">Soll</div>
-            <div className="text-sm text-white/50 mt-1">In den Einstellungen festlegen, dann siehst du Über-/Minusstunden.</div>
+            <div className="text-white/60 text-xs">Soll</div>
+            <div className="text-sm text-white/65 mt-1">In den Einstellungen festlegen, dann siehst du Über-/Minusstunden.</div>
           </>}
         </div>
         <div className="glass rounded-3xl p-4">
-          <div className="text-white/40 text-xs">Gearbeitet</div>
+          <div className="text-white/60 text-xs">Gearbeitet</div>
           <div className="text-lg font-bold tabular-nums">{std(r.arbeit)} h</div>
         </div>
         <div className="glass rounded-3xl p-4">
-          <div className="text-white/40 text-xs">Abwesenheiten</div>
+          <div className="text-white/60 text-xs">Abwesenheiten</div>
           <div className="text-lg font-bold tabular-nums">{std(r.absenzStd)} h</div>
-          {Object.keys(r.nachArt).length > 0 && <div className="text-xs text-white/45 truncate">
+          {Object.keys(r.nachArt).length > 0 && <div className="text-xs text-white/65 truncate">
             {Object.entries(r.nachArt).map(([k, v]) => `${k} ${v}`).join(' · ')}
           </div>}
         </div>
         {lohn && lohn.brutto > 0 && <Link to="/lohn" className="glass rounded-3xl p-4 col-span-2 flex items-center justify-between card-hover">
-          <div className="text-white/40 text-xs inline-flex items-center gap-1.5"><Banknote className="w-4 h-4" /> Lohn (geschätzt)</div>
-          <div className="text-right tabular-nums"><div className="text-lg font-bold">{chf(lohn.netto, einst.waehrung)} <span className="text-xs font-normal text-white/40">netto</span></div>
-            <div className="text-xs text-white/40">brutto {chf(lohn.brutto, einst.waehrung)}</div></div>
+          <div className="text-white/60 text-xs inline-flex items-center gap-1.5"><Banknote className="w-4 h-4" /> Lohn (geschätzt)</div>
+          <div className="text-right tabular-nums"><div className="text-lg font-bold">{chf(lohn.netto, einst.waehrung)} <span className="text-xs font-normal text-white/60">netto</span></div>
+            <div className="text-xs text-white/60">brutto {chf(lohn.brutto, einst.waehrung)}</div></div>
         </Link>}
         {r.spesen > 0 && <div className="glass rounded-3xl p-4 col-span-2 flex items-center justify-between">
-          <div className="text-white/40 text-xs inline-flex items-center gap-1.5"><Wallet className="w-4 h-4" /> Spesen</div>
+          <div className="text-white/60 text-xs inline-flex items-center gap-1.5"><Wallet className="w-4 h-4" /> Spesen</div>
           <div className="text-lg font-bold tabular-nums">{einst.waehrung} {r.spesen.toFixed(2)}</div>
         </div>}
       </div>
@@ -135,7 +135,7 @@ export default function Woche() {
       <button onClick={() => setPapier(true)} className="w-full rounded-2xl py-3 bg-white/[0.06] border border-white/10 text-sm font-semibold inline-flex items-center justify-center gap-2">
         <Camera className="w-4 h-4" /> Papier-Rapport fotografieren & weiterleiten
       </button>
-      {papierFotos && <div className="text-xs text-white/55 flex items-center gap-2 px-1">
+      {papierFotos && <div className="text-xs text-white/70 flex items-center gap-2 px-1">
         <Image className="w-3.5 h-3.5" /> Papier-Rapport{papierFotos.gesendetAm ? ` gesendet ${new Date(papierFotos.gesendetAm).toLocaleDateString('de-CH')} an ${papierFotos.gesendetAn || 'Büro'}` : ' fotografiert'}
         <button onClick={() => { const w = window.open(); if (w) w.document.write(papierFotos.papierBilder.map((b) => `<img src="${b}" style="width:100%">`).join('')) }} className="underline">Foto ansehen</button>
       </div>}
@@ -149,7 +149,7 @@ export default function Woche() {
       {!hatDaten ? (
         <section className="glass rounded-3xl p-5 flex items-center gap-3">
           <IconChip icon={FileText} />
-          <div className="text-sm text-white/45">Noch keine Einträge in dieser Woche.</div>
+          <div className="text-sm text-white/65">Noch keine Einträge in dieser Woche.</div>
         </section>
       ) : gruppen.map((g) => <RapportKarte key={g.firma} g={g} woche={woche} wKey={wKey} mehrere={gruppen.length > 1} onAbschluss={() => setAbschluss(true)} />)}
 
@@ -164,11 +164,11 @@ export default function Woche() {
           return (
             <div key={d} className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <div className="font-semibold">{TAGE_LANG[tag.getDay()]} <span className="text-white/40 font-normal">{datumKurz(tag)}</span></div>
+                <div className="font-semibold">{TAGE_LANG[tag.getDay()]} <span className="text-white/60 font-normal">{datumKurz(tag)}</span></div>
                 <div className="flex items-center gap-3">
                   {(liste.length > 0 || abw.length > 0) && <span className="tabular-nums text-white/60">{std(t)} h</span>}
-                  <button onClick={() => setSheet({ typ: 'menue', datum: d })} className="w-8 h-8 rounded-xl bg-white/[0.06] flex items-center justify-center text-white/50" aria-label="Eintrag hinzufügen">
-                    <Plus className="w-4 h-4" />
+                  <button onClick={() => setSheet({ typ: 'menue', datum: d })} className="w-11 h-11 rounded-xl bg-white/[0.08] flex items-center justify-center text-white/80" aria-label="Eintrag hinzufügen">
+                    <Plus className="w-5 h-5" />
                   </button>
                 </div>
               </div>

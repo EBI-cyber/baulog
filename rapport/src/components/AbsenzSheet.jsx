@@ -60,15 +60,15 @@ export default function AbsenzSheet({ absenz, datum, onClose }) {
           )
         })}
       </div>
-      {art.hinweis && <div className="text-xs text-white/40">{art.hinweis}</div>}
+      {art.hinweis && <div className="text-xs text-white/60">{art.hinweis}</div>}
 
       <div className="grid grid-cols-2 gap-3 pt-1">
         <div className={absenz ? 'col-span-2' : ''}>
-          <label className="block text-xs text-white/50 mb-1">{absenz ? 'Datum' : 'Von'}</label>
+          <label className="block text-xs text-white/65 mb-1">{absenz ? 'Datum' : 'Von'}</label>
           <input type="date" value={f.von} onChange={(e) => setF({ ...f, von: e.target.value, bis: f.bis < e.target.value ? e.target.value : f.bis })} className="eingabe" />
         </div>
         {!absenz && <div>
-          <label className="block text-xs text-white/50 mb-1">Bis</label>
+          <label className="block text-xs text-white/65 mb-1">Bis</label>
           <input type="date" value={f.bis} min={f.von} onChange={(e) => setF({ ...f, bis: e.target.value })} className="eingabe" />
         </div>}
       </div>
@@ -81,9 +81,9 @@ export default function AbsenzSheet({ absenz, datum, onClose }) {
       </div>
 
       <div>
-        <label className="block text-xs text-white/50 mb-1">Angerechnete Stunden pro Tag</label>
+        <label className="block text-xs text-white/65 mb-1">Angerechnete Stunden pro Tag</label>
         <input inputMode="decimal" value={f.stunden} onChange={(e) => setF({ ...f, stunden: e.target.value })} className="eingabe" />
-        <div className="text-xs text-white/35 mt-1">{art.bezahlt ? 'Vorschlag = Tagessoll aus den Einstellungen.' : 'Wird normalerweise nicht angerechnet.'}</div>
+        <div className="text-xs text-white/55 mt-1">{art.bezahlt ? 'Vorschlag = Tagessoll aus den Einstellungen.' : 'Wird normalerweise nicht angerechnet.'}</div>
       </div>
 
       {art.zeugnis && (
@@ -105,7 +105,7 @@ export default function AbsenzSheet({ absenz, datum, onClose }) {
         {absenz || tage.length <= 1 ? 'Speichern' : `${tage.length} Tage speichern`}
       </button>
       {absenz && (
-        <button onClick={loeschen} className="w-full py-2 text-sm text-white/35 hover:text-ember inline-flex items-center justify-center gap-1.5">
+        <button onClick={loeschen} className="w-full py-2 text-sm text-white/55 hover:text-ember inline-flex items-center justify-center gap-1.5">
           <Trash2 className="w-4 h-4" /> Löschen
         </button>
       )}

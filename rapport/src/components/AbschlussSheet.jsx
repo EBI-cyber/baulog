@@ -27,13 +27,13 @@ export default function AbschlussSheet({ wKey, onClose }) {
 
   return (
     <Sheet titel={`Woche abschliessen · KW ${woche.kw}`} icon={Send} onClose={onClose}>
-      {!gruppen ? <Loader2 className="w-5 h-5 animate-spin text-white/40" /> : !gruppen.length ? (
-        <div className="text-sm text-white/50">In dieser Woche gibt es keine abgeschlossenen Zeiten.</div>
+      {!gruppen ? <Loader2 className="w-5 h-5 animate-spin text-white/60" /> : !gruppen.length ? (
+        <div className="text-sm text-white/65">In dieser Woche gibt es keine abgeschlossenen Zeiten.</div>
       ) : gruppen.map((g) => (
         <Gruppe key={g.firma} g={g} wKey={wKey} woche={woche} einst={einst} verbunden={verbunden} mehrere={gruppen.length > 1} />
       ))}
       {!verbunden && (
-        <div className="text-xs text-white/45">
+        <div className="text-xs text-white/65">
           Für den vollautomatischen Versand (E-Mail ans Büro + OneDrive) einmal unter <Link to="/einstellungen" onClick={onClose} className="underline">Einstellungen → Automatischer Versand</Link> mit Microsoft verbinden.
         </div>
       )}
@@ -107,29 +107,29 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="font-bold truncate">{g.firma}</div>
-          <div className="text-xs text-white/45 truncate flex items-center gap-1"><Building2 className="w-3 h-3" /> {g.buero || 'Büro fehlt'}{g.einsatz?.einsatznummer ? ` · Nr. ${g.einsatz.einsatznummer}` : ''}</div>
+          <div className="text-xs text-white/65 truncate flex items-center gap-1"><Building2 className="w-3 h-3" /> {g.buero || 'Büro fehlt'}{g.einsatz?.einsatznummer ? ` · Nr. ${g.einsatz.einsatznummer}` : ''}</div>
         </div>
         <div className="shrink-0 text-lg font-extrabold grad-text tabular-nums">{std(total)} h</div>
       </div>
 
       <label className="flex items-center gap-2 rounded-xl bg-white/[0.05] px-3 py-2">
-        <MapPin className="w-4 h-4 text-white/50 shrink-0" />
-        <span className="text-xs text-white/50 shrink-0">Ort</span>
+        <MapPin className="w-4 h-4 text-white/65 shrink-0" />
+        <span className="text-xs text-white/65 shrink-0">Ort</span>
         <input value={ort || ''} onChange={(e) => { setOrt(e.target.value); setOrtQuelle('') }} placeholder="Ort der Unterschrift" className="flex-1 min-w-0 bg-transparent text-sm font-semibold outline-none" />
-        {ortQuelle && <span className="text-[10px] text-white/40 shrink-0">{ortQuelle}</span>}
+        {ortQuelle && <span className="text-xs text-white/60 shrink-0">{ortQuelle}</span>}
       </label>
       <div className="space-y-1.5">
-        <div className="text-xs text-white/50">Unterschrift Mitarbeiter ({einst.name || 'ich'})</div>
+        <div className="text-xs text-white/65">Unterschrift Mitarbeiter ({einst.name || 'ich'})</div>
         <Unterschrift wert={ma} onChange={setMa} hoehe={130} />
       </div>
       <div className="space-y-1.5">
-        <div className="text-xs text-white/50">Unterschrift Einsatzbetrieb</div>
+        <div className="text-xs text-white/65">Unterschrift Einsatzbetrieb</div>
         {/* Wer unterschreibt? Bekannte Berechtigte oder neue Person */}
         <div className="flex flex-wrap gap-1.5">
           {personen.map((p) => (
             <button key={p.id} type="button" onClick={() => waehle(p)}
               className={'px-2.5 py-1.5 rounded-xl text-xs border text-left ' + (wer.id === p.id ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/70')}>
-              {p.name}<span className="block text-[10px] opacity-70">{p.funktion}{p.standard ? ' · Standard' : ''}</span>
+              {p.name}<span className="block text-xs opacity-70">{p.funktion}{p.standard ? ' · Standard' : ''}</span>
             </button>
           ))}
           <button type="button" onClick={() => waehle(null)}
@@ -172,22 +172,22 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
           </div>
         )}
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-white/45">Einsatz</span>
+          <span className="text-white/65">Einsatz</span>
           {[[true, 'geht weiter'], [false, 'ist beendet']].map(([v, l]) => (
             <button key={l} type="button" onClick={() => setEb({ ...eb, einsatzWeiter: eb.einsatzWeiter === v ? null : v })}
               className={'px-2.5 py-1 rounded-full border ' + (eb.einsatzWeiter === v ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{l}</button>
           ))}
           {eb.einsatzWeiter === false && <input type="date" className="eingabe py-1 text-xs w-36" value={eb.beendetAm} onChange={(x) => setEb({ ...eb, beendetAm: x.target.value })} />}
-          <span className="text-white/45 ml-2">Beurteilung</span>
+          <span className="text-white/65 ml-2">Beurteilung</span>
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} type="button" onClick={() => setEb({ ...eb, bewertung: eb.bewertung === n ? null : n })}
-              className={'w-7 h-7 rounded-full border ' + (eb.bewertung === n ? 'btn-grad border-transparent font-bold' : 'border-white/15 text-white/60')}>{n}</button>
+              className={'w-11 h-11 rounded-full border ' + (eb.bewertung === n ? 'btn-grad border-transparent font-bold' : 'border-white/15 text-white/60')}>{n}</button>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+          <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/55" />
             <input className="eingabe pl-9 text-sm" type="email" placeholder="Durchschlag E-Mail" value={wer.email || ''} onChange={(e) => setWer({ ...wer, email: e.target.value })} /></div>
-          <div className="relative"><Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+          <div className="relative"><Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/55" />
             <input className="eingabe pl-9 text-sm" type="tel" placeholder="Durchschlag WhatsApp" value={wer.tel || ''} onChange={(e) => setWer({ ...wer, tel: e.target.value })} /></div>
         </div>
       </div>
@@ -196,11 +196,11 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
         <>
           <label className="flex items-center gap-3 text-sm">
             <input type="checkbox" className="w-5 h-5 accent-cyan-400" checked={wunsch.mail && !!email} disabled={!email} onChange={(e) => setWunsch({ ...wunsch, mail: e.target.checked })} />
-            <Mail className="w-4 h-4 text-white/50" /> <span className="min-w-0 truncate">{email ? `E-Mail an ${email}` : 'Keine Büro-E-Mail im Einsatz eingetragen'}</span>
+            <Mail className="w-4 h-4 text-white/65" /> <span className="min-w-0 truncate">{email ? `E-Mail an ${email}` : 'Keine Büro-E-Mail im Einsatz eingetragen'}</span>
           </label>
           <label className="flex items-center gap-3 text-sm">
             <input type="checkbox" className="w-5 h-5 accent-cyan-400" checked={wunsch.onedrive} onChange={(e) => setWunsch({ ...wunsch, onedrive: e.target.checked })} />
-            <CloudUpload className="w-4 h-4 text-white/50" /> <span className="min-w-0 truncate">OneDrive: {ordnerPfad(einst.onedriveOrdner, woche, g)}</span>
+            <CloudUpload className="w-4 h-4 text-white/65" /> <span className="min-w-0 truncate">OneDrive: {ordnerPfad(einst.onedriveOrdner, woche, g)}</span>
           </label>
           <button onClick={los} disabled={laeuft || unbestaetigt || (fi && !wer.name.trim()) || (!wunsch.mail && !wunsch.onedrive)}
             className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-50">

@@ -21,7 +21,7 @@ export default function KontenKarte({ einst, bis, w }) {
             <IconChip icon={PiggyBank} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
             <div className="min-w-0">
               <div className="font-bold">Guthaben beim Büro</div>
-              <div className="text-xs text-white/45 truncate">{k.buero || 'Büro'} · {k.firma} · Stand {datumLang(new Date(bis + 'T12:00'))}</div>
+              <div className="text-xs text-white/65 line-clamp-2">{k.buero || 'Büro'} · {k.firma} · Stand {datumLang(new Date(bis + 'T12:00'))}</div>
             </div>
           </div>
           {Object.entries(k.konten).map(([key, x]) => (
@@ -31,15 +31,15 @@ export default function KontenKarte({ einst, bis, w }) {
                 <div className="text-lg font-extrabold tabular-nums">{chf(x.saldo, w)}</div>
               </div>
               {key !== 'dreizehnter' && x.stunden > 0 && <div className="text-xs text-emerald-300/90 text-right tabular-nums">≈ {x.tage.toFixed(1)} freie Tage ({x.stunden.toFixed(1)} Std.){x.proWocheTage > 0 ? ` · +${x.proWocheTage.toFixed(2)} Tage pro Woche` : ''}</div>}
-              <div className="text-xs text-white/40 mt-1 tabular-nums">
+              <div className="text-xs text-white/60 mt-1 tabular-nums">
                 angespart {chf(x.gutschrift, w)}{x.bezug ? ` · bezogen ${chf(x.bezug, w)}` : ''}{x.bewegung ? ` · Auszahlungen/Korrekturen ${chf(x.bewegung, w)}` : ''}
               </div>
-              <button onClick={() => setBewegung({ firma: k.firma, konto: key, label: x.label })} className="mt-2 text-xs text-white/55 inline-flex items-center gap-1">
+              <button onClick={() => setBewegung({ firma: k.firma, konto: key, label: x.label })} className="mt-2 text-xs text-white/70 inline-flex items-center gap-1">
                 <Plus className="w-3.5 h-3.5" /> Auszahlung oder Korrektur erfassen
               </button>
             </div>
           ))}
-          <div className="text-xs text-white/40">Vergleiche den Saldo mit dem „Guthaben“ auf deiner Lohnabrechnung — oder lass die App die ganze Abrechnung prüfen.</div>
+          <div className="text-xs text-white/60">Vergleiche den Saldo mit dem „Guthaben“ auf deiner Lohnabrechnung — oder lass die App die ganze Abrechnung prüfen.</div>
         </section>
       ))}
       {bewegung && <BewegungSheet b={bewegung} onClose={() => setBewegung(null)} w={w} />}
@@ -69,7 +69,7 @@ function BewegungSheet({ b, onClose, w }) {
       <input className="eingabe" type="date" value={datum} onChange={(e) => setDatum(e.target.value)} />
       <input className="eingabe" placeholder="Notiz (z.B. laut Lohnabrechnung Okt.)" value={notiz} onChange={(e) => setNotiz(e.target.value)} />
       <button onClick={sichern} className="w-full rounded-2xl py-3 btn-grad font-bold">Speichern</button>
-      <button onClick={onClose} className="w-full text-sm text-white/45 inline-flex items-center justify-center gap-1"><X className="w-4 h-4" /> Abbrechen</button>
+      <button onClick={onClose} className="w-full text-sm text-white/65 inline-flex items-center justify-center gap-1"><X className="w-4 h-4" /> Abbrechen</button>
     </Sheet>
   )
 }

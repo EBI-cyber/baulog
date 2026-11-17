@@ -22,7 +22,7 @@ function Chips({ werte, wert, onWahl }) {
 const Frage = ({ titel, hinweis, children }) => (
   <div className="space-y-2">
     <div className="font-semibold">{titel}</div>
-    {hinweis && <div className="text-xs text-white/45">{hinweis}</div>}
+    {hinweis && <div className="text-xs text-white/65">{hinweis}</div>}
     {children}
   </div>
 )
@@ -43,27 +43,27 @@ function QstVorschau({ p, setP }) {
     <div className="rounded-2xl bg-white/[0.05] border border-white/10 p-3 space-y-2">
       <div className="text-sm">Dein Tarif: <b className="font-mono text-base">{code}</b>{p.wohnkanton ? ` · Wohnkanton ${p.wohnkanton}` : ''}</div>
       {!p.wohnkanton ? <div className="text-sm text-amber-300">Bitte im ersten Schritt den Wohnkanton wählen — er bestimmt die Quellensteuer.</div>
-        : t === undefined ? <div className="text-xs text-white/40">Offizielle Tabelle wird geladen …</div>
+        : t === undefined ? <div className="text-xs text-white/60">Offizielle Tabelle wird geladen …</div>
         : t ? (
           <>
             <div className="text-sm text-white/75">Der Satz wird <b>automatisch</b> aus der offiziellen Tabelle der Steuerverwaltung ({t.kanton} {t.jahr}) berechnet — je nach Monatslohn:</div>
             <div className="grid grid-cols-4 gap-1.5 text-center text-xs">
               {[4000, 5000, 6000, 7000].map((b) => (
-                <div key={b} className="rounded-lg bg-white/[0.05] py-1.5"><div className="text-white/45">{b.toLocaleString('de-CH')}</div><b className="text-sm">{satzFuer(t, b).toFixed(2)} %</b></div>
+                <div key={b} className="rounded-lg bg-white/[0.05] py-1.5"><div className="text-white/65">{b.toLocaleString('de-CH')}</div><b className="text-sm">{satzFuer(t, b).toFixed(2)} %</b></div>
               ))}
             </div>
-            <div className="text-xs text-white/40">Du musst nichts eintragen.</div>
+            <div className="text-xs text-white/60">Du musst nichts eintragen.</div>
           </>
         ) : <div className="text-sm text-amber-300">Tabelle gerade nicht erreichbar — der Satz wird automatisch nachgeladen.</div>}
-      <button type="button" onClick={() => setKorrektur(!korrektur)} className="text-xs text-white/45 underline">Lohnabrechnung zeigt etwas anderes?</button>
+      <button type="button" onClick={() => setKorrektur(!korrektur)} className="text-xs text-white/65 underline">Lohnabrechnung zeigt etwas anderes?</button>
       {korrektur && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs text-white/50 mb-1">Tarif laut Abrechnung</label>
+            <label className="block text-xs text-white/65 mb-1">Tarif laut Abrechnung</label>
             <input className="eingabe font-mono" placeholder={tarifAuto(p)} value={p.qstTarif} onChange={(e) => setP({ qstTarif: e.target.value.toUpperCase() })} />
           </div>
           <div>
-            <label className="block text-xs text-white/50 mb-1">Fester Satz % (leer = automatisch)</label>
+            <label className="block text-xs text-white/65 mb-1">Fester Satz % (leer = automatisch)</label>
             <input className="eingabe" inputMode="decimal" placeholder="automatisch" value={p.qstSatz} onChange={(e) => setP({ qstSatz: e.target.value })} />
           </div>
         </div>
@@ -172,7 +172,7 @@ export default function Fragebogen() {
         <section className="glass rounded-3xl p-5 space-y-2.5">
           {punkte.map((t) => <div key={t} className="flex gap-2 text-sm"><CheckCircle2 className="w-4 h-4 text-mint shrink-0 mt-0.5" /> {t}</div>)}
         </section>
-        <div className="text-sm text-white/55">Als Nächstes: unter Einstellungen einen <b>Einsatz</b> anlegen (Vertrag fotografieren) und den <b>automatischen Versand</b> mit Microsoft verbinden.</div>
+        <div className="text-sm text-white/70">Als Nächstes: unter Einstellungen einen <b>Einsatz</b> anlegen (Vertrag fotografieren) und den <b>automatischen Versand</b> mit Microsoft verbinden.</div>
         <button onClick={() => nav('/einstellungen')} className="w-full rounded-2xl py-3.5 font-bold btn-grad">Zu den Einstellungen</button>
       </div>
     )
@@ -183,7 +183,7 @@ export default function Fragebogen() {
       <div className="flex items-center gap-3">
         <IconChip icon={s.icon} variant="grad" />
         <div className="min-w-0">
-          <div className="text-xs text-white/45">Meine Situation · Schritt {i + 1} von {schritte.length}</div>
+          <div className="text-xs text-white/65">Meine Situation · Schritt {i + 1} von {schritte.length}</div>
           <h1 className="text-2xl font-extrabold tracking-tight">{s.titel}</h1>
         </div>
       </div>

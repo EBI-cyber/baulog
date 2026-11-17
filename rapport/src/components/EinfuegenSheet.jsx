@@ -85,7 +85,7 @@ export default function EinfuegenSheet({ onClose }) {
 
   return (
     <Sheet titel="Wochen einfügen" icon={ClipboardPaste} onClose={onClose}>
-      <div className="text-sm text-white/55">Link(s) kopieren (lange drücken → Kopieren), dann hier einfügen. Mehrere Wochen auf einmal gehen auch.</div>
+      <div className="text-sm text-white/70">Link(s) kopieren (lange drücken → Kopieren), dann hier einfügen. Mehrere Wochen auf einmal gehen auch.</div>
       <button onClick={einfuegen} className="w-full rounded-2xl py-3 font-semibold bg-white/10 inline-flex items-center justify-center gap-2">
         <ClipboardPaste className="w-4 h-4" /> Aus Zwischenablage einfügen
       </button>
@@ -95,7 +95,7 @@ export default function EinfuegenSheet({ onClose }) {
       {vorschau.map((w) => (
         <div key={w.key} className="glass rounded-2xl px-4 py-3 text-sm">
           <div className="flex justify-between font-semibold"><span>KW {w.woche.kw} / {w.woche.jahr}</span><span className="tabular-nums">{w.std.toFixed(2)} h</span></div>
-          <div className="text-white/50">
+          <div className="text-white/65">
             {w.neu} {w.neu === 1 ? 'Tag' : 'Tage'} neu{w.schon ? ` · ${w.schon} schon erfasst (bleiben)` : ''}
             {w.vorgabe.firma ? ` · ${w.vorgabe.firma}` : ''}{w.vorgabe.papier ? ' · auf Papier abgegeben' : ''}
           </div>

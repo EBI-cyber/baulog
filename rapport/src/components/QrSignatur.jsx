@@ -44,9 +44,9 @@ export default function QrSignatur({ g, woche, ma, onUnterschrift }) {
         <button type="button" onClick={starten} disabled={!ma?.bild} className="w-full rounded-2xl py-2.5 bg-white/10 font-semibold text-sm inline-flex items-center justify-center gap-2 disabled:opacity-40">
           <QrCode className="w-4 h-4" /> Polier unterschreibt auf seinem Handy (QR-Code)
         </button>
-        {!ma?.bild && <div className="text-xs text-white/40 text-center">Zuerst selbst unterschreiben — dann bekommt der Polier einen vollständigen Durchschlag.</div>}
+        {!ma?.bild && <div className="text-xs text-white/60 text-center">Zuerst selbst unterschreiben — dann bekommt der Polier einen vollständigen Durchschlag.</div>}
       </>)}
-      {zustand === 'laedt' && <div className="text-sm text-white/50 inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> QR-Code wird erstellt …</div>}
+      {zustand === 'laedt' && <div className="text-sm text-white/65 inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> QR-Code wird erstellt …</div>}
       {zustand?.qr && (
         <div ref={qrBox} className="rounded-2xl bg-white p-4 text-center space-y-2 relative">
           <button type="button" onClick={() => { aktiv.current = false; setZustand(null); setTimeout(() => { aktiv.current = true }) }}

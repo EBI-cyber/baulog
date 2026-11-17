@@ -25,14 +25,14 @@ export default function ZahlungenKarte({ monat, anspruch, w = 'CHF', titel = 'Za
 
   return (
     <section className="glass rounded-3xl p-4 space-y-2">
-      <div className="text-white/45 text-xs inline-flex items-center gap-1.5"><Landmark className="w-3.5 h-3.5" /> {titel}</div>
+      <div className="text-white/65 text-xs inline-flex items-center gap-1.5"><Landmark className="w-3.5 h-3.5" /> {titel}</div>
       {zahlungen.length ? <>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm tabular-nums">
-          {summe('vorschuss') > 0 && <><span className="text-white/55">Vorschüsse ({zahlungen.filter((z) => z.art === 'vorschuss').length}×)</span><span className="text-right font-semibold">{chf(summe('vorschuss'), w)}</span></>}
-          {summe('lohn') > 0 && <><span className="text-white/55">Lohnzahlung</span><span className="text-right font-semibold">{chf(summe('lohn'), w)}</span></>}
-          {summe('sonstig') > 0 && <><span className="text-white/55">Sonstiges</span><span className="text-right font-semibold">{chf(summe('sonstig'), w)}</span></>}
-          <span className="text-white/55">Erhalten total</span><span className="text-right font-bold">{chf(erhalten, w)}</span>
-          {anspruch != null && <><span className="text-white/55">Anspruch {laufend ? 'bisher' : ''} (Auszahlung)</span><span className="text-right font-semibold">{chf(anspruch, w)}</span></>}
+          {summe('vorschuss') > 0 && <><span className="text-white/70">Vorschüsse ({zahlungen.filter((z) => z.art === 'vorschuss').length}×)</span><span className="text-right font-semibold">{chf(summe('vorschuss'), w)}</span></>}
+          {summe('lohn') > 0 && <><span className="text-white/70">Lohnzahlung</span><span className="text-right font-semibold">{chf(summe('lohn'), w)}</span></>}
+          {summe('sonstig') > 0 && <><span className="text-white/70">Sonstiges</span><span className="text-right font-semibold">{chf(summe('sonstig'), w)}</span></>}
+          <span className="text-white/70">Erhalten total</span><span className="text-right font-bold">{chf(erhalten, w)}</span>
+          {anspruch != null && <><span className="text-white/70">Anspruch {laufend ? 'bisher' : ''} (Auszahlung)</span><span className="text-right font-semibold">{chf(anspruch, w)}</span></>}
         </div>
         {offen != null && (
           <div className={'rounded-2xl px-3 py-2 text-sm font-semibold flex justify-between ' + (offen > 0.5 ? 'bg-amber-400/10 text-amber-300' : offen < -0.5 ? 'bg-rose-400/10 text-rose-300' : 'bg-emerald-400/10 text-emerald-300')}>
@@ -40,7 +40,7 @@ export default function ZahlungenKarte({ monat, anspruch, w = 'CHF', titel = 'Za
             <span className="tabular-nums">{chf(Math.abs(offen), w)}</span>
           </div>
         )}
-        <button onClick={() => setListe(!liste)} className="text-xs text-white/50 inline-flex items-center gap-1">
+        <button onClick={() => setListe(!liste)} className="text-xs text-white/65 inline-flex items-center gap-1">
           <ChevronDown className={'w-3.5 h-3.5 transition-transform ' + (liste ? 'rotate-180' : '')} /> {zahlungen.length} Zahlung{zahlungen.length === 1 ? '' : 'en'}
         </button>
         {liste && <div className="space-y-1">
@@ -52,11 +52,11 @@ export default function ZahlungenKarte({ monat, anspruch, w = 'CHF', titel = 'Za
                 {monateUm(z.datum).map((m) => <option key={m} value={m}>{monatTxt(m)}</option>)}
               </select>
               <span className="tabular-nums font-semibold">{chf(z.betrag, w)}</span>
-              <button onClick={() => confirm('Zahlung löschen?') && db.zahlungen.delete(z.id)} className="text-white/35" aria-label="Löschen"><Trash2 className="w-3.5 h-3.5" /></button>
+              <button onClick={() => confirm('Zahlung löschen?') && db.zahlungen.delete(z.id)} className="text-white/55" aria-label="Löschen"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
           ))}
         </div>}
-      </> : <div className="text-sm text-white/55">Noch keine Vorschüsse oder Lohnzahlungen erfasst{anspruch != null ? ` — Anspruch ${laufend ? 'bisher ' : ''}${chf(anspruch, w)}` : ''}.</div>}
+      </> : <div className="text-sm text-white/70">Noch keine Vorschüsse oder Lohnzahlungen erfasst{anspruch != null ? ` — Anspruch ${laufend ? 'bisher ' : ''}${chf(anspruch, w)}` : ''}.</div>}
       <button onClick={() => setSheet(true)} className="w-full rounded-2xl py-2.5 bg-white/[0.06] border border-dashed border-white/15 text-sm text-white/70 inline-flex items-center justify-center gap-2">
         <Plus className="w-4 h-4" /> Bankauszug einfügen
       </button>

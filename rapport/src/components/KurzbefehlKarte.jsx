@@ -10,7 +10,7 @@ function UrlZeile({ titel, aktion }) {
     <div className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2 flex items-center gap-2">
       <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold">{titel}</div>
-        <div className="text-[11px] text-white/35 truncate font-mono">{url}</div>
+        <div className="text-xs text-white/55 truncate font-mono">{url}</div>
       </div>
       <button onClick={() => { navigator.clipboard?.writeText(url); setOk(true); setTimeout(() => setOk(false), 1500) }}
         className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs inline-flex items-center gap-1">
@@ -30,7 +30,7 @@ export default function KurzbefehlKarte({ Karte }) {
 
   return (
     <Karte icon={Hand} titel="Stempeln ohne App öffnen">
-      <div className="text-sm text-white/55">Zweimal auf die <b className="text-white/80">Rückseite des iPhones</b> tippen = Pause ein/aus, dreimal = Start/Feierabend. Auch per Siri („Pause“) oder automatisch beim Ankommen am Arbeitsort. Die Zeit stimmt auf die Sekunde — die App übernimmt die Tipps beim nächsten Öffnen.</div>
+      <div className="text-sm text-white/70">Zweimal auf die <b className="text-white/80">Rückseite des iPhones</b> tippen = Pause ein/aus, dreimal = Start/Feierabend. Auch per Siri („Pause“) oder automatisch beim Ankommen am Arbeitsort. Die Zeit stimmt auf die Sekunde — die App übernimmt die Tipps beim nächsten Öffnen.</div>
       {!aktiv ? (
         <button onClick={() => schluessel()} className="w-full rounded-2xl py-3 btn-grad font-bold">Einschalten</button>
       ) : (
@@ -77,7 +77,7 @@ export default function KurzbefehlKarte({ Karte }) {
               className="rounded-xl py-2.5 bg-white/10 text-sm font-semibold inline-flex items-center justify-center gap-1.5"><RefreshCw className="w-4 h-4" /> Neuer Schlüssel</button>
           </div>
           {test && <div className="text-sm text-white/70">Antwort: <b>{test}</b></div>}
-          <button onClick={() => setEinst({ stempelAktiv: false })} className="text-xs text-white/35">Ausschalten</button>
+          <button onClick={() => setEinst({ stempelAktiv: false })} className="text-xs text-white/55">Ausschalten</button>
         </>
       )}
     </Karte>
