@@ -17,7 +17,7 @@ export function perioden(art, anker) {
     return Array.from({ length: 12 }, (_, i) => {
       const w = wocheVersetzt(anker, i - 11)
       const von = isoDatum(wochenStart(w))
-      return { key: wochenKey(w), kurz: String(w.kw), titel: `KW ${w.kw} / ${w.jahr}`, von, bis: plusTage(von, 6), monate: null }
+      return { key: wochenKey(w), kurz: String(w.kw), titel: `KW ${w.kw} / ${w.jahr}`, von, bis: plusTage(von, 6), monate: null, monat: plusTage(von, 3).slice(0, 7) }
     })
   }
   if (art === 'monat') {
