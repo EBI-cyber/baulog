@@ -70,7 +70,7 @@ export default function KrankSheet({ onClose }) {
             <span className="text-white/60">Arbeitstag{tage > 1 ? 'e' : ''}</span>
           </div>
           <textarea className="eingabe min-h-[140px] text-sm" value={nachricht} onChange={(e) => setText(e.target.value)} />
-          <div className="text-xs text-white/45">
+          <div className="text-xs text-white/65">
             Geht an: {[einsatz?.bueroEmail && `Büro (${einsatz.bueroEmail})`, polier?.email && `${polier.name}`].filter(Boolean).join(' und ') || '— keine E-Mail im Einsatz hinterlegt'}
             {!ms.refreshToken && ' · E-Mail automatisch nur mit verbundenem Microsoft-Konto'}
           </div>
@@ -85,7 +85,7 @@ export default function KrankSheet({ onClose }) {
           {einsatz?.bueroTel && <a href={whatsappLink(einsatz.bueroTel, nachricht)} target="_blank" rel="noreferrer" className="w-full rounded-2xl py-3 bg-[#25D366]/15 border border-[#25D366]/40 text-[#7ee2a8] font-semibold inline-flex items-center justify-center gap-2"><MessageCircle className="w-5 h-5" /> Auch per WhatsApp ans Büro</a>}
           {polier?.tel && <a href={whatsappLink(polier.tel, nachricht)} target="_blank" rel="noreferrer" className="w-full rounded-2xl py-3 bg-[#25D366]/15 border border-[#25D366]/40 text-[#7ee2a8] font-semibold inline-flex items-center justify-center gap-2"><MessageCircle className="w-5 h-5" /> WhatsApp an {polier.name}</a>}
           {!fertig.mail?.ok && einsatz?.bueroEmail && <a href={`mailto:${einsatz.bueroEmail}?subject=${encodeURIComponent(`Krankmeldung ${einst.name}`)}&body=${encodeURIComponent(nachricht)}`} className="w-full rounded-2xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2"><Mail className="w-5 h-5" /> E-Mail öffnen</a>}
-          <div className="text-sm text-white/55 flex gap-2"><Camera className="w-4 h-4 shrink-0 mt-0.5" /> Arztzeugnis: meist ab dem 3. Krankheitstag nötig (siehe Vertrag). Unter „Woche“ die Abwesenheit öffnen und „Arztzeugnis vorhanden“ abhaken.</div>
+          <div className="text-sm text-white/70 flex gap-2"><Camera className="w-4 h-4 shrink-0 mt-0.5" /> Arztzeugnis: meist ab dem 3. Krankheitstag nötig (siehe Vertrag). Unter „Woche“ die Abwesenheit öffnen und „Arztzeugnis vorhanden“ abhaken.</div>
           <button onClick={onClose} className="w-full rounded-2xl py-3 bg-white/10 font-semibold">Schliessen</button>
         </>
       )}

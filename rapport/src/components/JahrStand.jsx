@@ -68,34 +68,34 @@ export default function JahrStand({ jahr, kanton, einst }) {
   return (
     <section className="glass rounded-3xl p-4 space-y-3">
       <button onClick={() => setOffen(!offen)} className="w-full flex items-center gap-2 text-left">
-        <CalendarRange className="w-4 h-4 text-white/50" />
+        <CalendarRange className="w-4 h-4 text-white/65" />
         <div className="flex-1">
-          <div className="font-bold">Jahr {jahr} <span className="text-xs font-normal text-white/40">bis {bis.split('-').reverse().join('.')}</span></div>
-          <div className="text-xs text-white/50 tabular-nums">{dez(r.s.arbeit)} h · {r.s.saldo >= 0 ? '+' : '−'}{dez(Math.abs(r.s.saldo))} h · netto {chf(r.netto, w)}</div>
+          <div className="font-bold">Jahr {jahr} <span className="text-xs font-normal text-white/60">bis {bis.split('-').reverse().join('.')}</span></div>
+          <div className="text-xs text-white/65 tabular-nums">{dez(r.s.arbeit)} h · {r.s.saldo >= 0 ? '+' : '−'}{dez(Math.abs(r.s.saldo))} h · netto {chf(r.netto, w)}</div>
         </div>
-        <ChevronDown className={'w-5 h-5 text-white/40 transition-transform ' + (offen ? 'rotate-180' : '')} />
+        <ChevronDown className={'w-5 h-5 text-white/60 transition-transform ' + (offen ? 'rotate-180' : '')} />
       </button>
       {offen && <>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-          <span className="text-white/55">Gearbeitet</span><span className="text-right font-semibold tabular-nums">{dez(r.s.arbeit)} h ({r.s.tage} Tage)</span>
-          <span className="text-white/55">{r.s.saldo >= 0 ? 'Überstunden' : 'Minusstunden'}</span><span className={'text-right font-semibold tabular-nums ' + (r.s.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{r.s.saldo >= 0 ? '+' : '−'}{dez(Math.abs(r.s.saldo))} h</span>
-          <span className="text-white/55">Bruttolohn</span><span className="text-right font-semibold tabular-nums">{chf(r.brutto, w)}</span>
-          {r.qst > 0 && <><span className="text-white/55">Quellensteuer</span><span className="text-right font-semibold tabular-nums">{chf(r.qst, w)}</span></>}
-          <span className="text-white/55">Nettolohn</span><span className="text-right font-semibold tabular-nums">{chf(r.netto, w)}</span>
-          {r.erhalten > 0 && !r.fehlt && <><span className="text-white/55">Vom Büro erhalten</span><span className="text-right font-semibold tabular-nums">{chf(r.erhalten, w)}</span>
-            <span className="text-white/55">{r.anspruch - r.erhalten >= 0 ? 'Noch ausstehend' : 'Zu viel erhalten'}</span><span className={'text-right font-semibold tabular-nums ' + (r.anspruch - r.erhalten > 0.5 ? 'text-amber-300' : r.anspruch - r.erhalten < -0.5 ? 'text-rose-300' : 'text-emerald-400')}>{chf(Math.abs(r.anspruch - r.erhalten), w)}</span></>}
-          {r.spesen > 0 && <><span className="text-white/55">Spesen/Zulagen</span><span className="text-right font-semibold tabular-nums">{chf(r.spesen, w)}</span></>}
-          {Object.keys(r.s.nachArt).length > 0 && <><span className="text-white/55">Abwesend</span><span className="text-right font-semibold">{Object.entries(r.s.nachArt).map(([k, n]) => `${n} T. ${k}`).join(', ')}</span></>}
-          {r.firmen.length > 0 && <><span className="text-white/55">Einsätze</span><span className="text-right">{r.firmen.join(', ')}</span></>}
+          <span className="text-white/70">Gearbeitet</span><span className="text-right font-semibold tabular-nums">{dez(r.s.arbeit)} h ({r.s.tage} Tage)</span>
+          <span className="text-white/70">{r.s.saldo >= 0 ? 'Überstunden' : 'Minusstunden'}</span><span className={'text-right font-semibold tabular-nums ' + (r.s.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{r.s.saldo >= 0 ? '+' : '−'}{dez(Math.abs(r.s.saldo))} h</span>
+          <span className="text-white/70">Bruttolohn</span><span className="text-right font-semibold tabular-nums">{chf(r.brutto, w)}</span>
+          {r.qst > 0 && <><span className="text-white/70">Quellensteuer</span><span className="text-right font-semibold tabular-nums">{chf(r.qst, w)}</span></>}
+          <span className="text-white/70">Nettolohn</span><span className="text-right font-semibold tabular-nums">{chf(r.netto, w)}</span>
+          {r.erhalten > 0 && !r.fehlt && <><span className="text-white/70">Vom Büro erhalten</span><span className="text-right font-semibold tabular-nums">{chf(r.erhalten, w)}</span>
+            <span className="text-white/70">{r.anspruch - r.erhalten >= 0 ? 'Noch ausstehend' : 'Zu viel erhalten'}</span><span className={'text-right font-semibold tabular-nums ' + (r.anspruch - r.erhalten > 0.5 ? 'text-amber-300' : r.anspruch - r.erhalten < -0.5 ? 'text-rose-300' : 'text-emerald-400')}>{chf(Math.abs(r.anspruch - r.erhalten), w)}</span></>}
+          {r.spesen > 0 && <><span className="text-white/70">Spesen/Zulagen</span><span className="text-right font-semibold tabular-nums">{chf(r.spesen, w)}</span></>}
+          {Object.keys(r.s.nachArt).length > 0 && <><span className="text-white/70">Abwesend</span><span className="text-right font-semibold">{Object.entries(r.s.nachArt).map(([k, n]) => `${n} T. ${k}`).join(', ')}</span></>}
+          {r.firmen.length > 0 && <><span className="text-white/70">Einsätze</span><span className="text-right">{r.firmen.join(', ')}</span></>}
         </div>
         <table className="w-full text-xs tabular-nums">
-          <thead><tr className="text-white/40"><th className="text-left font-normal py-1">Monat</th><th className="text-right font-normal">Std.</th><th className="text-right font-normal">Brutto</th><th className="text-right font-normal">Netto</th></tr></thead>
+          <thead><tr className="text-white/60"><th className="text-left font-normal py-1">Monat</th><th className="text-right font-normal">Std.</th><th className="text-right font-normal">Brutto</th><th className="text-right font-normal">Netto</th></tr></thead>
           <tbody>{r.monate.map((x) => (
             <tr key={x.m} className="border-t border-white/5"><td className="py-1.5">{MONATE[x.m]}</td><td className="text-right">{dez(x.std)}</td>
               <td className="text-right">{x.fehlt ? '–' : chf(x.brutto, w)}</td><td className="text-right">{x.fehlt ? '–' : chf(x.netto, w)}</td></tr>
           ))}</tbody>
         </table>
-        <div className="text-xs text-white/40">{r.fehlt ? 'Ohne Stundenlohn im Einsatz bleibt der Lohn leer. ' : ''}Geschätzt aus deinen Zeiten und dem Einsatzvertrag — für die Steuererklärung gilt der Lohnausweis des Büros. Hilft beim Vergleich und für RAV/Zwischenverdienst.</div>
+        <div className="text-xs text-white/60">{r.fehlt ? 'Ohne Stundenlohn im Einsatz bleibt der Lohn leer. ' : ''}Geschätzt aus deinen Zeiten und dem Einsatzvertrag — für die Steuererklärung gilt der Lohnausweis des Büros. Hilft beim Vergleich und für RAV/Zwischenverdienst.</div>
       </>}
     </section>
   )

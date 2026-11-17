@@ -139,11 +139,11 @@ export default function Heute() {
     <div className="space-y-5">
       <header className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-white/45 text-sm">{TAGE_LANG[heute.getDay()]}, {datumLang(heute)}</div>
+          <div className="text-white/65 text-sm">{TAGE_LANG[heute.getDay()]}, {datumLang(heute)}</div>
           <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Heute</h1>
         </div>
         <Link to="/woche" className="shrink-0 glass rounded-2xl px-3 py-2 text-center">
-          <div className="text-[10px] uppercase tracking-wider text-white/45">KW</div>
+          <div className="text-xs uppercase tracking-wider text-white/65">KW</div>
           <div className="text-xl font-extrabold leading-none tabular-nums">{woche.kw}</div>
         </Link>
       </header>
@@ -153,7 +153,7 @@ export default function Heute() {
           <IconChip icon={ClipboardList} variant="grad" />
           <div className="min-w-0">
             <div className="font-semibold">Einmal einrichten</div>
-            <div className="text-sm text-white/55">Kurzer Fragebogen zu deiner Situation — dann stimmen Lohn, Steuer und Rapport.</div>
+            <div className="text-sm text-white/70">Kurzer Fragebogen zu deiner Situation — dann stimmen Lohn, Steuer und Rapport.</div>
           </div>
         </Link>
       ) : !fertigEingerichtet(einst) && (
@@ -161,7 +161,7 @@ export default function Heute() {
           <IconChip icon={Settings} />
           <div className="min-w-0">
             <div className="font-semibold">Ersten Einsatz anlegen</div>
-            <div className="text-sm text-white/50">Einsatzvertrag fotografieren — Firma, Büro und Lohn werden übernommen.</div>
+            <div className="text-sm text-white/65">Einsatzvertrag fotografieren — Firma, Büro und Lohn werden übernommen.</div>
           </div>
         </Link>
       )}
@@ -235,14 +235,14 @@ export default function Heute() {
               <button onClick={() => setWechseln(true)} className="w-full text-left rounded-2xl bg-white/[0.05] border border-white/10 px-4 py-3 flex items-center gap-3">
                 <IconChip icon={Building2} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-semibold truncate">{firma}</div>
-                  <div className="text-xs text-white/45 truncate">{[aktiverEinsatz?.buero || einst.buero, aktiverEinsatz?.baustelle, aktiverEinsatz?.einsatzort, aktiverEinsatz?.funktion].filter(Boolean).join(' · ') || 'Einsatz'}</div>
+                  <div className="font-semibold leading-snug break-words">{firma}</div>
+                  <div className="text-xs text-white/65 line-clamp-2">{[aktiverEinsatz?.buero || einst.buero, aktiverEinsatz?.baustelle, aktiverEinsatz?.einsatzort, aktiverEinsatz?.funktion].filter(Boolean).join(' · ') || 'Einsatz'}</div>
                 </div>
-                <span className="shrink-0 text-xs text-white/40">Wechseln</span>
+                <span className="shrink-0 text-xs text-white/60">Wechseln</span>
               </button>
             ) : (
               <div className="text-left space-y-2">
-                <div className="text-xs text-white/50 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Einsatzbetrieb wählen</div>
+                <div className="text-xs text-white/65 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Einsatzbetrieb wählen</div>
                 <FirmaWahl firmen={einst.firmen} wert={firma} onWahl={(f) => { setEinst({ firma: f }); setWechseln(false) }}
                   onNeu={(n) => { setEinst({ firmen: [...einst.firmen, n], firma: n }); setWechseln(false) }} />
               </div>
@@ -252,8 +252,8 @@ export default function Heute() {
               <Play className="w-12 h-12" strokeWidth={2.2} fill="currentColor" />
               Start
             </button>
-            {!firma && <div className="text-sm text-white/50">Zuerst eine Firma wählen oder hinzufügen.</div>}
-            <button onClick={() => setKrank(true)} className="text-sm text-white/45 inline-flex items-center gap-1.5"><Thermometer className="w-4 h-4" /> Krank melden</button>
+            {!firma && <div className="text-sm text-white/65">Zuerst eine Firma wählen oder hinzufügen.</div>}
+            <button onClick={() => setKrank(true)} className="text-sm text-white/65 inline-flex items-center gap-1.5"><Thermometer className="w-4 h-4" /> Krank melden</button>
           </>
         ) : (
           <>
@@ -267,17 +267,17 @@ export default function Heute() {
                   <input type="time" value={endeZeit} onChange={(e) => setEndeZeit(e.target.value)} className="eingabe w-28 py-1.5" />
                 </div>
                 <button onClick={nachtraeglichBeenden} className="w-full rounded-2xl py-3 btn-grad font-bold">Feierabend um {endeZeit} eintragen</button>
-                <button onClick={() => setWeiterGearbeitet(true)} className="w-full text-sm text-white/45">Nein, ich arbeite noch (Nachtschicht)</button>
+                <button onClick={() => setWeiterGearbeitet(true)} className="w-full text-sm text-white/65">Nein, ich arbeite noch (Nachtschicht)</button>
               </div>
             )}
             <button onClick={() => bearbeite(laufend)} className="inline-flex items-center gap-1.5 text-sm text-white/60">
-              <Building2 className="w-4 h-4" /> {laufend.firma} · seit {uhr(laufend.start)} <Pencil className="w-3.5 h-3.5 text-white/35" />
+              <Building2 className="w-4 h-4" /> {laufend.firma} · seit {uhr(laufend.start)} <Pencil className="w-3.5 h-3.5 text-white/55" />
             </button>
             <div>
-              <div className={'text-6xl font-extrabold tabular-nums tracking-tight ' + (pausiert ? 'text-white/40' : 'grad-text')}>
+              <div className={'text-6xl font-extrabold tabular-nums tracking-tight ' + (pausiert ? 'text-white/60' : 'grad-text')}>
                 {hms(arbeitMs(laufend, jetzt))}
               </div>
-              <div className="text-sm text-white/50 mt-1 inline-flex items-center gap-1.5">
+              <div className="text-sm text-white/65 mt-1 inline-flex items-center gap-1.5">
                 <Coffee className="w-4 h-4" /> Pause {hm(pauseMs(laufend, jetzt))}
                 {pausiert && <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-amber-400/15 text-amber-300 border border-amber-400/30">Pause läuft</span>}
               </div>
@@ -298,7 +298,7 @@ export default function Heute() {
                 <Square className="w-5 h-5" fill="currentColor" /> {stoppFrage ? 'Sicher?' : 'Feierabend'}
               </button>
             </div>
-            {stoppFrage && <div className="text-xs text-white/45 -mt-2">Nochmal tippen zum Beenden</div>}
+            {stoppFrage && <div className="text-xs text-white/65 -mt-2">Nochmal tippen zum Beenden</div>}
           </>
         )}
       </section>
@@ -308,20 +308,20 @@ export default function Heute() {
           <div className="flex items-center gap-3 min-w-0">
             <IconChip icon={Banknote} />
             <div className="min-w-0">
-              <div className="text-xs text-white/45">Heute verdient</div>
+              <div className="text-xs text-white/65">Heute verdient</div>
               <div className="font-extrabold grad-text tabular-nums">{chf(lohnHeute.brutto, einst.waehrung)}</div>
-              <div className="text-xs text-white/40 tabular-nums">netto ≈ {chf(lohnHeute.netto, einst.waehrung)}</div>
+              <div className="text-xs text-white/60 tabular-nums">netto ≈ {chf(lohnHeute.netto, einst.waehrung)}</div>
             </div>
           </div>
           <div className="min-w-0 text-right">
-            <div className="text-xs text-white/45">Monat bis jetzt</div>
+            <div className="text-xs text-white/65">Monat bis jetzt</div>
             <div className="font-extrabold tabular-nums">{chf(lohnMonat?.netto || 0, einst.waehrung)}</div>
-            <div className="text-xs text-white/40">netto</div>
+            <div className="text-xs text-white/60">netto</div>
           </div>
         </Link>
       )}
       {lohnHeute && lohnHeute.fehlendeLoehne.length > 0 && fertigEingerichtet(einst) && (
-        <Link to="/einstellungen" className="block text-sm text-white/55 underline decoration-white/20">
+        <Link to="/einstellungen" className="block text-sm text-white/70 underline decoration-white/20">
           Für den Live-Lohn den Einsatzvertrag von {lohnHeute.fehlendeLoehne[0]} erfassen →
         </Link>
       )}
@@ -331,7 +331,7 @@ export default function Heute() {
           <IconChip icon={PartyPopper} />
           <div className="min-w-0 flex-1">
             <div className="font-semibold">{feiertag}</div>
-            <div className="text-sm text-white/55">Feiertag im Kanton {kanton}</div>
+            <div className="text-sm text-white/70">Feiertag im Kanton {kanton}</div>
           </div>
           <button onClick={() => speichereAbsenz({ datum: tag, art: 'feiertag', firma: einst.firma, halbtag: false, stunden: tagesSoll(einst), zeugnis: false, notiz: feiertag })}
             className="shrink-0 rounded-xl px-3 py-2 bg-white/10 text-sm font-semibold">Eintragen</button>
@@ -347,7 +347,7 @@ export default function Heute() {
         {(absenzen || []).map((a) => <AbsenzZeile key={'a' + a.id} a={a} onClick={() => setSheet({ typ: 'absenz', objekt: a })} />)}
         {fertig.map((s) => <SchichtZeile key={s.id} s={s} onClick={() => bearbeite(s)} />)}
         {(spesen || []).map((x) => <SpesenZeile key={'s' + x.id} s={x} waehrung={einst.waehrung} onClick={() => setSheet({ typ: 'spesen', objekt: x })} />)}
-        {!fertig.length && !absenzen?.length && <div className="text-sm text-white/40">Noch nichts abgeschlossen.</div>}
+        {!fertig.length && !absenzen?.length && <div className="text-sm text-white/60">Noch nichts abgeschlossen.</div>}
         <div className="grid grid-cols-3 gap-2">
           {[['zeit', Plus, 'Zeit'], ['absenz', CalendarOff, 'Abwesend'], ['spesen', Wallet, 'Spesen']].map(([t, I, l]) => (
             <button key={t} onClick={() => setSheet({ typ: t, datum: tag })}

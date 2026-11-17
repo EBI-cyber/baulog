@@ -71,7 +71,7 @@ export default function Unterschrift({ wert, onChange, hoehe = 170 }) {
     <div ref={box} className="relative rounded-2xl border border-dashed border-white/25 bg-white/[0.04] select-none" style={{ height: hoehe, touchAction: 'none' }}>
       <canvas ref={canvas} style={{ width: '100%', height: hoehe, touchAction: 'none' }}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
-      {leer && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/30">Hier mit dem Finger unterschreiben</div>}
+      {leer && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/50">Hier mit dem Finger unterschreiben</div>}
       <div className="pointer-events-none absolute left-4 right-4 bottom-8 border-b border-white/15" />
       {!leer && <button type="button" onClick={loeschen} className="absolute top-2 right-2 rounded-lg bg-black/40 px-2 py-1 text-xs text-white/70 inline-flex items-center gap-1">
         <Eraser className="w-3.5 h-3.5" /> Löschen</button>}

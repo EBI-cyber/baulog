@@ -80,12 +80,12 @@ function Inhalt({ token }) {
   )
 
   if (fehler && !d) return rahmen(<div className="rounded-2xl p-4 bg-ember/15 border border-ember/30 text-ember flex gap-2"><AlertTriangle className="w-5 h-5 shrink-0" /> {fehler}</div>)
-  if (!d) return rahmen(<div className="text-white/50 inline-flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Rapport wird geladen …</div>)
+  if (!d) return rahmen(<div className="text-white/65 inline-flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Rapport wird geladen …</div>)
   if (fertig) return rahmen(
     <div className="glass rounded-3xl p-6 text-center space-y-3">
       <CheckCircle2 className="w-12 h-12 mx-auto text-mint" />
       <div className="text-xl font-bold">{fertig === 'unterschrieben' ? 'Danke, der Rapport ist unterschrieben.' : 'Danke, Ihre Bemerkung wurde übermittelt.'}</div>
-      <div className="text-sm text-white/55">{d.einst.name} erhält die Antwort automatisch.
+      <div className="text-sm text-white/70">{d.einst.name} erhält die Antwort automatisch.
         {fertig === 'unterschrieben' && (email || tel) ? ` Ihr Durchschlag kommt ${[email && 'per E-Mail', tel && 'per WhatsApp'].filter(Boolean).join(' und ')}, sobald ${d.einst.name} den Rapport abschliesst.` : ''}</div>
       {durchschlag && <a href={durchschlag} download={`Rapport_KW${d.woche.kw}_${d.woche.jahr}_${d.einst.name || ''}.pdf`.replace(/\s+/g, '_')}
         className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2"><Download className="w-5 h-5" /> Durchschlag jetzt speichern (PDF)</a>}
@@ -98,29 +98,29 @@ function Inhalt({ token }) {
     <>
       <section className="glass rounded-3xl p-5 space-y-1">
         <div className="text-2xl font-extrabold grad-text">KW {d.woche.kw} / {d.woche.jahr}</div>
-        <div className="text-sm text-white/50">{datumLang(tage[0])} – {datumLang(tage[6])}</div>
+        <div className="text-sm text-white/65">{datumLang(tage[0])} – {datumLang(tage[6])}</div>
         <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 pt-3 text-sm">
-          <span className="text-white/45">Mitarbeiter</span><b>{d.einst.name}</b>
-          <span className="text-white/45">Einsatzbetrieb</span><b>{d.firma}</b>
-          <span className="text-white/45">Temporärbüro</span><span>{d.einst.buero || '—'}</span>
-          {d.einsatz?.einsatznummer && <><span className="text-white/45">Einsatz-Nr.</span><span>{d.einsatz.einsatznummer}</span></>}
+          <span className="text-white/65">Mitarbeiter</span><b>{d.einst.name}</b>
+          <span className="text-white/65">Einsatzbetrieb</span><b>{d.firma}</b>
+          <span className="text-white/65">Temporärbüro</span><span>{d.einst.buero || '—'}</span>
+          {d.einsatz?.einsatznummer && <><span className="text-white/65">Einsatz-Nr.</span><span>{d.einsatz.einsatznummer}</span></>}
         </div>
       </section>
 
       <section className="glass rounded-3xl p-4">
         <table className="w-full text-sm tabular-nums">
-          <thead><tr className="text-white/40 text-xs text-left"><th className="pb-2">Tag</th><th colSpan={2}>Arbeitszeiten</th><th>Pause</th><th className="text-right">Std.</th></tr></thead>
+          <thead><tr className="text-white/60 text-xs text-left"><th className="pb-2">Tag</th><th colSpan={2}>Arbeitszeiten</th><th>Pause</th><th className="text-right">Std.</th></tr></thead>
           <tbody>
             {tage.map((t) => {
               const iso = isoDatum(t)
               const s = d.schichten.filter((x) => x.datum === iso && x.ende != null).sort((a, b) => a.start - b.start)
               const a = d.absenzen.filter((x) => x.datum === iso)
-              if (!s.length && !a.length) return <tr key={iso} className="text-white/25 border-t border-white/5"><td className="py-1.5">{TAGE[t.getDay()]} {datumKurz(t)}</td><td colSpan={4}>–</td></tr>
+              if (!s.length && !a.length) return <tr key={iso} className="text-white/45 border-t border-white/5"><td className="py-1.5">{TAGE[t.getDay()]} {datumKurz(t)}</td><td colSpan={4}>–</td></tr>
               return [
                 ...a.map((x, i) => <tr key={iso + 'a' + i} className="border-t border-white/5"><td className="py-1.5">{TAGE[t.getDay()]} {datumKurz(t)}</td><td colSpan={3} className="text-white/70">{absenzArt(x.art).label}{x.halbtag ? ' (½)' : ''}</td><td className="text-right">{std(zahl(x.stunden))}</td></tr>),
                 ...s.map((x, i) => <tr key={iso + 's' + i} className="border-t border-white/5 align-top"><td className="py-1.5">{TAGE[t.getDay()]} {datumKurz(t)}</td>
                   <td colSpan={2} className="py-1.5 text-xs leading-5">{bloecke(x).map(([a, b]) => `${uhr(a)}–${uhr(b)}`).join(' · ')}
-                    {(x.notiz || '').replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '') && <div className="text-white/45">{x.notiz.replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '')}</div>}</td>
+                    {(x.notiz || '').replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '') && <div className="text-white/65">{x.notiz.replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '')}</div>}</td>
                   <td className="py-1.5">{hm(pauseMs(x))}</td><td className="py-1.5 text-right font-semibold">{hm(arbeitMs(x))}</td></tr>),
               ]
             })}
@@ -141,7 +141,7 @@ function Inhalt({ token }) {
             {bekannte.map((x) => (
               <button key={x.id} type="button" onClick={() => setWer(x.id)}
                 className={'px-3 py-2 rounded-xl text-sm border text-left ' + (wer === x.id ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/75')}>
-                {x.name}<span className="block text-[11px] opacity-70">{x.funktion}</span>
+                {x.name}<span className="block text-xs opacity-70">{x.funktion}</span>
               </button>
             ))}
             <button type="button" onClick={() => setWer('neu')}
@@ -170,29 +170,29 @@ function Inhalt({ token }) {
               <button type="button" onClick={() => setWeiter(false)} className={'flex-1 rounded-xl py-2 text-sm border ' + (weiter === false ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/65')}>ist beendet</button>
             </div>
             {weiter === false && <input type="date" className="eingabe" value={beendetAm} onChange={(e) => setBeendetAm(e.target.value)} />}
-            <div className="text-sm font-semibold pt-1">Leistungsbeurteilung <span className="font-normal text-white/40">(freiwillig)</span></div>
+            <div className="text-sm font-semibold pt-1">Leistungsbeurteilung <span className="font-normal text-white/60">(freiwillig)</span></div>
             <div className="grid grid-cols-5 gap-1.5">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button key={n} type="button" onClick={() => setBewertung(bewertung === n ? null : n)} className={'rounded-xl py-2 text-sm border ' + (bewertung === n ? 'btn-grad border-transparent font-bold' : 'border-white/15 text-white/65')}>{n}</button>
               ))}
             </div>
-            <div className="flex justify-between text-[11px] text-white/40"><span>ungenügend</span><span>sehr gut</span></div>
+            <div className="flex justify-between text-xs text-white/60"><span>ungenügend</span><span>sehr gut</span></div>
           </div>
           <Unterschrift wert={bild} onChange={setBild} hoehe={170} />
           <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
             <div className="text-sm font-semibold">Durchschlag für Sie — wohin?</div>
-            {gewaehlt && (gewaehlt.hatEmail || gewaehlt.hatTel) && <div className="text-xs text-white/45">Bereits hinterlegt ({[gewaehlt.hatEmail && 'E-Mail', gewaehlt.hatTel && 'WhatsApp'].filter(Boolean).join(' + ')}). Nur ausfüllen, wenn es sich geändert hat.</div>}
-            <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+            {gewaehlt && (gewaehlt.hatEmail || gewaehlt.hatTel) && <div className="text-xs text-white/65">Bereits hinterlegt ({[gewaehlt.hatEmail && 'E-Mail', gewaehlt.hatTel && 'WhatsApp'].filter(Boolean).join(' + ')}). Nur ausfüllen, wenn es sich geändert hat.</div>}
+            <div className="relative"><Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/55" />
               <input className="eingabe pl-9" type="email" inputMode="email" autoComplete="email" placeholder="E-Mail (optional)" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-            <div className="relative"><Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+            <div className="relative"><Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/55" />
               <input className="eingabe pl-9" type="tel" inputMode="tel" autoComplete="tel" placeholder="WhatsApp-Nummer (optional)" value={tel} onChange={(e) => setTel(e.target.value)} /></div>
-            <div className="text-xs text-white/35">{d.einst.name} merkt sich diese Angaben für den nächsten Rapport.</div>
+            <div className="text-xs text-white/55">{d.einst.name} merkt sich diese Angaben für den nächsten Rapport.</div>
           </div>
           <button onClick={() => senden(true)} disabled={!bild || !nameOk || sende}
             className="w-full rounded-2xl py-3.5 font-bold btn-grad inline-flex items-center justify-center gap-2 disabled:opacity-40">
             {sende ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />} Rapport bestätigen & unterschreiben
           </button>
-          <button onClick={() => setNein(true)} className="w-full text-sm text-white/45 inline-flex items-center justify-center gap-1.5"><MessageSquareWarning className="w-4 h-4" /> Nicht einverstanden</button>
+          <button onClick={() => setNein(true)} className="w-full text-sm text-white/65 inline-flex items-center justify-center gap-1.5"><MessageSquareWarning className="w-4 h-4" /> Nicht einverstanden</button>
         </section>
       ) : (
         <section className="glass rounded-3xl p-5 space-y-3">
@@ -200,11 +200,11 @@ function Inhalt({ token }) {
           <input className="eingabe" placeholder="Ihr Name" value={name} onChange={(e) => setName(e.target.value)} />
           <textarea className="eingabe min-h-[110px]" placeholder="z.B. Dienstag erst um 07:30 begonnen" value={bemerkung} onChange={(e) => setBemerkung(e.target.value)} />
           <button onClick={() => senden(false)} disabled={!bemerkung.trim() || sende} className="w-full rounded-2xl py-3 font-bold bg-white/10 disabled:opacity-40">Bemerkung senden</button>
-          <button onClick={() => setNein(false)} className="w-full text-sm text-white/45">Zurück</button>
+          <button onClick={() => setNein(false)} className="w-full text-sm text-white/65">Zurück</button>
         </section>
       )}
       {fehler && <div className="text-sm text-ember">{fehler}</div>}
-      <div className="text-xs text-white/30 text-center">Die Angaben werden nur für diese Bestätigung übermittelt und danach gelöscht.</div>
+      <div className="text-xs text-white/50 text-center">Die Angaben werden nur für diese Bestätigung übermittelt und danach gelöscht.</div>
     </>,
   )
 }

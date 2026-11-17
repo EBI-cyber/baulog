@@ -51,7 +51,7 @@ export default function FernSenden({ g, woche, wKey, ma, wer, setWer, ort, eb, e
   return (
     <div className="rounded-2xl border border-white/10 p-3 space-y-2">
       <div className="text-sm font-semibold flex items-center gap-2"><Send className="w-4 h-4 text-aqua" /> Vorab zur Kontrolle senden</div>
-      <div className="text-xs text-white/50">{wer?.name || 'Der Unterzeichner'} bekommt deine Zeiten mit Pausen (und den Zeitnachweis) und unterschreibt auf seinem Handy, z.B. Montag früh. Danach geht der Rapport automatisch ans Büro und in deinen OneDrive-Ordner.</div>
+      <div className="text-xs text-white/65">{wer?.name || 'Der Unterzeichner'} bekommt deine Zeiten mit Pausen (und den Zeitnachweis) und unterschreibt auf seinem Handy, z.B. Montag früh. Danach geht der Rapport automatisch ans Büro und in deinen OneDrive-Ordner.</div>
       {!vorb ? <>
         {!wer?.id && <div className="grid grid-cols-2 gap-2">
           <input className="eingabe !py-2 text-sm" placeholder="WhatsApp-Nr." value={wer?.tel || ''} onChange={(e) => setWer({ ...wer, tel: e.target.value })} />
@@ -61,7 +61,7 @@ export default function FernSenden({ g, woche, wKey, ma, wer, setWer, ort, eb, e
           className="w-full rounded-2xl py-2.5 bg-white/10 font-semibold text-sm inline-flex items-center justify-center gap-2 disabled:opacity-40">
           {laeuft ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Link für {wer?.name || 'den Unterzeichner'} erstellen
         </button>
-        {!ma?.bild && <div className="text-xs text-white/40 text-center">Zuerst selbst unterschreiben.</div>}
+        {!ma?.bild && <div className="text-xs text-white/60 text-center">Zuerst selbst unterschreiben.</div>}
       </> : <>
         <div className="grid grid-cols-1 gap-2">
           {wer?.tel && <a href={whatsappLink(wer.tel, vorb.text)} target="_blank" rel="noreferrer" onClick={() => fernGesendet(wKey, g.firma, 'whatsapp')}
@@ -72,7 +72,7 @@ export default function FernSenden({ g, woche, wKey, ma, wer, setWer, ort, eb, e
               className="rounded-2xl py-2.5 font-semibold text-sm bg-white/10 inline-flex items-center justify-center gap-2"><Mail className="w-4 h-4" /> E-Mail an {wer.email}</a>)}
           {navigator.share && <button type="button" onClick={() => navigator.share({ text: vorb.text }).then(() => fernGesendet(wKey, g.firma, 'teilen')).catch(() => {})}
             className="rounded-2xl py-2.5 text-sm bg-white/[0.06] border border-white/10 inline-flex items-center justify-center gap-2"><Share2 className="w-4 h-4" /> Anders teilen (Kontakt wählen) …</button>}
-          <button type="button" onClick={() => teileDatei(zn().blob, zn().name).catch(() => {})} className="py-1.5 text-xs text-white/50 underline">Zeitnachweis-PDF zusätzlich schicken</button>
+          <button type="button" onClick={() => teileDatei(zn().blob, zn().name).catch(() => {})} className="py-1.5 text-xs text-white/65 underline">Zeitnachweis-PDF zusätzlich schicken</button>
         </div>
       </>}
       {meldung && <div className={'text-xs flex gap-1.5 ' + (meldung.ok ? 'text-emerald-300' : 'text-ember')}>{meldung.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}{meldung.text}</div>}

@@ -69,11 +69,11 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
             className="rounded-xl px-3 py-1.5 bg-white/10 text-white font-semibold inline-flex items-center gap-1.5"><Copy className="w-4 h-4" /> {kopiert ? 'Kopiert' : 'Link kopieren'}</button>
         </div>
       )}
-      <label className="block text-xs text-white/50">Einsatzbetrieb</label>
+      <label className="block text-xs text-white/65">Einsatzbetrieb</label>
       <FirmaWahl firmen={firmen} wert={firma} onWahl={(f) => { setFirma(f); setBuero(null) }}
         onNeu={(n) => setEinst({ firmen: [...(einst.firmen || []), n] })} />
       <div>
-        <label className="block text-xs text-white/50 mb-1">Temporärbüro</label>
+        <label className="block text-xs text-white/65 mb-1">Temporärbüro</label>
         <input value={bueroWert} onChange={(e) => setBuero(e.target.value)} placeholder="z.B. Bellini Personal AG" className="eingabe" />
       </div>
 
@@ -83,32 +83,32 @@ export default function WocheNachtragen({ woche, vorgabe = {}, onClose }) {
       </div>
 
       <div className="space-y-1.5">
-        <div className="grid grid-cols-[3.2rem_1fr_4.2rem_5.5rem] gap-2 text-[11px] text-white/40 px-1">
+        <div className="grid grid-cols-[3.2rem_1fr_4.2rem_5.5rem] gap-2 text-xs text-white/60 px-1">
           <span>Tag</span><span>Stunden</span><span>Pause</span><span className="text-right">Zeit</span>
         </div>
         {zeilen.map((z) => (
           <div key={z.datum} className="grid grid-cols-[3.2rem_1fr_4.2rem_5.5rem] gap-2 items-center">
-            <div className="text-sm leading-tight"><b>{TAGE_LANG[z.t.getDay()].slice(0, 2)}</b><div className="text-[11px] text-white/40">{datumKurz(z.t)}</div></div>
+            <div className="text-sm leading-tight"><b>{TAGE_LANG[z.t.getDay()].slice(0, 2)}</b><div className="text-xs text-white/60">{datumKurz(z.t)}</div></div>
             {z.schon.length ? (
-              <div className="col-span-3 text-xs text-white/45">schon erfasst — bleibt wie es ist</div>
+              <div className="col-span-3 text-xs text-white/65">schon erfasst — bleibt wie es ist</div>
             ) : <>
               <input inputMode="decimal" value={z.genau ? (z.min / 60).toFixed(2) : stunden[z.i]} placeholder="–" aria-label={`Stunden ${TAGE_LANG[z.t.getDay()]}`}
                 onChange={(e) => { setStunden(stunden.map((v, j) => (j === z.i ? e.target.value : v))); if (z.genau) setZeiten(zeiten.map((v, j) => (j === z.i ? null : v))) }} className="eingabe !py-2" />
               <input inputMode="numeric" readOnly={z.genau} value={z.min ? z.pause : ''} placeholder="–" aria-label={`Pause ${TAGE_LANG[z.t.getDay()]}`}
                 onChange={(e) => setPausen(pausen.map((v, j) => (j === z.i ? Math.max(0, parseInt(e.target.value, 10) || 0) : v)))} className="eingabe !py-2" />
-              <div className="text-xs text-right tabular-nums text-white/55">{z.min ? `${uhr(z.start)}–${uhr(z.ende)}` : ''}
-                {z.genau && <div className="text-[10px] text-white/35">{z.luecken.length} Pause{z.luecken.length === 1 ? '' : 'n'}</div>}</div>
+              <div className="text-xs text-right tabular-nums text-white/70">{z.min ? `${uhr(z.start)}–${uhr(z.ende)}` : ''}
+                {z.genau && <div className="text-xs text-white/55">{z.luecken.length} Pause{z.luecken.length === 1 ? '' : 'n'}</div>}</div>
             </>}
           </div>
         ))}
       </div>
       <div className="text-sm text-white/60">Total: <span className="font-bold text-white tabular-nums">{total.toFixed(2)} h</span></div>
-      <div className="text-xs text-white/40 flex gap-1.5"><Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+      <div className="text-xs text-white/60 flex gap-1.5"><Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         Stunden wie auf dem Rapport (dezimal: 10,75 = 10 h 45 min). Pause in Minuten, vorgeschlagen ist die Mindestpause nach Arbeitsgesetz.</div>
 
       <label className="flex items-start gap-2.5 text-sm">
         <input type="checkbox" checked={papier} onChange={(e) => setPapier(e.target.checked)} className="mt-0.5 w-4 h-4 accent-amber-500" />
-        <span>Rapport wurde schon auf Papier unterschrieben und abgegeben <span className="text-white/40">(Woche gilt als gesendet)</span></span>
+        <span>Rapport wurde schon auf Papier unterschrieben und abgegeben <span className="text-white/60">(Woche gilt als gesendet)</span></span>
       </label>
 
       {fehler && <div className="text-sm rounded-xl px-3 py-2 bg-ember/15 border border-ember/30 text-ember">{fehler}</div>}

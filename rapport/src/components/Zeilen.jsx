@@ -26,7 +26,7 @@ export function SpesenZeile({ s, waehrung, onClick }) {
     <button onClick={onClick} className="w-full text-left rounded-2xl px-4 py-2.5 flex items-center gap-3 bg-white/[0.04] border border-white/10 active:scale-[0.99]">
       <art.icon className="w-4 h-4 shrink-0 text-white/60" strokeWidth={1.9} />
       <div className="min-w-0 flex-1 text-sm truncate">
-        {art.label}{s.km ? ` · ${s.km} km` : ''}{s.notiz ? <span className="text-white/45"> · {s.notiz}</span> : null}
+        {art.label}{s.km ? ` · ${s.km} km` : ''}{s.notiz ? <span className="text-white/65"> · {s.notiz}</span> : null}
       </div>
       <div className="shrink-0 text-sm font-semibold tabular-nums">{waehrung} {zahl(s.betrag).toFixed(2)}</div>
     </button>

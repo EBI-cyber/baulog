@@ -17,7 +17,7 @@ export default function OrtSuche({ wert, onWahl, placeholder = 'Ort oder PLZ' })
 
   return (
     <div className="relative">
-      <MapPin className="w-4 h-4 absolute left-3 top-3.5 text-white/35" />
+      <MapPin className="w-4 h-4 absolute left-3 top-3.5 text-white/55" />
       <input className="eingabe pl-9" value={text} placeholder={placeholder} autoComplete="off"
         onChange={(e) => { setText(e.target.value); setOffen(true) }} onFocus={() => setOffen(true)}
         onBlur={() => setTimeout(() => setOffen(false), 150)} />
@@ -27,9 +27,9 @@ export default function OrtSuche({ wert, onWahl, placeholder = 'Ort oder PLZ' })
             <button key={t.plz + t.ort} type="button" onMouseDown={(e) => e.preventDefault()}
               onClick={() => { onWahl(t); setText(`${t.plz} ${t.ort}`); setOffen(false) }}
               className="w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 hover:bg-white/10 border-b border-white/5 last:border-0">
-              <span className="tabular-nums text-white/50 w-10">{t.plz}</span>
+              <span className="tabular-nums text-white/65 w-10">{t.plz}</span>
               <span className="flex-1 truncate">{t.ort}</span>
-              <span className="text-xs text-white/40">{t.kanton}</span>
+              <span className="text-xs text-white/60">{t.kanton}</span>
             </button>
           ))}
         </div>

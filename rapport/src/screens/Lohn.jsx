@@ -33,7 +33,7 @@ function Zeile({ label, info, betrag, w, fett, minus }) {
     <div className={'flex items-baseline justify-between gap-3 py-1.5 ' + (fett ? 'font-bold border-t border-white/10 mt-1 pt-2.5' : 'text-sm')}>
       <div className="min-w-0">
         <div className={fett ? '' : 'text-white/80'}>{label}</div>
-        {info && <div className="text-xs text-white/40 tabular-nums">{info}</div>}
+        {info && <div className="text-xs text-white/60 tabular-nums">{info}</div>}
       </div>
       <div className={'shrink-0 tabular-nums ' + (minus ? 'text-rose-300' : '')}>{minus ? '− ' : ''}{chf(betrag, w)}</div>
     </div>
@@ -79,7 +79,7 @@ export default function Lohn() {
         <IconChip icon={ScanSearch} variant="grad" />
         <div className="min-w-0">
           <div className="font-bold">Lohnabrechnung prüfen</div>
-          <div className="text-sm text-white/55">Foto machen — die App vergleicht jede Zeile mit deinen Rapporten</div>
+          <div className="text-sm text-white/70">Foto machen — die App vergleicht jede Zeile mit deinen Rapporten</div>
         </div>
       </button>
       {(geprueft || []).length > 0 && (
@@ -90,7 +90,7 @@ export default function Lohn() {
               <button key={g.id} onClick={() => setPruefung(g)} className="w-full text-left rounded-2xl px-3 py-2 bg-white/[0.04] border border-white/10 flex items-center gap-2 text-sm">
                 {n ? <XCircle className="w-4 h-4 text-ember shrink-0" /> : <CheckCircle2 className="w-4 h-4 text-lime shrink-0" />}
                 <span className="flex-1 truncate">Abrechnung {g.von.split('-').reverse().join('.')}–{g.bis.split('-').reverse().join('.')} {g.buero ? `· ${g.buero}` : ''}</span>
-                <span className={'text-xs shrink-0 ' + (n ? 'text-ember' : 'text-white/45')}>{n ? `${n} Abweichung${n > 1 ? 'en' : ''}` : 'stimmt'}</span>
+                <span className={'text-xs shrink-0 ' + (n ? 'text-ember' : 'text-white/65')}>{n ? `${n} Abweichung${n > 1 ? 'en' : ''}` : 'stimmt'}</span>
               </button>
             )
           })}
@@ -108,7 +108,7 @@ export default function Lohn() {
         <button onClick={() => blaettern(-1)} className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0" aria-label="Zurück"><ChevronLeft className="w-5 h-5" /></button>
         <div className="text-center min-w-0">
           <div className="text-xl font-extrabold">{z.titel}</div>
-          {z.unter && <div className="text-xs text-white/45">{z.unter}</div>}
+          {z.unter && <div className="text-xs text-white/65">{z.unter}</div>}
         </div>
         <button onClick={() => blaettern(1)} className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0" aria-label="Weiter"><ChevronRight className="w-5 h-5" /></button>
       </header>
@@ -116,13 +116,13 @@ export default function Lohn() {
       {lohn && (
         <>
           <section className="glass rounded-4xl p-6 text-center">
-            <div className="text-xs text-white/45">{erhalten > 0 ? (offen >= -0.025 ? 'Noch auszuzahlen (Büro schuldet dir)' : 'Zu viel ausbezahlt (wird verrechnet)') : 'Auszahlung (geschätzt)'}{laufend ? ' · live' : ''}</div>
+            <div className="text-xs text-white/65">{erhalten > 0 ? (offen >= -0.025 ? 'Noch auszuzahlen (Büro schuldet dir)' : 'Zu viel ausbezahlt (wird verrechnet)') : 'Auszahlung (geschätzt)'}{laufend ? ' · live' : ''}</div>
             <div className="text-5xl font-extrabold grad-text tabular-nums tracking-tight">{chf(Math.abs(erhalten > 0 ? offen : runde5(lohn.auszahlung, w)), w)}</div>
-            {erhalten > 0 && <div className="text-xs text-white/50 mt-1 tabular-nums">Anspruch {chf(lohn.auszahlung, w)} − bereits erhalten {chf(erhalten, w)}</div>}
+            {erhalten > 0 && <div className="text-xs text-white/65 mt-1 tabular-nums">Anspruch {chf(lohn.auszahlung, w)} − bereits erhalten {chf(erhalten, w)}</div>}
             <div className="grid grid-cols-3 gap-2 mt-4 text-sm">
-              <div><div className="text-white/40 text-xs">Brutto</div><div className="font-bold tabular-nums">{chf(lohn.brutto, w)}</div></div>
-              <div><div className="text-white/40 text-xs">Abzüge</div><div className="font-bold tabular-nums text-rose-300">{chf(lohn.abzuege, w)}</div></div>
-              <div><div className="text-white/40 text-xs">Netto</div><div className="font-bold tabular-nums">{chf(lohn.netto, w)}</div></div>
+              <div><div className="text-white/60 text-xs">Brutto</div><div className="font-bold tabular-nums">{chf(lohn.brutto, w)}</div></div>
+              <div><div className="text-white/60 text-xs">Abzüge</div><div className="font-bold tabular-nums text-rose-300">{chf(lohn.abzuege, w)}</div></div>
+              <div><div className="text-white/60 text-xs">Netto</div><div className="font-bold tabular-nums">{chf(lohn.netto, w)}</div></div>
             </div>
           </section>
 
@@ -146,7 +146,7 @@ export default function Lohn() {
           {modus === 'monat' && <ZahlungenKarte monat={z.von.slice(0, 7)} anspruch={lohn.fehlendeLoehne.length ? null : lohn.auszahlung} w={w} laufend={z.von <= isoDatum(new Date()) && z.bis >= isoDatum(new Date())} />}
 
           {lohn.qstAuto && lohn.brutto > 0 && (
-            <div className="text-xs text-white/45 px-1">
+            <div className="text-xs text-white/65 px-1">
               Quellensteuer {lohn.qstAuto.satz.toFixed(2)} % — offizielle Tabelle {lohn.qstAuto.kanton} {lohn.qstAuto.jahr}, Tarif {lohn.qstAuto.code}, Monatslohn {chf(lohn.qstAuto.monatsBrutto, w)}{lohn.qstAuto.monatsBrutto > lohn.brutto + 1 ? ' (hochgerechnet)' : ''}.
             </div>
           )}
@@ -154,7 +154,7 @@ export default function Lohn() {
           {einst.profil?.rav && modus === 'monat' && lohn.posten.length > 0 && (
             <section className="glass rounded-3xl p-5 space-y-2">
               <div className="font-bold">RAV · Zwischenverdienst {z.titel}</div>
-              <div className="text-xs text-white/45">Angaben pro Arbeitgeber (Temporärbüro) für deine monatlichen RAV-Unterlagen. Die Bescheinigung selbst stellt das Büro aus.</div>
+              <div className="text-xs text-white/65">Angaben pro Arbeitgeber (Temporärbüro) für deine monatlichen RAV-Unterlagen. Die Bescheinigung selbst stellt das Büro aus.</div>
               {Object.values(lohn.posten.reduce((acc, p) => {
                 const b = p.einsatz?.buero || 'Ohne Büro'
                 const x = (acc[b] ||= { buero: b, std: 0, brutto: 0, firmen: [] })
@@ -162,8 +162,8 @@ export default function Lohn() {
                 return acc
               }, {})).map((x) => (
                 <div key={x.buero} className="flex items-baseline justify-between gap-3 text-sm border-t border-white/10 pt-2">
-                  <div className="min-w-0"><div className="font-semibold truncate">{x.buero}</div><div className="text-xs text-white/40 truncate">{x.firmen.join(', ')}</div></div>
-                  <div className="shrink-0 text-right tabular-nums"><div>{x.std.toFixed(2)} h</div><div className="text-xs text-white/50">brutto {chf(x.brutto, w)}</div></div>
+                  <div className="min-w-0"><div className="font-semibold truncate">{x.buero}</div><div className="text-xs text-white/60 truncate">{x.firmen.join(', ')}</div></div>
+                  <div className="shrink-0 text-right tabular-nums"><div>{x.std.toFixed(2)} h</div><div className="text-xs text-white/65">brutto {chf(x.brutto, w)}</div></div>
                 </div>
               ))}
             </section>
@@ -175,7 +175,7 @@ export default function Lohn() {
                 <IconChip icon={Briefcase} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
                 <div className="min-w-0">
                   <div className="font-bold truncate">{p.firma}</div>
-                  <div className="text-xs text-white/45">{p.einsatz?.funktion ? `${p.einsatz.funktion} · ` : ''}{p.einsatz?.kanton ? `${p.einsatz.kanton} · ` : ''}{p.stundenlohn ? `${chf(p.stundenlohn, w)} / Std. Grundlohn` : 'kein Stundenlohn'}</div>
+                  <div className="text-xs text-white/65">{p.einsatz?.funktion ? `${p.einsatz.funktion} · ` : ''}{p.einsatz?.kanton ? `${p.einsatz.kanton} · ` : ''}{p.stundenlohn ? `${chf(p.stundenlohn, w)} / Std. Grundlohn` : 'kein Stundenlohn'}</div>
                 </div>
               </div>
               {p.zeilen.filter((x) => !x.konto).map((x, i) => (
@@ -184,7 +184,7 @@ export default function Lohn() {
               ))}
               {p.zeilen.some((x) => x.konto) && (
                 <div className="mt-1 rounded-xl bg-white/[0.03] border border-dashed border-white/15 px-3 py-1">
-                  <div className="text-[11px] uppercase tracking-wider text-white/35 pt-1">Angespart beim Büro (nicht im Bruttolohn)</div>
+                  <div className="text-xs uppercase tracking-wider text-white/55 pt-1">Angespart beim Büro (nicht im Bruttolohn)</div>
                   {p.zeilen.filter((x) => x.konto).map((x, i) => <Zeile key={i} w={w} betrag={x.betrag} info={x.info} label={`→ ${x.label}`} />)}
                 </div>
               )}
@@ -208,7 +208,7 @@ export default function Lohn() {
             </section>
           )}
 
-          {!lohn.posten.length && <div className="text-sm text-white/45">In diesem Zeitraum gibt es noch keine Einträge.</div>}
+          {!lohn.posten.length && <div className="text-sm text-white/65">In diesem Zeitraum gibt es noch keine Einträge.</div>}
 
           {pdf && (
             <button onClick={() => teileDatei(pdf, `Lohn_${z.titel.replace(/[\s/]+/g, '_')}.pdf`).catch(() => {})}
@@ -217,7 +217,7 @@ export default function Lohn() {
             </button>
           )}
 
-          <div className="text-xs text-white/40 flex gap-2">
+          <div className="text-xs text-white/60 flex gap-2">
             <Info className="w-4 h-4 shrink-0" />
             Schätzung nach dem Schema des GAV Personalverleih (Grundlohn, Zuschläge, Feiertags- und Ferienentschädigung, 13. Monatslohn, Sozialabzüge).
             Quellensteuer nach der offiziellen Tabelle der Steuerverwaltung (Wohnkanton, Tarif, Monatslohn). Karenztage und Lohnobergrenzen werden nicht abgebildet. Massgebend ist die Abrechnung des Temporärbüros.

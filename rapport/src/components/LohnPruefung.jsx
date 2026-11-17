@@ -113,7 +113,7 @@ export default function LohnPruefung({ gespeichert, onClose }) {
       )}
       {schritt === 'ergebnis' && ki && (
         <>
-          <div className="text-xs text-white/45">{ki.buero || einsatz?.buero || ''} · Periode {String(ki.periodeVon || '').split('-').reverse().join('.')}–{String(ki.periodeBis || '').split('-').reverse().join('.')}</div>
+          <div className="text-xs text-white/65">{ki.buero || einsatz?.buero || ''} · Periode {String(ki.periodeVon || '').split('-').reverse().join('.')}–{String(ki.periodeBis || '').split('-').reverse().join('.')}</div>
           <div className={'rounded-2xl p-4 flex items-center gap-3 border ' + (abw.length ? 'bg-ember/12 border-ember/40' : nFix ? 'bg-amber-400/10 border-amber-400/35' : 'bg-lime/10 border-lime/35')}>
             {abw.length ? <XCircle className="w-8 h-8 text-ember shrink-0" /> : nFix ? <Wrench className="w-8 h-8 text-amber-300 shrink-0" /> : <CheckCircle2 className="w-8 h-8 text-lime shrink-0" />}
             <div>
@@ -133,22 +133,22 @@ export default function LohnPruefung({ gespeichert, onClose }) {
           {fixMeldung && <div className="text-sm rounded-xl px-3 py-2 bg-lime/10 border border-lime/30 text-lime">{fixMeldung}</div>}
           {gruppen.map((g) => (
             <div key={g} className="space-y-1.5">
-              <div className="text-[11px] uppercase tracking-wider text-white/40 pt-1">{g}</div>
+              <div className="text-xs uppercase tracking-wider text-white/60 pt-1">{g}</div>
               {pruef.filter((c) => c.gruppe === g).map((c) => (
                 <div key={c.id} className={'rounded-xl border px-3 py-2 ' + (c.status === 'ok' ? 'border-white/10 bg-white/[0.03]' : c.status === 'abweichung' ? 'border-ember/40 bg-ember/10' : c.status === 'folge' ? 'border-white/10 bg-white/[0.02] opacity-70' : 'border-amber-400/35 bg-amber-400/10')}>
                   <div className="flex items-center gap-2">
-                    {c.status === 'ok' ? <CheckCircle2 className="w-4 h-4 text-lime shrink-0" /> : c.status === 'abweichung' ? <XCircle className="w-4 h-4 text-ember shrink-0" /> : c.status === 'folge' ? <ChevronDown className="w-4 h-4 text-white/40 shrink-0 -rotate-90" /> : <Info className="w-4 h-4 text-amber-300 shrink-0" />}
+                    {c.status === 'ok' ? <CheckCircle2 className="w-4 h-4 text-lime shrink-0" /> : c.status === 'abweichung' ? <XCircle className="w-4 h-4 text-ember shrink-0" /> : c.status === 'folge' ? <ChevronDown className="w-4 h-4 text-white/60 shrink-0 -rotate-90" /> : <Info className="w-4 h-4 text-amber-300 shrink-0" />}
                     <button type="button" onClick={() => umschalten(c.id)} className="flex-1 min-w-0 text-sm font-semibold truncate text-left inline-flex items-center gap-1.5">
-                      <span className="truncate">{c.titel}</span><HelpCircle className={'w-3.5 h-3.5 shrink-0 ' + (erklaerAlle || erklaert.has(c.id) ? 'text-sky-300' : 'text-white/30')} />
+                      <span className="truncate">{c.titel}</span><HelpCircle className={'w-3.5 h-3.5 shrink-0 ' + (erklaerAlle || erklaert.has(c.id) ? 'text-sky-300' : 'text-white/50')} />
                     </button>
                     {!['ok', 'folge'].includes(c.status) && c.id !== 'auszahlung' && <input type="checkbox" className="w-4 h-4 accent-cyan-400" checked={auswahl.has(c.id)} title="In die Nachricht ans Büro"
                       onChange={(e) => { const s = new Set(auswahl); e.target.checked ? s.add(c.id) : s.delete(c.id); setAuswahl(s) }} />}
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs tabular-nums mt-1">
-                    <div><span className="text-white/40">Abrechnung </span><b>{fmt(c, w, c.ab)}</b></div>
-                    <div className="text-right"><span className="text-white/40">laut App </span><b>{fmt(c, w, c.app)}</b></div>
+                    <div><span className="text-white/60">Abrechnung </span><b>{fmt(c, w, c.ab)}</b></div>
+                    <div className="text-right"><span className="text-white/60">laut App </span><b>{fmt(c, w, c.app)}</b></div>
                   </div>
-                  {c.text && <div className={'text-xs mt-1 ' + (c.status === 'abweichung' ? 'text-ember' : c.status === 'folge' ? 'text-white/50' : 'text-amber-200')}>{c.text}</div>}
+                  {c.text && <div className={'text-xs mt-1 ' + (c.status === 'abweichung' ? 'text-ember' : c.status === 'folge' ? 'text-white/65' : 'text-amber-200')}>{c.text}</div>}
                   {(erklaerAlle || erklaert.has(c.id)) && (() => { const e = erklaeren(c, ki, w); return (
                     <div className="mt-2 rounded-lg bg-sky-400/10 border border-sky-400/20 px-2.5 py-2 text-xs text-sky-100/90 space-y-1">
                       <div>{e.was}</div>
@@ -157,7 +157,7 @@ export default function LohnPruefung({ gespeichert, onClose }) {
                     </div>) })()}
                   {c.fix && <button onClick={() => fixAnwenden(c.fix)} className="mt-1.5 text-xs rounded-lg px-2 py-1 bg-white/10 inline-flex items-center gap-1"><Wrench className="w-3.5 h-3.5" /> {c.fix.label}</button>}
                   {c.tage?.length > 0 && (
-                    <button onClick={() => setOffen(offen === c.id ? null : c.id)} className="mt-1 text-xs text-white/50 inline-flex items-center gap-1">
+                    <button onClick={() => setOffen(offen === c.id ? null : c.id)} className="mt-1 text-xs text-white/65 inline-flex items-center gap-1">
                       <ChevronDown className={'w-3.5 h-3.5 ' + (offen === c.id ? 'rotate-180' : '')} /> Stunden pro Tag laut Rapport
                     </button>
                   )}
@@ -189,7 +189,7 @@ export default function LohnPruefung({ gespeichert, onClose }) {
               {gesendet && <div className="text-sm text-lime">{gesendet}</div>}
             </div>
           )}
-          <div className="text-xs text-white/35">Die App rechnet mit deinen Rapporten und deinem Einsatzvertrag. Weicht etwas ab, kann auch eine Einstellung im Einsatz falsch sein — die Hinweise helfen beim Unterscheiden.</div>
+          <div className="text-xs text-white/55">Die App rechnet mit deinen Rapporten und deinem Einsatzvertrag. Weicht etwas ab, kann auch eine Einstellung im Einsatz falsch sein — die Hinweise helfen beim Unterscheiden.</div>
         </>
       )}
     </Sheet>

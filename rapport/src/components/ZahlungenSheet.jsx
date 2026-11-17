@@ -89,7 +89,7 @@ export default function ZahlungenSheet({ onClose }) {
   return (
     <Sheet titel="Zahlungen vom Büro" icon={Landmark} onClose={onClose}>
       {!liste && <>
-        <div className="text-sm text-white/55">In der Bank-App den Buchungsverlauf markieren und kopieren — oder Screenshots machen. Die App findet die Gutschriften vom Büro (Vorschüsse, Lohn).</div>
+        <div className="text-sm text-white/70">In der Bank-App den Buchungsverlauf markieren und kopieren — oder Screenshots machen. Die App findet die Gutschriften vom Büro (Vorschüsse, Lohn).</div>
         <button onClick={einfuegen} className="w-full rounded-2xl py-3 font-semibold bg-white/10 inline-flex items-center justify-center gap-2"><ClipboardPaste className="w-4 h-4" /> Aus Zwischenablage einfügen</button>
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder="…oder hier einfügen" className="eingabe text-xs" />
         <div className="flex flex-wrap gap-2 items-center">
@@ -105,11 +105,11 @@ export default function ZahlungenSheet({ onClose }) {
         <button disabled={laeuft || (!text.trim() && !bilder.length)} onClick={lesen} className="w-full rounded-2xl py-3 font-bold btn-grad disabled:opacity-40 inline-flex items-center justify-center gap-2">
           {laeuft ? <><Loader2 className="w-4 h-4 animate-spin" /> Lese Buchungen …</> : 'Buchungen lesen'}
         </button>
-        <button onClick={() => setHand(true)} className="w-full py-2 text-sm text-white/55 inline-flex items-center justify-center gap-1.5"><Plus className="w-4 h-4" /> Zahlung von Hand erfassen</button>
+        <button onClick={() => setHand(true)} className="w-full py-2 text-sm text-white/70 inline-flex items-center justify-center gap-1.5"><Plus className="w-4 h-4" /> Zahlung von Hand erfassen</button>
       </>}
 
       {liste && <>
-        <div className="text-sm text-white/55">Gutschriften gefunden — vom Büro sind vorausgewählt. Ein Vorschuss zählt zum Monat der Woche, die er bezahlt (Vorwoche). Nicht erkannt? Anhaken — die App merkt sich den Absender.</div>
+        <div className="text-sm text-white/70">Gutschriften gefunden — vom Büro sind vorausgewählt. Ein Vorschuss zählt zum Monat der Woche, die er bezahlt (Vorwoche). Nicht erkannt? Anhaken — die App merkt sich den Absender.</div>
         <div className="space-y-2">
           {liste.map((x, i) => (
             <div key={i} className={'rounded-2xl p-3 border ' + (x.an ? 'bg-white/[0.06] border-white/20' : 'border-white/10 opacity-60')}>
@@ -117,7 +117,7 @@ export default function ZahlungenSheet({ onClose }) {
                 <input type="checkbox" disabled={!!x.doppelt} checked={x.an || !!x.doppelt} onChange={(e) => setZeile(i, { an: e.target.checked })} className="mt-1 w-4 h-4 accent-amber-500" />
                 <div className="min-w-0 flex-1">
                   <div className="flex justify-between gap-2 font-semibold"><span>{x.datum.split('-').reverse().join('.')}</span><span className="tabular-nums">{chf(x.betrag, w)}</span></div>
-                  <div className="text-xs text-white/50 truncate">{x.text || '—'}</div>
+                  <div className="text-xs text-white/65 truncate">{x.text || '—'}</div>
                   {x.doppelt && <div className="text-xs text-emerald-300">schon erfasst — Art/Monat hier änderbar</div>}
                 </div>
               </label>
@@ -126,7 +126,7 @@ export default function ZahlungenSheet({ onClose }) {
                 <select value={x.fuerMonat} onChange={(e) => setZeile(i, { fuerMonat: e.target.value })} className="eingabe !w-auto !py-1 text-xs">
                   {monateUm(x.datum).map((m) => <option key={m} value={m}>für {monatTxt(m)}</option>)}
                 </select>
-                {x.art === 'vorschuss' && x.kw && <span className="text-xs text-white/45 self-center">bezahlt KW {x.kw}</span>}
+                {x.art === 'vorschuss' && x.kw && <span className="text-xs text-white/65 self-center">bezahlt KW {x.kw}</span>}
               </div>}
             </div>
           ))}
@@ -134,7 +134,7 @@ export default function ZahlungenSheet({ onClose }) {
         {liste.some((x) => x.an && !x.doppelt)
           ? <button onClick={speichern} className="w-full rounded-2xl py-3 font-bold btn-grad">{liste.filter((x) => x.an && !x.doppelt).length} Zahlungen übernehmen</button>
           : <button onClick={onClose} className="w-full rounded-2xl py-3 font-bold btn-grad">Fertig</button>}
-        <button onClick={() => setListe(null)} className="w-full py-2 text-sm text-white/45">Zurück</button>
+        <button onClick={() => setListe(null)} className="w-full py-2 text-sm text-white/65">Zurück</button>
       </>}
 
       {meldung && <div className={'text-sm rounded-xl px-3 py-2 border flex gap-2 ' + (meldung.ok ? 'bg-emerald-400/10 border-emerald-400/30 text-emerald-300' : 'bg-amber-400/10 border-amber-400/30 text-amber-300')}>
@@ -156,20 +156,20 @@ function HandSheet({ onClose, bueros, firma, w }) {
   return (
     <Sheet titel="Zahlung von Hand" icon={Landmark} onClose={onClose}>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="block text-xs text-white/50 mb-1">Datum</label><input type="date" value={f.datum} onChange={(e) => setF({ ...f, datum: e.target.value, fuerMonat: e.target.value.slice(0, 7) })} className="eingabe" /></div>
-        <div><label className="block text-xs text-white/50 mb-1">Betrag ({w})</label><input inputMode="decimal" value={f.betrag} onChange={(e) => setF({ ...f, betrag: e.target.value })} className="eingabe" placeholder="800.00" /></div>
+        <div><label className="block text-xs text-white/65 mb-1">Datum</label><input type="date" value={f.datum} onChange={(e) => setF({ ...f, datum: e.target.value, fuerMonat: e.target.value.slice(0, 7) })} className="eingabe" /></div>
+        <div><label className="block text-xs text-white/65 mb-1">Betrag ({w})</label><input inputMode="decimal" value={f.betrag} onChange={(e) => setF({ ...f, betrag: e.target.value })} className="eingabe" placeholder="800.00" /></div>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {ARTEN.map((a) => <button key={a.id} onClick={() => setF({ ...f, art: a.id })} className={'px-3 py-1.5 rounded-full text-sm border ' + (f.art === a.id ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{a.label}</button>)}
       </div>
-      <div><label className="block text-xs text-white/50 mb-1">Für Lohnabrechnung</label>
+      <div><label className="block text-xs text-white/65 mb-1">Für Lohnabrechnung</label>
         <select value={f.fuerMonat} onChange={(e) => setF({ ...f, fuerMonat: e.target.value })} className="eingabe">
           {monateUm(f.datum).map((m) => <option key={m} value={m}>{monatTxt(m)}</option>)}
         </select></div>
       <input value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} placeholder="Notiz (optional)" className="eingabe" />
       {ok && <div className="text-sm text-emerald-300">{ok}</div>}
       <button onClick={sichern} className="w-full rounded-2xl py-3 font-bold btn-grad">Speichern</button>
-      <button onClick={onClose} className="w-full py-2 text-sm text-white/45">Fertig</button>
+      <button onClick={onClose} className="w-full py-2 text-sm text-white/65">Fertig</button>
     </Sheet>
   )
 }

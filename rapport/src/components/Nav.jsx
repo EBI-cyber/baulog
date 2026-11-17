@@ -21,7 +21,7 @@ export default function Nav() {
         </div>
         {LINKS.map((l) => { const { to, label, icon: I, end } = l; return (
           <NavLink key={to} to={to} end={end} className={({ isActive }) =>
-            'flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium ' + (aktiv(l, isActive) ? 'bg-white/10 text-white' : 'text-white/45 hover:text-white/80')}>
+            'flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium ' + (aktiv(l, isActive) ? 'bg-white/10 text-white' : 'text-white/65 hover:text-white/80')}>
             <I className="w-5 h-5" strokeWidth={1.9} /> {label}
           </NavLink>
         ) })}
@@ -30,7 +30,7 @@ export default function Nav() {
         <div className="max-w-md mx-auto grid grid-cols-4">
           {LINKS.map((l) => { const { to, label, icon: I, end } = l; return (
             <NavLink key={to} to={to} end={end} className={({ isActive }) =>
-              'flex flex-col items-center gap-1 text-[11px] font-medium py-1 ' + (aktiv(l, isActive) ? 'text-white' : 'text-white/45')}>
+              'flex flex-col items-center gap-1 text-[12px] font-medium py-1 ' + (aktiv(l, isActive) ? 'text-white' : 'text-white/65')}>
               <I className="w-6 h-6" strokeWidth={1.9} /> {label}
             </NavLink>
           ) })}
