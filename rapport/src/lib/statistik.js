@@ -52,19 +52,19 @@ export function auswerten({ p, daten, einst, kanton, qstTarife = {}, heute = iso
   const bis = p.bis < heute ? p.bis : heute
   const laufend = p.bis >= heute
   const s = sollIst({ von: p.von, bis, schichten: daten.schichten, absenzen: daten.absenzen, einsaetze: daten.einsaetze, einst, kanton, ersterTag: daten.erster })
-  const lohn = { brutto: 0, netto: 0, auszahlung: 0, spesen: 0, fehlt: false }
+  const lohn = { brutto: 0, netto: 0, auszahlung: 0, spesen: 0, rueck: 0, fehlt: false }
   // Woche: ganze Woche (Überstunden wochenweise); Monat/Jahr: Monat für Monat
   const stuecke = p.monate || p.key.length === 7 ? monateIn(p.von, bis) : [[p.von, p.bis]]
   for (const [a, b] of stuecke) {
     const l = lohnMitQst({ daten, einst, qstTarif: qstTarife[+b.slice(0, 4)] || null, von: a, bis: b })
-    lohn.brutto += l.brutto; lohn.netto += l.netto; lohn.auszahlung += l.auszahlung; lohn.spesen += l.spesen + l.mittag
+    lohn.brutto += l.brutto; lohn.netto += l.netto; lohn.auszahlung += l.auszahlung; lohn.spesen += l.spesen + l.mittag; lohn.rueck += l.rueckstellung || 0
     if (l.fehlendeLoehne.length && l.brutto === 0 && s.arbeit > 0) lohn.fehlt = true
   }
   const r = (n) => Math.round(n * 100) / 100
   return {
     ...p, laufend, bisEff: bis,
     arbeit: s.arbeit, abw: s.abwBezahlt, ist: s.ist, soll: s.soll, saldo: s.saldo, tage: s.tage, nachArt: s.nachArt,
-    brutto: r(lohn.brutto), netto: r(lohn.netto), abzuege: r(lohn.brutto - lohn.netto), auszahlung: r(lohn.auszahlung), spesen: r(lohn.spesen),
+    brutto: r(lohn.brutto), netto: r(lohn.netto), abzuege: r(lohn.brutto - lohn.netto), auszahlung: r(lohn.auszahlung), spesen: r(lohn.spesen), rueckstellung: r(lohn.rueck),
     lohnFehlt: lohn.fehlt,
     leer: s.ist === 0 && lohn.brutto === 0,
   }
@@ -81,6 +81,7 @@ export function zusammenfassen(werte) {
     anzahl: mit.length, fertig: fertig.length,
     arbeit: sum(mit, 'arbeit'), abw: sum(mit, 'abw'), ist: sum(mit, 'ist'), soll: sum(mit, 'soll'), saldo: sum(mit, 'saldo'),
     brutto: sum(mit, 'brutto'), netto: sum(mit, 'netto'), spesen: sum(mit, 'spesen'),
+    abzuege: sum(mit, 'abzuege'), rueckstellung: sum(mit, 'rueckstellung'), auszahlung: sum(mit, 'auszahlung'),
     schnittIst: schnitt('ist'), schnittNetto: schnitt('netto'), schnittBrutto: schnitt('brutto'),
     maxIst: max('ist'), maxNetto: max('netto'),
     proStunde: sum(mit, 'ist') > 0 ? sum(mit, 'netto') / sum(mit, 'ist') : null,
