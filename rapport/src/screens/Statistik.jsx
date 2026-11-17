@@ -13,7 +13,8 @@ import { perioden, auswerten, zusammenfassen, aktuelleWoche } from '../lib/stati
 
 // Diagrammfarben (geprüft: Helligkeit, Farbsehschwäche, Kontrast auf dunklem Grund)
 const FARBE_A = '#0891b2' // gearbeitet / netto
-const FARBE_B = '#8b5cf6' // bezahlte Abwesenheit / Abzüge
+const FARBE_B = '#8b5cf6' // bezahlte Abwesenheit
+const FARBE_SCHNITT = '#fbbf24' // Durchschnittslinie
 
 const h2 = (h) => (Math.round((h || 0) * 100) / 100).toFixed(2)
 const kurzChf = (n) => (n >= 10000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1).replace('.0', '')}k` : String(Math.round(n)))
@@ -32,10 +33,10 @@ function skala(max) {
 }
 
 /** Säulen (gestapelt a + b), optional Soll-Marke je Säule. Antippen wählt einen Zeitraum. */
-function Saeulen({ werte, a, b, soll, wahl, onWahl, format, wert }) {
+function Saeulen({ werte, a, b, soll, wahl, onWahl, format, wert, schnitt, schnittText }) {
   const W = 340, H = 190, L = 34, R = 4, T = 16, B = 22
   const n = werte.length, band = (W - L - R) / n, bw = Math.min(26, band * 0.62)
-  const max = Math.max(1, ...werte.map((w) => (w.leer ? 0 : a(w) + b(w))), ...(soll ? werte.map((w) => (w.leer ? 0 : soll(w) || 0)) : []))
+  const max = Math.max(1, ...werte.map((w) => (w.leer ? 0 : a(w) + b(w))), ...(soll ? werte.map((w) => (w.leer ? 0 : soll(w) || 0)) : []), schnitt || 0)
   const { top, ticks } = skala(max)
   const y = (v) => T + (H - T - B) * (1 - v / top)
   const saeule = (x, y0, y1, rund) => {
@@ -73,6 +74,11 @@ function Saeulen({ werte, a, b, soll, wahl, onWahl, format, wert }) {
         )
       })}
       <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="rgba(255,255,255,.25)" strokeWidth="1" />
+      {schnitt > 0 && <g pointerEvents="none">
+        <line x1={L} x2={W - R} y1={y(schnitt)} y2={y(schnitt)} stroke={FARBE_SCHNITT} strokeWidth="1.5" />
+        <rect x={L + 1} y={y(schnitt) - 13} width={schnittText.length * 5.6 + 8} height="12" rx="3" fill="#0d1d26" opacity=".85" />
+        <text x={L + 5} y={y(schnitt) - 4} fontSize="9.5" fontWeight="700" fill={FARBE_SCHNITT}>{schnittText}</text>
+      </g>}
     </svg>
   )
 }
@@ -146,6 +152,8 @@ export default function Statistik() {
   const gewaehlt = werte && (werte.find((w) => w.key === wahl) || [...werte].reverse().find((w) => !w.leer) || [...werte].reverse().find((w) => !w.zukunft))
   const sum = werte ? zusammenfassen(werte) : null
   const w$ = einst.waehrung
+  // Durchschnitt über abgeschlossene Zeiträume mit Einträgen (laufender zählt nicht)
+  const schnittWert = sum && sum.fertig > 0 ? (mass === 'stunden' ? sum.schnittIst : sum.schnittNetto) : null
 
   const blaettern = (d) => {
     setWahl(null)
@@ -197,6 +205,7 @@ export default function Statistik() {
             <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_A }} />{stunden ? 'Gearbeitet' : `Netto-Verdienst (${w$})`}</span>
             {stunden && <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_B }} />Bezahlte Abwesenheit</span>}
             {stunden && art !== 'jahr' && <span className="inline-flex items-center gap-1.5"><span className="w-3.5 border-t-2 border-dashed border-white/75" />Soll</span>}
+            {schnittWert > 0 && <span className="inline-flex items-center gap-1.5"><span className="w-3.5 border-t-2" style={{ borderColor: FARBE_SCHNITT }} />Durchschnitt{sum.fertig < sum.anzahl ? ' (abgeschlossene)' : ''}</span>}
           </div>
 
           {sum.anzahl === 0
@@ -205,6 +214,7 @@ export default function Statistik() {
                 a={(w) => (stunden ? w.arbeit : w.lohnFehlt ? 0 : w.netto)} b={(w) => (stunden ? w.abw : 0)}
                 soll={stunden && art !== 'jahr' ? (w) => w.soll : null}
                 format={stunden ? (v) => String(Math.round(v * 10) / 10) : kurzChf}
+                schnitt={schnittWert} schnittText={stunden ? `Ø ${h2(schnittWert)} h` : `Ø ${Math.round(schnittWert || 0).toLocaleString('de-CH')}`}
                 wert={stunden ? (v, band) => (band < 30 ? (Math.round(v * 10) / 10).toFixed(1) : h2(v)) : (v) => Math.round(v).toLocaleString('de-CH')} />}
           <div className="text-xs text-white/60 text-center">{stunden ? 'Stunden je Säule' : `Netto in ${w$} je Säule`} · antippen für Details{werte.some((w) => w.laufend && !w.leer) ? ' · heller = läuft noch' : ''}</div>
         </section>
