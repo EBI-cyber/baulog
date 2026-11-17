@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, Send, CloudUpload, FileText, Plus, CheckCircle2, MessageCircle, AlertTriangle, CalendarOff, Wallet, PartyPopper, Banknote, CalendarPlus, CalendarDays } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Send, CloudUpload, FileText, Plus, CheckCircle2, MessageCircle, AlertTriangle, CalendarOff, Wallet, PartyPopper, Banknote, CalendarPlus, CalendarDays, Camera, Image } from 'lucide-react'
 import { db, wocheMarkieren, speichereAbsenz } from '../lib/db'
 import { feiertagAm } from '../lib/feiertage'
 import { kantonFuer } from '../lib/kanton'
@@ -20,6 +20,7 @@ import { wochenRechnung, std } from '../lib/woche'
 import SchichtZeile from '../components/SchichtZeile'
 import IconChip from '../ui/IconChip'
 import WocheNachtragen from '../components/WocheNachtragen'
+import PapierRapportSheet from '../components/PapierRapportSheet'
 import { vorgabeAus } from '../lib/nachtragen'
 
 
@@ -35,6 +36,8 @@ export default function Woche() {
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], [])
   const [sheet, setSheet] = useState(null)
   const [abschluss, setAbschluss] = useState(false)
+  const [papier, setPapier] = useState(false)
+  const papierFotos = useLiveQuery(async () => (await db.wochen.filter((x) => x.key.startsWith(wKey) && !!x.papierBilder?.length).toArray())[0] || null, [wKey], null)
   // Woche nachtragen — auch per Link: #/woche/2026-W44?h=9.5,8.5,8,10.75,8&f=Stüssi&b=07:00&papier=1
   // genaue Zeiten: z=06:45-09:00_09:15-12:00;…  (Tage mit ; , Blöcke mit _), Notizen: n=…;…
   const [such, setSuch] = useSearchParams()
@@ -128,6 +131,15 @@ export default function Woche() {
         </div>
       )}
 
+      {/* unterschriebenen Papier-Rapport fotografieren, abgleichen, an den Berater weiterleiten */}
+      <button onClick={() => setPapier(true)} className="w-full rounded-2xl py-3 bg-white/[0.06] border border-white/10 text-sm font-semibold inline-flex items-center justify-center gap-2">
+        <Camera className="w-4 h-4" /> Papier-Rapport fotografieren & weiterleiten
+      </button>
+      {papierFotos && <div className="text-xs text-white/55 flex items-center gap-2 px-1">
+        <Image className="w-3.5 h-3.5" /> Papier-Rapport{papierFotos.gesendetAm ? ` gesendet ${new Date(papierFotos.gesendetAm).toLocaleDateString('de-CH')} an ${papierFotos.gesendetAn || 'Büro'}` : ' fotografiert'}
+        <button onClick={() => { const w = window.open(); if (w) w.document.write(papierFotos.papierBilder.map((b) => `<img src="${b}" style="width:100%">`).join('')) }} className="underline">Foto ansehen</button>
+      </div>}
+
       {/* Rapport — einer pro Firma / Temporärbüro */}
       {laeuftNoch && (
         <div className="text-sm rounded-xl px-3 py-2 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2">
@@ -186,6 +198,7 @@ export default function Woche() {
 
       <Erfassen wert={sheet} setWert={setSheet} />
       {nachtragen && <WocheNachtragen woche={woche} vorgabe={nachtragen} onClose={nachtragenZu} />}
+      {papier && <PapierRapportSheet woche={woche} onClose={() => setPapier(false)} />}
       {abschluss && <AbschlussSheet wKey={wKey} onClose={() => setAbschluss(false)} />}
     </div>
   )
