@@ -234,7 +234,7 @@ function rapportListePdf({ einst, woche, schichten, absenzen = [], spesen = [], 
 }
 
 /** Lohnabrechnung (Schätzung) als PDF — nur für mich, nicht für das Büro */
-export function lohnPdf({ einst, lohn, titel, von, bis }) {
+export function lohnPdf({ einst, lohn, titel, von, bis, zahlungen = [] }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const L = 15, R = 195, w = einst.waehrung
   const geld = (n) => `${w} ${(n || 0).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -274,7 +274,13 @@ export function lohnPdf({ einst, lohn, titel, von, bis }) {
   zeile('Total Nettolohn', lohn.netto)
   zeile('Spesen', lohn.spesen)
   if (lohn.mittag) zeile('Mittagszulage', lohn.mittag)
-  zeile('Auszahlung', w === 'CHF' ? Math.round(lohn.auszahlung * 20) / 20 : lohn.auszahlung, { fett: true })
+  if (lohn.rueckstellung) zeile('Zurückbehalten (Guthaben, netto)', lohn.rueckstellung, { minus: true })
+  if (zahlungen.length) {
+    zeile('Lohnanspruch', lohn.auszahlung, { fett: true })
+    for (const x of zahlungen) zeile(`Bereits ausbezahlt ${x.datum.split('-').reverse().join('.')}${x.kw ? ` (KW ${x.kw})` : ''}`, x.betrag, { minus: true })
+    const offen = Math.round((lohn.auszahlung - zahlungen.reduce((a, x) => a + x.betrag, 0)) * 100) / 100
+    zeile(offen >= -0.005 ? 'Noch auszuzahlen' : 'Zu viel ausbezahlt', Math.abs(offen), { fett: true })
+  } else zeile('Auszahlung', w === 'CHF' ? Math.round(lohn.auszahlung * 20) / 20 : lohn.auszahlung, { fett: true })
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(140)
   doc.text(doc.splitTextToSize('Eigene Schätzung nach Schema GAV Personalverleih, ohne Gewähr. Massgebend ist die Lohnabrechnung des Temporärbüros.', R - L), L, 285)
   return doc.output('blob')

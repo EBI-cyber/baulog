@@ -57,15 +57,19 @@ export default function Lohn() {
 
   const z = useMemo(() => zeitraum(modus, basis), [modus, basis])
   const lohn = useLohn(z.von, z.bis, einst, jetzt)
+  // bereits erhaltene Zahlungen (Vorschüsse/Lohn) für diesen Monat → was noch offen ist
+  const zahlungen = useLiveQuery(() => (modus === 'monat' ? db.zahlungen.where('fuerMonat').equals(z.von.slice(0, 7)).sortBy('datum') : []), [modus, z.von], [])
+  const erhalten = Math.round((zahlungen || []).reduce((a, x) => a + x.betrag, 0) * 100) / 100
+  const offen = lohn ? Math.round((lohn.auszahlung - erhalten) * 100) / 100 : 0
   const w = einst.waehrung
 
   const blaettern = (d) => setBasis((b) => modus === 'monat'
     ? new Date(b.getFullYear(), b.getMonth() + d, 1)
     : wochenStart(wocheVersetzt(isoWoche(b), d)))
 
-  const pdf = useMemo(() => (lohn && lohn.posten.length ? lohnPdf({ einst, lohn, titel: z.titel, von: z.von, bis: z.bis }) : null),
+  const pdf = useMemo(() => (lohn && lohn.posten.length ? lohnPdf({ einst, lohn, titel: z.titel, von: z.von, bis: z.bis, zahlungen: zahlungen || [] }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lohn && JSON.stringify([lohn.brutto, lohn.spesen, lohn.mittag]), z.titel, einst])
+    [lohn && JSON.stringify([lohn.brutto, lohn.spesen, lohn.mittag, lohn.rueckstellung]), z.titel, einst, JSON.stringify(zahlungen)])
 
   return (
     <div className="space-y-5">
@@ -112,8 +116,9 @@ export default function Lohn() {
       {lohn && (
         <>
           <section className="glass rounded-4xl p-6 text-center">
-            <div className="text-xs text-white/45">Auszahlung (geschätzt){laufend ? ' · live' : ''}</div>
-            <div className="text-5xl font-extrabold grad-text tabular-nums tracking-tight">{chf(runde5(lohn.auszahlung, w), w)}</div>
+            <div className="text-xs text-white/45">{erhalten > 0 ? (offen >= -0.025 ? 'Noch auszuzahlen (Büro schuldet dir)' : 'Zu viel ausbezahlt (wird verrechnet)') : 'Auszahlung (geschätzt)'}{laufend ? ' · live' : ''}</div>
+            <div className="text-5xl font-extrabold grad-text tabular-nums tracking-tight">{chf(Math.abs(erhalten > 0 ? offen : runde5(lohn.auszahlung, w)), w)}</div>
+            {erhalten > 0 && <div className="text-xs text-white/50 mt-1 tabular-nums">Anspruch {chf(lohn.auszahlung, w)} − bereits erhalten {chf(erhalten, w)}</div>}
             <div className="grid grid-cols-3 gap-2 mt-4 text-sm">
               <div><div className="text-white/40 text-xs">Brutto</div><div className="font-bold tabular-nums">{chf(lohn.brutto, w)}</div></div>
               <div><div className="text-white/40 text-xs">Abzüge</div><div className="font-bold tabular-nums text-rose-300">{chf(lohn.abzuege, w)}</div></div>
@@ -194,7 +199,12 @@ export default function Lohn() {
               <Zeile label="Nettolohn" betrag={lohn.netto} w={w} />
               <Zeile label="Spesen (nicht AHV-pflichtig)" betrag={lohn.spesen} w={w} />
               {lohn.mittag > 0 && <Zeile label="Mittagszulage" info={lohn.posten.filter((p) => p.mittag).map((p) => `${p.tage} Tage`).join(', ')} betrag={lohn.mittag} w={w} />}
-              <Zeile fett label="Auszahlung" info={w === 'CHF' ? 'auf 5 Rappen gerundet' : ''} betrag={runde5(lohn.auszahlung, w)} w={w} />
+              {lohn.rueckstellung > 0 && <Zeile minus label="Zurückbehalten (Guthaben, netto)" info="Feriengeld usw. — gehört dir, wird bei Ferien ausbezahlt" betrag={lohn.rueckstellung} w={w} />}
+              <Zeile fett label={erhalten > 0 ? 'Lohnanspruch' : 'Auszahlung'} info={erhalten > 0 ? '' : w === 'CHF' ? 'auf 5 Rappen gerundet' : ''} betrag={erhalten > 0 ? lohn.auszahlung : runde5(lohn.auszahlung, w)} w={w} />
+              {(zahlungen || []).map((x) => (
+                <Zeile key={x.id} minus label={`Bereits ausbezahlt: ${x.art === 'lohn' ? 'Lohn' : x.art === 'vorschuss' ? 'Vorschuss' : 'Zahlung'} ${x.datum.split('-').reverse().join('.').slice(0, 6)}`} info={x.kw ? `für KW ${x.kw}` : x.text || ''} betrag={x.betrag} w={w} />
+              ))}
+              {erhalten > 0 && <Zeile fett label={offen >= -0.005 ? 'Noch auszuzahlen (Büro schuldet dir)' : 'Zu viel ausbezahlt (wird verrechnet)'} betrag={Math.abs(offen)} w={w} />}
             </section>
           )}
 
