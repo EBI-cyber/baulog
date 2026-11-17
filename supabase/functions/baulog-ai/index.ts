@@ -190,6 +190,21 @@ Deno.serve(async (req) => {
           ...bilder.map((url: string, i: number) => teil(url, i)),
         ] },
       ]
+    } else if (task === 'rapport') {
+      // Rapport-App: ausgefüllter Papier-Arbeitsrapport (Foto/Scan) → Wochenwerte
+      jsonMode = true
+      const bilder = (Array.isArray(body.bilder) ? body.bilder : []).filter(Boolean).slice(0, 4)
+      if (!bilder.length) return out({ error: 'Kein Foto übergeben.' }, 400)
+      messages = [
+        { role: 'system', content: 'Du liest ein Foto/Scan eines ausgefüllten Arbeitsrapports (Wochenrapport eines Temporärbüros, Schweiz; handschriftlich oder gedruckt; Foto kann schräg sein). ' +
+          'Zahlen sind Dezimalstunden (9,50 = 9.5 h; 10,75 = 10.75 h). Übernimm Ziffer für Ziffer, nichts erfinden; Unlesbares = null. ' +
+          'Felder: kw (Zahl), jahr (Zahl, falls nicht lesbar null), firma (Einsatzbetrieb, z.B. aus Stempel), mitarbeiter, ' +
+          'tage: für jeden Tag mit Eintrag {datum (YYYY-MM-DD; Datum steht meist als TT.MM in der Zeile Datum; Jahr aus KW/Unterschrift/' + String(body.heute || '') + '), normal (Normalstunden), h125, h150, h200, spesen (CHF), abwesenheit (Text wie Ferien/krank/Unfall/Feiertag/unbezahlt, sonst null), abwesenheitStunden, ort}, ' +
+          'total (Total Normalstunden laut Rapport), unterschriftTMA (true/false), unterschriftBetrieb (true/false, Stempel/Unterschrift des Einsatzbetriebs), ' +
+          'unterzeichner (Name in Blockschrift, falls lesbar), unterschriftDatum (YYYY-MM-DD), ortUnterschrift, einsatzWeiter (true = geht weiter, false = beendet, null), beendetAm, bewertung (1–5 oder null). ' +
+          'Antworte NUR als JSON mit genau diesen Feldern.' },
+        { role: 'user', content: [{ type: 'text', text: 'Arbeitsrapport:' }, ...bilder.map((url: string, i: number) => teil(url, i))] },
+      ]
     } else if (task === 'zahlungen') {
       // Rapport-App: Bankauszug / Buchungsverlauf (kopierter Text oder Screenshots) → Buchungen
       jsonMode = true
@@ -210,7 +225,7 @@ Deno.serve(async (req) => {
       return out({ error: 'unbekannter task' }, 400)
     }
 
-    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen', 'einsatzvertrag', 'lohnabrechnung'].includes(task) || (task === 'zahlungen' && body.__bild) ? 'gpt-4o' : 'gpt-4o-mini'
+    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen', 'einsatzvertrag', 'lohnabrechnung', 'rapport'].includes(task) || (task === 'zahlungen' && body.__bild) ? 'gpt-4o' : 'gpt-4o-mini'
     const temperature = task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2
     const ask = async (msgs, temp) => {
       const payload = { model, temperature: temp, messages: msgs }
@@ -284,6 +299,16 @@ Deno.serve(async (req) => {
           ...messages,
           { role: 'assistant', content },
           { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen die Fotos. Kontrolliere: Summe der AHV-pflichtigen Positionen = brutto; brutto − Summe abzuege = netto; netto + spesen/mittag − rueckstellungen ± Sonstiges − vorschuesse = auszahlung. Geht etwas nicht auf, hast du dich verlesen oder eine Zeile übersehen — lies erneut. Stimmt die Zuordnung jeder Zeile zu art? Nichts erfinden. Antworte NUR mit dem vollständigen korrigierten JSON.' },
+        ], 0)
+        JSON.parse(neu); content = neu
+      } catch { /* erste Antwort behalten */ }
+    }
+    if (task === 'rapport' && content.trim()) {
+      try {
+        const neu = await ask([
+          ...messages,
+          { role: 'assistant', content },
+          { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen das Foto: Die Summe der Normalstunden aller Tage muss total ergeben — sonst hast du dich verlesen (typisch: 8,50 vs 8,00; 10,75 vs 10,25). Stimmen die Daten (Montag bis Sonntag der KW)? Nichts erfinden. Antworte NUR mit dem vollständigen korrigierten JSON.' },
         ], 0)
         JSON.parse(neu); content = neu
       } catch { /* erste Antwort behalten */ }
