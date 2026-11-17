@@ -32,7 +32,7 @@ function skala(max) {
 }
 
 /** Säulen (gestapelt a + b), optional Soll-Marke je Säule. Antippen wählt einen Zeitraum. */
-function Saeulen({ werte, a, b, soll, wahl, onWahl, format, einheit }) {
+function Saeulen({ werte, a, b, soll, wahl, onWahl, format, wert }) {
   const W = 340, H = 190, L = 34, R = 4, T = 16, B = 22
   const n = werte.length, band = (W - L - R) / n, bw = Math.min(26, band * 0.62)
   const max = Math.max(1, ...werte.map((w) => (w.leer ? 0 : a(w) + b(w))), ...(soll ? werte.map((w) => (w.leer ? 0 : soll(w) || 0)) : []))
@@ -67,7 +67,7 @@ function Saeulen({ werte, a, b, soll, wahl, onWahl, format, einheit }) {
               {vb > 0 && saeule(x, ya - (va > 0 ? 1 : 0), yb, true) && <path d={saeule(x, ya - (va > 0 ? 1 : 0), yb, true)} fill={FARBE_B} />}
             </g>
             {sv > 0 && <line x1={x - 3} x2={x + bw + 3} y1={y(sv)} y2={y(sv)} stroke="rgba(255,255,255,.75)" strokeWidth="1.5" strokeDasharray="3 2" />}
-            {aktiv && !w.leer && <text x={x + bw / 2} y={Math.min(yb, sv ? y(sv) : yb) - 4} textAnchor="middle" fontSize="10.5" fontWeight="700" fill="#eaf6f8">{format(va + vb)}{einheit}</text>}
+            {!w.leer && va + vb > 0 && <text x={x + bw / 2} y={Math.min(yb, sv ? y(sv) - 1 : yb) - 4} textAnchor="middle" fontSize={band < 30 ? 8.5 : 10} fontWeight={aktiv ? 800 : 600} fill={aktiv ? '#ffffff' : 'rgba(234,246,248,.85)'}>{wert(va + vb, band)}</text>}
             <text x={x + bw / 2} y={H - 7} textAnchor="middle" fontSize="10" fill={aktiv ? '#eaf6f8' : 'rgba(255,255,255,.6)'} fontWeight={aktiv ? 700 : 400}>{w.kurz}</text>
           </g>
         )
@@ -109,7 +109,6 @@ export default function Statistik() {
   const [ankerWoche, setAnkerWoche] = useState(jetzt)
   const [jahr, setJahr] = useState(new Date().getFullYear())
   const [wahl, setWahl] = useState(null)
-  const [tabelle, setTabelle] = useState(false)
 
   const daten = useLiveQuery(async () => ({
     schichten: (await db.schichten.toArray()).filter((s) => s.ende != null),
@@ -195,19 +194,52 @@ export default function Statistik() {
           </div>
 
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/75">
-            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_A }} />{stunden ? 'Gearbeitet' : 'Netto'}</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_B }} />{stunden ? 'Bezahlte Abwesenheit' : 'Abzüge (→ Brutto)'}</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_A }} />{stunden ? 'Gearbeitet' : `Netto-Verdienst (${w$})`}</span>
+            {stunden && <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_B }} />Bezahlte Abwesenheit</span>}
             {stunden && art !== 'jahr' && <span className="inline-flex items-center gap-1.5"><span className="w-3.5 border-t-2 border-dashed border-white/75" />Soll</span>}
           </div>
 
           {sum.anzahl === 0
             ? <div className="text-center text-white/60 py-8">Keine Einträge in diesem Zeitraum.</div>
             : <Saeulen werte={werte} wahl={gewaehlt?.key} onWahl={setWahl}
-                a={(w) => (stunden ? w.arbeit : w.netto)} b={(w) => (stunden ? w.abw : w.abzuege)}
+                a={(w) => (stunden ? w.arbeit : w.lohnFehlt ? 0 : w.netto)} b={(w) => (stunden ? w.abw : 0)}
                 soll={stunden && art !== 'jahr' ? (w) => w.soll : null}
-                format={stunden ? (v) => String(Math.round(v * 10) / 10) : kurzChf} einheit={stunden ? ' h' : ''} />}
-          <div className="text-xs text-white/60 text-center">Säule antippen für Details{werte.some((w) => w.laufend && !w.leer) ? ' · heller = läuft noch' : ''}</div>
+                format={stunden ? (v) => String(Math.round(v * 10) / 10) : kurzChf}
+                wert={stunden ? (v, band) => (band < 30 ? (Math.round(v * 10) / 10).toFixed(1) : h2(v)) : (v) => Math.round(v).toLocaleString('de-CH')} />}
+          <div className="text-xs text-white/60 text-center">{stunden ? 'Stunden je Säule' : `Netto in ${w$} je Säule`} · antippen für Details{werte.some((w) => w.laufend && !w.leer) ? ' · heller = läuft noch' : ''}</div>
         </section>
+
+        {sum.anzahl > 0 && <section className="glass rounded-3xl p-4">
+          <div className="flex items-center gap-2 font-semibold">
+            <Table2 className="w-4 h-4 text-white/65" /> Übersicht: Stunden & Verdienst
+          </div>
+          <table className="w-full text-sm tabular-nums mt-2">
+            <thead><tr className="text-white/60 text-xs">
+              <th className="text-left font-normal py-1">{ART_NAME[art]}</th>
+              <th className="text-right font-normal">Std.</th>
+              {art !== 'jahr' && <th className="text-right font-normal">±Soll</th>}
+              <th className="text-right font-normal">Brutto</th>
+              <th className="text-right font-normal">Netto</th>
+            </tr></thead>
+            <tbody>{werte.filter((w) => !w.leer).map((w) => (
+              <tr key={w.key} onClick={() => setWahl(w.key)} className={'border-t border-white/5 ' + (gewaehlt?.key === w.key ? 'bg-white/[0.06]' : '')}>
+                <td className="py-2">{art === 'woche' ? `KW ${w.kurz}` : w.kurz}{w.laufend ? ' …' : ''}</td>
+                <td className="text-right">{h2(w.ist)}</td>
+                {art !== 'jahr' && <td className={'text-right ' + (w.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{`${w.saldo >= 0 ? '+' : '−'}${h2(Math.abs(w.saldo))}`}</td>}
+                <td className="text-right text-white/75">{w.lohnFehlt ? '–' : chf(w.brutto, '').trim()}</td>
+                <td className="text-right font-semibold">{w.lohnFehlt ? '–' : chf(w.netto, '').trim()}</td>
+              </tr>
+            ))}
+            {sum.anzahl > 1 && <tr className="border-t border-white/20 font-bold">
+              <td className="py-2">Total</td>
+              <td className="text-right">{h2(sum.ist)}</td>
+              {art !== 'jahr' && <td className={'text-right ' + (sum.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{`${sum.saldo >= 0 ? '+' : '−'}${h2(Math.abs(sum.saldo))}`}</td>}
+              <td className="text-right">{chf(sum.brutto, '').trim()}</td>
+              <td className="text-right">{chf(sum.netto, '').trim()}</td>
+            </tr>}
+            </tbody>
+          </table>
+        </section>}
 
         {sum.anzahl > 0 && <div className="grid grid-cols-2 gap-3">
           {stunden ? <>
@@ -250,28 +282,6 @@ export default function Statistik() {
           </div>}
         </section>}
 
-        {sum.anzahl > 0 && <section className="glass rounded-3xl p-4">
-          <button onClick={() => setTabelle(!tabelle)} className="w-full flex items-center gap-2 text-left font-semibold">
-            <Table2 className="w-4 h-4 text-white/65" /> <span className="flex-1">Als Tabelle</span>
-            <ChevronRight className={'w-5 h-5 text-white/60 transition-transform ' + (tabelle ? 'rotate-90' : '')} />
-          </button>
-          {tabelle && <table className="w-full text-sm tabular-nums mt-3">
-            <thead><tr className="text-white/60 text-xs">
-              <th className="text-left font-normal py-1">{ART_NAME[art]}</th>
-              <th className="text-right font-normal">Std.</th>
-              <th className="text-right font-normal">{art === 'jahr' ? 'Brutto' : '±Soll'}</th>
-              <th className="text-right font-normal">Netto</th>
-            </tr></thead>
-            <tbody>{werte.filter((w) => !w.leer).map((w) => (
-              <tr key={w.key} onClick={() => setWahl(w.key)} className={'border-t border-white/5 ' + (gewaehlt?.key === w.key ? 'bg-white/[0.06]' : '')}>
-                <td className="py-2">{art === 'woche' ? `KW ${w.kurz}` : w.kurz}{w.laufend ? ' …' : ''}</td>
-                <td className="text-right">{h2(w.ist)}</td>
-                <td className={'text-right ' + (art === 'jahr' ? '' : w.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{art === 'jahr' ? kurzChf(w.brutto) : `${w.saldo >= 0 ? '+' : '−'}${h2(Math.abs(w.saldo))}`}</td>
-                <td className="text-right">{w.lohnFehlt ? '–' : chf(w.netto, '').trim()}</td>
-              </tr>
-            ))}</tbody>
-          </table>}
-        </section>}
 
         <div className="text-xs text-white/60 px-1">Geschätzt aus deinen Zeiten und dem Einsatzvertrag (wie im Lohn). Stunden = Arbeitszeit + bezahlte Abwesenheiten; Soll ab Einsatzbeginn ohne Feiertage. Massgebend ist die Abrechnung des Büros.</div>
       </>}
