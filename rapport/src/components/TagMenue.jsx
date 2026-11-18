@@ -7,7 +7,7 @@ import { TAGE_LANG, datumLang } from '../lib/zeit'
 export default function TagMenue({ datum, onWahl, onClose }) {
   const d = new Date(datum + 'T12:00')
   const punkte = [
-    ['zeit', Clock, 'Arbeitszeit nachtragen', 'Beginn, Ende, Pause'],
+    ['zeit', Clock, 'Arbeitszeit nachtragen', 'Beginn, Ende, Znüni & Mittag'],
     ['absenz', CalendarOff, 'Abwesenheit', 'Ferien, krank, Feiertag, Unfall …'],
     ['spesen', Wallet, 'Spesen', 'Verpflegung, Fahrt, Übernachtung'],
   ]

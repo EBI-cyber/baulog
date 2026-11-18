@@ -6,6 +6,8 @@ import FirmaWahl from './FirmaWahl'
 import { db, speichern } from '../lib/db'
 import { useEinstellungen } from '../lib/settings'
 import { isoDatum, uhr, pauseMs, arbeitMs, hm } from '../lib/zeit'
+import PausenWahl from './PausenWahl'
+import { pausenAusWahl, standardWahl, wahlAusPausen, nurPlan } from '../lib/pausen'
 
 /** Schicht bearbeiten oder nachtragen. schicht = bestehende Schicht | null (neu, an `datum`) */
 export default function SchichtSheet({ schicht, datum, onClose }) {
@@ -21,6 +23,11 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
     notiz: schicht?.notiz || '',
   }))
   const [fehler, setFehler] = useState('')
+  // Pausen: gestempelte Pausen mit eigenen Zeiten bleiben, bis man sie durch den Tagesablauf ersetzt
+  const gestempelt = (schicht?.pausen || []).filter((x) => x.ende && x.ende - x.start > 60000)
+  const [modus, setModus] = useState(() => (gestempelt.length && !nurPlan(gestempelt) ? 'gestempelt' : schicht && !gestempelt.length && schicht.pauseMin != null ? 'minuten' : 'plan'))
+  const [wahl, setWahl] = useState(null)
+  const [geaendert, setGeaendert] = useState(!schicht)
   // Beginn aus dem Einsatzvertrag (z.B. 07:00), sonst 07:00
   const einsaetze = useLiveQuery(() => db.einsaetze.toArray(), [], null)
   useEffect(() => {
@@ -37,16 +44,21 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
   }
   const { start, ende } = zeiten()
   const pauseNeu = Math.max(0, parseInt(f.pause, 10) || 0)
+  const gueltig = !isNaN(start) && !isNaN(ende) && ende != null
+  // Anfangswahl: aus Plan-Pausen der Schicht, sonst Vorschlag nach Beginn/Ende
+  const w = wahl || (gestempelt.length && nurPlan(gestempelt) ? wahlAusPausen(f.datum, gestempelt) : gueltig ? standardWahl(f.datum, start, ende) : { znueni: true, mittag: 30, mittagVon: '12:00' })
   const vorschau = !isNaN(start) && (laeuft || !isNaN(ende))
-    ? hm(arbeitMs({ start, ende: ende ?? Date.now(), pauseMin: pauseNeu })) : '–'
+    ? hm(modus === 'plan' && gueltig ? arbeitMs({ start, ende, pausen: pausenAusWahl(f.datum, start, ende, w) }) : modus === 'gestempelt' ? arbeitMs({ ...schicht, start, ende: ende ?? Date.now() }) : arbeitMs({ start, ende: ende ?? Date.now(), pauseMin: pauseNeu })) : '–'
 
   async function sichern() {
     if (isNaN(start) || (!laeuft && isNaN(ende))) return setFehler('Bitte Datum und Uhrzeiten ausfüllen.')
     if (!f.firma) return setFehler('Bitte eine Firma wählen.')
     if (start > Date.now()) return setFehler('Der Beginn liegt in der Zukunft.')
     const neu = { ...(schicht || { pausen: [] }), start, ende, firma: f.firma, notiz: f.notiz }
-    // Pause nur überschreiben, wenn sie geändert wurde (sonst bleiben die gestoppten Pausen erhalten)
-    if (!laeuft && (!schicht || pauseNeu !== pauseAlt)) { neu.pauseMin = pauseNeu; delete neu.pauseAuto; delete neu.pausePruefen }
+    // Pausen: Tagesablauf (echte Zeiten) bzw. Minuten — nur überschreiben, wenn geändert (gestempelte Pausen bleiben sonst)
+    if (!laeuft && modus === 'plan' && (geaendert || !schicht || start !== schicht.start || ende !== schicht.ende)) {
+      neu.pausen = pausenAusWahl(f.datum, start, ende, w); delete neu.pauseMin; delete neu.pauseAuto; delete neu.pausePruefen
+    } else if (!laeuft && modus === 'minuten' && (!schicht || pauseNeu !== pauseAlt)) { neu.pausen = []; neu.pauseMin = pauseNeu; delete neu.pauseAuto; delete neu.pausePruefen }
     await speichern(neu)
     onClose()
   }
@@ -75,9 +87,16 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
           <label className="block text-xs text-white/65 mb-1">Ende</label>
           <input type="time" value={f.ende} onChange={set('ende')} className="eingabe" />
         </div>}
-        {!laeuft && <div className="col-span-2">
-          <label className="block text-xs text-white/65 mb-1">Pause (Minuten)</label>
-          <input type="number" inputMode="numeric" min="0" value={f.pause} onChange={set('pause')} className="eingabe" />
+        {!laeuft && <div className="col-span-2 space-y-2">
+          <div className="flex items-center gap-2 text-xs text-white/65">
+            <span className="flex-1">Pausen</span>
+            {[['plan', 'Znüni/Mittag'], ...(gestempelt.length && !nurPlan(gestempelt) ? [['gestempelt', 'gestempelt']] : []), ['minuten', 'Minuten']].map(([k, l]) => (
+              <button key={k} type="button" onClick={() => { setModus(k); setGeaendert(true) }} className={'px-2.5 py-1 rounded-full border ' + (modus === k ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/65')}>{l}</button>
+            ))}
+          </div>
+          {modus === 'plan' && <PausenWahl datum={f.datum} start={gueltig ? start : null} ende={gueltig ? ende : null} wert={w} onChange={(x) => { setWahl(x); setGeaendert(true) }} />}
+          {modus === 'gestempelt' && <div className="text-sm text-white/75 tabular-nums">{gestempelt.map((x) => `${uhr(x.start)}–${uhr(x.ende)}`).join(', ')} <span className="text-white/60">(per Knopf gestempelt)</span></div>}
+          {modus === 'minuten' && <input type="number" inputMode="numeric" min="0" value={f.pause} onChange={set('pause')} className="eingabe" placeholder="Pause in Minuten" />}
         </div>}
         <div className="col-span-2">
           <label className="block text-xs text-white/65 mb-1">Bemerkung (optional)</label>
