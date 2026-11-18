@@ -115,7 +115,7 @@ export default function Einstellungen() {
           {einst.firmen.map((f) => {
             const e = (einsaetze || []).find((x) => x.firma === f)
             return (
-              <div key={f} className="flex items-center gap-2">
+              <div key={f} className="space-y-1.5"><div className="flex items-center gap-2">
                 <button onClick={() => setEinsatz(e ? { e } : { vorgabe: { firma: f } })}
                   className="flex-1 min-w-0 text-left rounded-2xl px-3 py-2.5 bg-white/[0.04] border border-white/10 flex items-center gap-3 card-hover">
                   <div className="min-w-0 flex-1">
@@ -131,6 +131,12 @@ export default function Einstellungen() {
                   onClick={() => setEinst({ firmen: einst.firmen.filter((x) => x !== f), firma: einst.firma === f ? '' : einst.firma })}>
                   <X className="w-4 h-4" />
                 </button>
+              </div>
+              {/* direkt zu Original-Formular und Firmenstempel (stehen sonst weit unten im Einsatz) */}
+              {e && <div className="grid grid-cols-2 gap-1.5 pr-10">
+                <button onClick={() => setEinsatz({ e, ziel: 'rapport-vorlage' })} className={'rounded-xl py-2 text-xs font-semibold border ' + (e.formularBild ? 'border-emerald-400/40 text-emerald-300' : 'border-white/15 text-white/75')}>{e.formularBild ? '✓ Original-Formular' : '+ Original-Formular'}</button>
+                <button onClick={() => setEinsatz({ e, ziel: 'firmenstempel' })} className={'rounded-xl py-2 text-xs font-semibold border ' + (e.stempelBild ? 'border-emerald-400/40 text-emerald-300' : 'border-white/15 text-white/75')}>{e.stempelBild ? '✓ Firmenstempel' : '+ Firmenstempel'}</button>
+              </div>}
               </div>
             )
           })}
@@ -214,7 +220,7 @@ export default function Einstellungen() {
         <input ref={datei} type="file" accept="application/json,.json" className="hidden" onChange={laden} />
         {meldung && <div className={'text-sm rounded-xl px-3 py-2 border ' + (meldung.ok ? 'bg-lime/15 border-lime/30 text-lime' : 'bg-ember/15 border-ember/30 text-ember')}>{meldung.text}</div>}
       </Karte>
-      {einsatz && <EinsatzSheet einsatz={einsatz.e || null} vorgabe={einsatz.vorgabe} onClose={() => setEinsatz(null)} />}
+      {einsatz && <EinsatzSheet einsatz={einsatz.e || null} vorgabe={einsatz.vorgabe} ziel={einsatz.ziel} onClose={() => setEinsatz(null)} />}
       <div className="text-xs text-white/60 text-center pb-2">App-Stand {typeof __STAND__ !== 'undefined' ? __STAND__ : '–'} · neue Version: App ganz schliessen und neu öffnen</div>
     </div>
   )
