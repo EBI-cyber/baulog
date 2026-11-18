@@ -40,10 +40,14 @@ export async function dateienFuer(key, einst = ladeEinstellungen()) {
   return out
 }
 
+/** Pfad relativ zum OneDrive-Ordner „Rapporte“, den der Kurzbefehl als Ziel hat */
+export const zielPfad = (pfad) => pfad.replace(/^\/*Rapporte\//i, '')
+
 /** Paket für den Kurzbefehl (JSON-Text) */
 async function paket(dateien) {
   const liste = []
-  for (const d of dateien) liste.push({ ziel: `${d.ordner}/${d.name}`, daten: await blobZuBase64(d.blob) })
+  // Der Kurzbefehl speichert in den OneDrive-Ordner „Rapporte“ (die oberste OneDrive-Ebene lässt sich in iOS nicht wählen)
+  for (const d of dateien) liste.push({ ziel: zielPfad(`${d.ordner}/${d.name}`), daten: await blobZuBase64(d.blob) })
   return JSON.stringify({ dateien: liste })
 }
 

@@ -48,7 +48,7 @@ export default function AblageKarte({ Karte }) {
                   <li><b>Wörterbuchwert abrufen</b> → Schlüssel <span className="font-mono">daten</span> aus <b>Wiederholungsobjekt</b></li>
                   <li><b>Base64-Codierung</b> → auf <b>Decodieren</b> stellen</li>
                   <li><b>Wörterbuchwert abrufen</b> → Schlüssel <span className="font-mono">ziel</span> aus <b>Wiederholungsobjekt</b></li>
-                  <li><b>Datei sichern</b> → Datei: <b>Base64-codiert</b> (das Ergebnis von b) · „Fragen, wo gesichert werden soll“ <b>aus</b> · Ordner: <b>OneDrive</b> (oberste Ebene) · <b>Unterpfad</b>: die Variable <b>Wörterbuchwert</b> aus c · „Überschreiben, falls Datei existiert“ <b>an</b></li>
+                  <li><b>Datei sichern</b> → Datei: <b>Base64-codiert</b> (das Ergebnis von b) · „Fragen, wo gesichert werden soll“ <b>aus</b> · „in … sichern“: <b>OneDrive → Dateien → Rapporte</b> (Ordner „Rapporte“ vorher in der App Dateien anlegen: OneDrive → Dateien → ••• → Neuer Ordner) · <b>Unterpfad</b>: die Variable <b>Wörterbuchwert</b> aus c · „Überschreiben, falls Datei existiert“ <b>an</b></li>
                 </ol>
               </li>
               <li><b>Mitteilung anzeigen</b> → „Rapporte in OneDrive abgelegt“</li>
@@ -56,7 +56,7 @@ export default function AblageKarte({ Karte }) {
           </div>
           <div>
             <div className="font-semibold text-white">3. Testen</div>
-            <div>Unten auf <b>Test ablegen</b> tippen → Kurzbefehle öffnet sich und läuft → danach liegt <span className="font-mono">Rapporte/Test.txt</span> in OneDrive. Beim ersten Mal fragt das iPhone, ob der Kurzbefehl auf OneDrive zugreifen darf → <b>Immer erlauben</b>. Danach mit einem Wisch zurück in die App.</div>
+            <div>Unten auf <b>Test ablegen</b> tippen → Kurzbefehle öffnet sich und läuft → danach liegt <span className="font-mono">Test.txt</span> im OneDrive-Ordner <span className="font-mono">Rapporte</span>. Beim ersten Mal fragt das iPhone, ob der Kurzbefehl auf OneDrive zugreifen darf → <b>Immer erlauben</b>. Danach mit einem Wisch zurück in die App.</div>
           </div>
           <div className="text-xs text-white/60">Die Bezeichnungen der Aktionen können je nach iOS-Version leicht anders heissen. Der Ordneraufbau richtet sich nach „OneDrive-Ordner“ im Abschnitt „Automatischer Versand“ (Standard Rapporte/{'{jahr}'}/{'{monat}'}).</div>
         </div>
