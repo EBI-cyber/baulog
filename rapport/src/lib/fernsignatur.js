@@ -31,7 +31,8 @@ export async function fernVorbereiten({ g, woche, wKey, ma, wer, maOrt, eb }) {
 
 export function fernText({ einst, woche, an, link }) {
   return `Guten Tag${an ? ' ' + an : ''}\n\nHier meine Arbeitszeiten für KW ${woche.kw}/${woche.jahr} zur Kontrolle (mit Pausen). ` +
-    `Bitte prüfen und auf Ihrem Handy unterschreiben — bis Montag früh:\n${link}\n\nVielen Dank und freundliche Grüsse\n${einst.name || ''}`
+    `Bitte prüfen und direkt auf dem Handy unterschreiben (bis Montag früh) — dort können Sie auch angeben, ob der Einsatz weitergeht, und eine Leistungsbeurteilung abgeben.\n\n` +
+    `Zum Prüfen und Unterschreiben hier tippen:\n${link}\n\nVielen Dank und freundliche Grüsse\n${einst.name || ''}`
 }
 
 /** Als gesendet markieren (Kanal: whatsapp | email | teilen) */

@@ -53,10 +53,12 @@ export default function FernSenden({ g, woche, wKey, ma, wer, setWer, ort, eb, e
       <div className="text-sm font-semibold flex items-center gap-2"><Send className="w-4 h-4 text-aqua" /> Vorab zur Kontrolle senden</div>
       <div className="text-xs text-white/65">{wer?.name || 'Der Unterzeichner'} bekommt deine Zeiten mit Pausen (und den Zeitnachweis) und unterschreibt auf seinem Handy, z.B. Montag früh. Danach geht der Rapport automatisch ans Büro und in deinen OneDrive-Ordner.</div>
       {!vorb ? <>
-        {!wer?.id && <div className="grid grid-cols-2 gap-2">
-          <input className="eingabe !py-2 text-sm" placeholder="WhatsApp-Nr." value={wer?.tel || ''} onChange={(e) => setWer({ ...wer, tel: e.target.value })} />
-          <input className="eingabe !py-2 text-sm" placeholder="E-Mail" value={wer?.email || ''} onChange={(e) => setWer({ ...wer, email: e.target.value })} />
-        </div>}
+        {/* Kontakt immer sichtbar und vorausgefüllt; Änderungen werden beim Erstellen des Links beim Unterzeichner gespeichert */}
+        <div className="grid grid-cols-2 gap-2">
+          <input className="eingabe !py-2 text-sm" type="tel" inputMode="tel" placeholder="WhatsApp-Nr." value={wer?.tel || ''} onChange={(e) => setWer({ ...wer, tel: e.target.value })} />
+          <input className="eingabe !py-2 text-sm" type="email" inputMode="email" placeholder="E-Mail" value={wer?.email || ''} onChange={(e) => setWer({ ...wer, email: e.target.value })} />
+        </div>
+        {wer?.id && (wer.email || wer.tel) && <div className="text-xs text-white/60">Gespeichert bei {wer.name} — nächstes Mal automatisch ausgefüllt.</div>}
         <button type="button" disabled={!ma?.bild || laeuft} onClick={vorbereiten}
           className="w-full rounded-2xl py-2.5 bg-white/10 font-semibold text-sm inline-flex items-center justify-center gap-2 disabled:opacity-40">
           {laeuft ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Link für {wer?.name || 'den Unterzeichner'} erstellen
@@ -75,6 +77,7 @@ export default function FernSenden({ g, woche, wKey, ma, wer, setWer, ort, eb, e
           <button type="button" onClick={() => teileDatei(zn().blob, zn().name).catch(() => {})} className="py-1.5 text-xs text-white/65 underline">Zeitnachweis-PDF zusätzlich schicken</button>
         </div>
       </>}
+      {vorb && <div className="text-xs text-white/60">Die Nachricht ist fertig mit Empfänger, Betreff und Link — in der Mail-App nur noch auf <b>Senden</b> tippen. Der Link ist anklickbar: {wer?.name || 'der Unterzeichner'} sieht die Woche mit Pausen, wählt „Einsatz geht weiter / beendet“ und die Leistungsbeurteilung und unterschreibt mit dem Finger.</div>}
       {meldung && <div className={'text-xs flex gap-1.5 ' + (meldung.ok ? 'text-emerald-300' : 'text-ember')}>{meldung.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}{meldung.text}</div>}
     </div>
   )
