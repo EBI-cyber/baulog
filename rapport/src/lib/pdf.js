@@ -71,7 +71,109 @@ export function zeitnachweisPdf({ einst, woche, schichten, absenzen = [], spesen
  */
 /** Rapport-PDF: Formular (Wochenraster wie die Arbeitsrapporte der Temporärbüros, Standard) oder Liste mit Uhrzeiten */
 export function rapportPdf(args) {
-  return args.einsatz?.rapportVorlage === 'liste' ? rapportListePdf(args) : rapportFormularPdf(args)
+  if (args.einsatz?.rapportVorlage === 'liste') return rapportListePdf(args)
+  if (args.einsatz?.formularBild && args.einsatz?.rapportVorlage !== 'formular-app') return originalFormularPdf(args)
+  return rapportFormularPdf(args)
+}
+
+/**
+ * Rapport auf dem Original-Blankoformular des Temporärbüros: der hinterlegte Scan (nur auf dem Gerät, im Einsatz
+ * gespeichert) ist der Hintergrund, die Werte werden in die Kästchen geschrieben. Koordinaten = Pixel des Bellini-
+ * Arbeitsrapports V3.0 (Scan 2573 × 1788), werden aufs hinterlegte Bild skaliert.
+ */
+const BELLINI_V3 = {
+  w: 2573, h: 1788,
+  tage: [274, 488, 704, 922, 1138, 1352, 1565], kasten: [0, 49, 103, 150], kb: 49, // vier Kästchen je Tag (2 | 2)
+  total: [1780, 1828, 1877, 1932, 1980], // 3 | 2 Kästchen
+  zeilen: { datum: [587, 657], normal: [670, 739], h125: [753, 821], h150: [835, 903], spesen: [917, 985], frei: [998, 1066], ort: [1080, 1165] },
+  freiLabel: [95, 1040],
+  name: [400, 414], adresse: [400, 494], firma: [1690, 414], firmaAdresse: [1690, 494], kw: [1560, 282],
+  zvJa: [354, 1252], zvNein: [436, 1252], maOrt: [712, 1260], maUnterschrift: [1575, 1272, 470, 115],
+  weiter: [104, 1410], beendet: [572, 1410], beendetAm: [1020, 1402],
+  bewertung: [[1848, 1400], [1940, 1400], [2032, 1400], [2128, 1400], [2224, 1400]],
+  ebOrt: [100, 1552], ebUnterschrift: [600, 1560, 800, 125], ebName: [1500, 1552],
+}
+
+function originalFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [], einsatz: e, unterschriften = null }) {
+  const L = BELLINI_V3, u = unterschriften || {}, p = einst?.profil || {}
+  const ip = (() => { try { return new jsPDF().getImageProperties(e.formularBild) } catch { return { width: L.w, height: L.h } } })()
+  const W = 297, H = (297 * ip.height) / ip.width
+  const doc = new jsPDF({ unit: 'mm', format: [W, H], orientation: 'landscape' })
+  doc.addImage(e.formularBild, e.formularBild.startsWith('data:image/png') ? 'PNG' : 'JPEG', 0, 0, W, H)
+  const X = (px) => (px / L.w) * W, Y = (py) => (py / L.h) * H
+  const TINTE = [20, 40, 120] // Kugelschreiber-Blau
+  const schreib = (t, px, py, size = 11, opt = {}) => { if (!t) return; doc.setFont('helvetica', opt.fett === false ? 'normal' : 'bold'); doc.setFontSize(size); doc.setTextColor(...TINTE); doc.text(String(t), X(px), Y(py), opt) }
+  const kreuz = ([px, py]) => { doc.setDrawColor(...TINTE); doc.setLineWidth(0.45); const r = X(9); doc.line(X(px) - r, Y(py) - r, X(px) + r, Y(py) + r); doc.line(X(px) - r, Y(py) + r, X(px) + r, Y(py) - r) }
+  const bild = (src, px, unten, maxB, maxH) => {
+    if (!src) return
+    try { const q = doc.getImageProperties(src); const h = Math.min(Y(maxH), (X(maxB) * q.height) / q.width), w = (h * q.width) / q.height; doc.addImage(src, 'PNG', X(px), Y(unten) - h, w, h) } catch {}
+  }
+  const am = (ts) => (ts ? datumLang(new Date(ts)) : '')
+  const { tage, total } = rapportTage({ woche, schichten, absenzen, spesen, einsatz: e, einst })
+
+  // Kopf
+  schreib(`KW ${woche.kw} / ${woche.jahr}`, L.kw[0], L.kw[1], 15)
+  schreib(einst?.name, L.name[0], L.name[1], 12.5)
+  schreib([p.strasse, [p.plz, p.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '), L.adresse[0], L.adresse[1], 10.5)
+  schreib(e?.firma || schichten[0]?.firma, L.firma[0], L.firma[1], 11.5)
+  schreib(e?.firmaAdresse || e?.einsatzort, L.firmaAdresse[0], L.firmaAdresse[1], 10)
+
+  // Ziffern in die Kästchen: Zeile [oben, unten], Kästchen-Startpunkte, Anzahl ganze Stellen
+  const ziffern = (txt, starts, ganz, [o, un]) => {
+    if (!txt) return
+    const [g, d = ''] = String(txt).split('.')
+    const z = [...g.padStart(ganz, ' ').slice(-ganz), ...d.padEnd(2, ' ').slice(0, 2)]
+    z.forEach((c, i) => { if (c.trim()) schreib(c, starts[i] + L.kb / 2, un - (un - o) * 0.22, 14, { align: 'center' }) })
+  }
+  const tag = (i) => L.kasten.map((k) => L.tage[i] + k)
+  const z2 = (n) => (n > 0.004 ? n.toFixed(2) : '')
+  const reihe = (k, werte, tot) => { werte.forEach((v, i) => ziffern(v, tag(i), 2, L.zeilen[k])); if (tot) ziffern(tot, L.total, 3, L.zeilen[k]) }
+  reihe('datum', tage.map((t) => `${String(t.tag.getDate()).padStart(2, '0')}.${String(t.tag.getMonth() + 1).padStart(2, '0')}`))
+  reihe('normal', tage.map((t) => z2(t.normal)), z2(total.normal))
+  reihe('h125', tage.map((t) => z2(t.h125)), z2(total.h125))
+  reihe('h150', tage.map((t) => z2(t.h150)), z2(total.h150))
+  reihe('spesen', tage.map((t) => (t.spesen > 0 ? t.spesen.toFixed(2) : '')), total.spesen > 0 ? total.spesen.toFixed(2) : '')
+  // freie Zeile: Stunden zu 200 % (falls nötig), sonst Abwesenheiten (Art klein oben, angerechnete Stunden in den Kästchen)
+  const [fo, fu] = L.zeilen.frei
+  if (total.h200 > 0.004) {
+    schreib('Stunden 200 %', L.freiLabel[0], L.freiLabel[1], 8.5, { fett: false })
+    reihe('frei', tage.map((t) => z2(t.h200)), z2(total.h200))
+  } else if (tage.some((t) => t.absenzen.length)) {
+    schreib('Abwesenheit', L.freiLabel[0], L.freiLabel[1], 8.5, { fett: false })
+    tage.forEach((t, i) => {
+      if (!t.absenzen.length) return
+      schreib(t.absenzen.map((a) => a.kurz).join('+'), L.tage[i] + 100, fo + 22, 6.5, { align: 'center', fett: false })
+      const std = t.absenzen.reduce((a, b) => a + b.std, 0)
+      if (std > 0.004) ziffern(std.toFixed(2), tag(i), 2, [fo + 10, fu])
+      else schreib('–', L.tage[i] + 100, fu - 14, 12, { align: 'center' })
+    })
+    if (total.absenz > 0.004) ziffern(z2(total.absenz), L.total, 3, [fo + 10, fu])
+  }
+  // Einsatzort | Baustelle: klein, bis 3 Zeilen je Tag
+  const [oo] = L.zeilen.ort
+  tage.forEach((t, i) => {
+    if (!t.orteListe?.length) return
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(6); doc.setTextColor(...TINTE)
+    doc.text(t.orteListe.flatMap((s) => doc.splitTextToSize(s, X(195))).slice(0, 3), X(L.tage[i] + 4), Y(oo + 22), { lineHeightFactor: 1.05 })
+  })
+
+  // TMA: Zwischenverdienst, Ort | Datum, Unterschrift
+  if (p.rav === true) kreuz(L.zvJa); else if (p.rav === false) kreuz(L.zvNein)
+  const maOrt = u.maOrt || p.ort || ''
+  schreib(`${maOrt}${u.maAm ? (maOrt ? ', ' : '') + am(u.maAm) : ''}`, L.maOrt[0], L.maOrt[1], 10.5)
+  bild(u.maBild, L.maUnterschrift[0], L.maUnterschrift[1], L.maUnterschrift[2], L.maUnterschrift[3])
+
+  // Einsatzbetrieb
+  if (u.einsatzWeiter === true) kreuz(L.weiter)
+  if (u.einsatzWeiter === false) { kreuz(L.beendet); if (u.beendetAm) schreib(u.beendetAm.split('-').reverse().join('.'), L.beendetAm[0], L.beendetAm[1], 11) }
+  if (+u.bewertung >= 1 && +u.bewertung <= 5) { const [bx, by] = L.bewertung[+u.bewertung - 1]; doc.setDrawColor(...TINTE); doc.setLineWidth(0.5); doc.circle(X(bx), Y(by), X(26)) }
+  const ortEB = u.firmaOrt || (e?.einsatzort || '').replace(/^\d{4}\s*/, '')
+  schreib(`${ortEB}${u.firmaAm ? (ortEB ? ', ' : '') + am(u.firmaAm) : ''}`, L.ebOrt[0], L.ebOrt[1], 11)
+  bild(u.firmaBild, L.ebUnterschrift[0], L.ebUnterschrift[1], L.ebUnterschrift[2], L.ebUnterschrift[3])
+  schreib(unterzeichnerText(u).toUpperCase(), L.ebName[0], L.ebName[1], 11)
+  if (u.maBild || u.firmaBild) { doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(90); doc.text(`Elektronisch unterschrieben in der Rapport-App · erstellt ${datumLang(new Date())} ${uhr(Date.now())}`, W - 4, H - 1.5, { align: 'right' }) }
+  doc.setTextColor(0)
+  return doc.output('blob')
 }
 
 function rapportListePdf({ einst, woche, schichten, absenzen = [], spesen = [], einsatz = null, unterschriften = null }) {

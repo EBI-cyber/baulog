@@ -1,3 +1,4 @@
+import { formularAusDatei } from '../lib/formular'
 import { useRef, useState } from 'react'
 import { Briefcase, Camera, Sparkles, Trash2, X, Loader2, AlertTriangle, Star, UserPlus } from 'lucide-react'
 import Sheet from './Sheet'
@@ -34,6 +35,42 @@ function Feld({ label, einheit, breit, ...rest }) {
 }
 
 const Titel = ({ children }) => <div className="text-xs font-semibold uppercase tracking-wider text-white/60 pt-3">{children}</div>
+
+function FormularVorlage({ f, setF }) {
+  const ref = useRef()
+  const [status, setStatus] = useState('')
+  async function laden(e) {
+    const d = e.target.files?.[0]; e.target.value = ''
+    if (!d) return
+    setStatus('Wird vorbereitet …')
+    try { const bild = await formularAusDatei(d); setF((x) => ({ ...x, formularBild: bild, rapportVorlage: 'formular' })); setStatus('') } catch (err) { setStatus(err.message) }
+  }
+  async function vorschau() {
+    const { rapportPdf } = await import('../lib/pdf')
+    const { isoWoche } = await import('../lib/zeit')
+    const blob = rapportPdf({ einst: { name: 'Muster Max', profil: { strasse: 'Musterweg 1', plz: '8000', ort: 'Zürich' } }, woche: isoWoche(new Date()), schichten: [], absenzen: [], spesen: [], einsatz: f, unterschriften: {} })
+    window.open(URL.createObjectURL(blob))
+  }
+  return (
+    <div className="rounded-xl bg-white/[0.04] border border-white/10 p-2.5 space-y-2">
+      <div className="text-white/80 font-semibold">Original-Formular des Büros</div>
+      {f.formularBild ? <>
+        <img src={f.formularBild} alt="Formular" className="w-full rounded-lg bg-white" />
+        <div className="text-xs text-white/65">Der Rapport wird auf diesem Formular ausgefüllt (Bellini Arbeitsrapport V3.0). Es bleibt nur auf diesem Handy.</div>
+        <div className="grid grid-cols-3 gap-1.5">
+          <button type="button" onClick={vorschau} className="rounded-lg py-2 bg-white/10 text-xs font-semibold">Vorschau</button>
+          <button type="button" onClick={() => ref.current?.click()} className="rounded-lg py-2 bg-white/10 text-xs font-semibold">Ersetzen</button>
+          <button type="button" onClick={() => setF((x) => ({ ...x, formularBild: '' }))} className="rounded-lg py-2 bg-white/10 text-xs font-semibold text-rose-300">Entfernen</button>
+        </div>
+      </> : <>
+        <div className="text-xs text-white/65">Leeres Blanko-Formular als PDF-Scan oder Foto hinterlegen → der Rapport wird darauf ausgefüllt und sieht aus wie der Papier-Zettel. (Derzeit passend für den Bellini-Arbeitsrapport V3.0.)</div>
+        <button type="button" onClick={() => ref.current?.click()} className="w-full rounded-lg py-2.5 bg-white/10 text-sm font-semibold">Blanko-Formular hinterlegen (PDF/Foto)</button>
+      </>}
+      {status && <div className="text-xs text-amber-300">{status}</div>}
+      <input ref={ref} type="file" accept="application/pdf,image/*" className="hidden" onChange={laden} />
+    </div>
+  )
+}
 
 export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
   const [einst, setEinst] = useEinstellungen()
@@ -278,6 +315,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
               className={'flex-1 px-2 py-1.5 rounded-lg text-xs border ' + ((f.rapportVorlage || 'formular') === v ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/60')}>{l}</button>
           ))}
         </div>
+        <FormularVorlage f={f} setF={setF} />
         <div className="flex items-center gap-2">
           <span className="w-28 shrink-0 text-white/70">Überstunden</span>
           {[['woche', 'ab Wochensoll (125 %)'], ['keine', 'durchschnittl. Arbeitszeit']].map(([v, l]) => (
