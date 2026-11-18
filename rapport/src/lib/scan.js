@@ -377,3 +377,174 @@ export function kopie(canvas) {
   c.getContext('2d').drawImage(canvas, 0, 0)
   return c
 }
+
+// ── Scan-Qualität (wie Scanner-Apps): Beleuchtung je Farbkanal schätzen und herausrechnen ──────────────
+// Bild ÷ Hintergrund (Papier ohne Schrift) → gleichmässig weisses Papier, Schatten und Farbstich weg,
+// die Farbe der Tinte (blauer Kugelschreiber, roter Stempel) bleibt erhalten.
+
+// Box-Blur (separabel) auf einem Float-Raster, r = Radius
+function boxBlur(src, w, h, r) {
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h)
+  for (let y = 0; y < h; y++) {
+    let s = 0
+    for (let x = -r; x <= r; x++) s += src[y * w + Math.min(w - 1, Math.max(0, x))]
+    for (let x = 0; x < w; x++) {
+      tmp[y * w + x] = s / (2 * r + 1)
+      s += src[y * w + Math.min(w - 1, x + r + 1)] - src[y * w + Math.max(0, x - r)]
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let s = 0
+    for (let y = -r; y <= r; y++) s += tmp[Math.min(h - 1, Math.max(0, y)) * w + x]
+    for (let y = 0; y < h; y++) {
+      out[y * w + x] = s / (2 * r + 1)
+      s += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x]
+    }
+  }
+  return out
+}
+// Maximum-Filter (separabel): entfernt dunkle Schrift, übrig bleibt das Papier
+function maxFilter(src, w, h, r) {
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let m = 0
+    for (let k = Math.max(0, x - r); k <= Math.min(w - 1, x + r); k++) if (src[y * w + k] > m) m = src[y * w + k]
+    tmp[y * w + x] = m
+  }
+  for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) {
+    let m = 0
+    for (let k = Math.max(0, y - r); k <= Math.min(h - 1, y + r); k++) if (tmp[k * w + x] > m) m = tmp[k * w + x]
+    out[y * w + x] = m
+  }
+  return out
+}
+
+// Hintergrund je Kanal auf grobem Raster (≈ 1/6 der Grösse) schätzen
+function hintergrundRaster(d, W, H) {
+  const S = Math.max(4, Math.round(Math.max(W, H) / 400)) // Rastergrösse in Pixeln
+  const gw = Math.ceil(W / S), gh = Math.ceil(H / S)
+  const kanaele = [0, 1, 2].map((k) => {
+    const g = new Float32Array(gw * gh)
+    for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+      // hellster Wert der Zelle ≈ Papier (bei Schrift in der Zelle)
+      let m = 0
+      for (let y = gy * S; y < Math.min(H, gy * S + S); y += 2) for (let x = gx * S; x < Math.min(W, gx * S + S); x += 2) { const v = d[(y * W + x) * 4 + k]; if (v > m) m = v }
+      g[gy * gw + gx] = m
+    }
+    // dicke Striche/Linien und Stempel wegfiltern, dann weich (Schatten verlaufen weich)
+    const r = Math.max(2, Math.round(gw / 60))
+    return boxBlur(boxBlur(maxFilter(g, gw, gh, r), gw, gh, r * 2), gw, gh, r * 2)
+  })
+  return { kanaele, S, gw, gh }
+}
+
+// Farb-Scan: Hintergrund teilen, Schwarzpunkt setzen, Tinte etwas kräftiger, Papier reinweiss
+export function scanFarbe(canvas) {
+  const W = canvas.width, H = canvas.height
+  const ctx = canvas.getContext('2d')
+  const img = ctx.getImageData(0, 0, W, H), d = img.data
+  const { kanaele, S, gw, gh } = hintergrundRaster(d, W, H)
+  const n = new Float32Array(W * H * 3)
+  const hist = new Uint32Array(256)
+  for (let y = 0; y < H; y++) {
+    const fy = Math.min(gh - 1.001, Math.max(0, y / S - 0.5)), y0 = Math.floor(fy), ty = fy - y0
+    for (let x = 0; x < W; x++) {
+      const fx = Math.min(gw - 1.001, Math.max(0, x / S - 0.5)), x0 = Math.floor(fx), tx = fx - x0
+      const i0 = y0 * gw + x0, o = (y * W + x) * 4
+      let lum = 0
+      for (let k = 0; k < 3; k++) {
+        const g = kanaele[k]
+        const bg = (g[i0] * (1 - tx) + g[i0 + 1] * tx) * (1 - ty) + (g[i0 + gw] * (1 - tx) + g[i0 + gw + 1] * tx) * ty
+        const v = Math.min(1.2, d[o + k] / Math.max(30, bg))
+        n[(y * W + x) * 3 + k] = v; lum += v
+      }
+      hist[Math.min(255, Math.round((lum / 3) * 212))]++
+    }
+  }
+  // Schwarzpunkt = 0.5 % dunkelste Pixel, Weisspunkt knapp unter Papier → Papier wird sauber weiss
+  let acc = 0, schwarz = 0
+  for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > W * H * 0.005) { schwarz = v / 212; break } }
+  const weiss = 0.88, spanne = Math.max(0.2, weiss - schwarz)
+  for (let i = 0; i < W * H; i++) {
+    const r = n[i * 3], g = n[i * 3 + 1], b = n[i * 3 + 2]
+    const m = (r + g + b) / 3
+    // Farbe nur dort, wo wirklich Farbe ist (Tinte, Stempel, Logo) – leichte Farbstiche auf Papier werden neutral
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b)
+    const f = chroma < 0.06 ? 0 : chroma < 0.14 ? (chroma - 0.06) / 0.08 * 1.4 : 1.4
+    for (let k = 0; k < 3; k++) {
+      let v = m + (n[i * 3 + k] - m) * f
+      v = Math.max(0, Math.min(1, (v - schwarz) / spanne))
+      d[i * 4 + k] = Math.round(255 * Math.pow(v, 1.6)) // Schrift kräftiger, Papier bleibt weiss
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+  return canvas
+}
+
+// Schwarz-Weiss-Scan: aus dem Farb-Scan, weiche Schwelle (glatte Kanten statt Treppen, dünne Linien bleiben)
+export function scanSW(canvas) {
+  scanFarbe(canvas)
+  const ctx = canvas.getContext('2d')
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height), d = img.data
+  for (let i = 0; i < d.length; i += 4) {
+    const l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255
+    // farbige Tinte (blau/rot) zählt als dunkel, auch wenn sie hell ist
+    const sat = (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2])) / 255
+    const t = Math.max(0, Math.min(1, (l - sat * 0.6 - 0.4) / 0.45))
+    const v = Math.round(255 * t * t * (3 - 2 * t))
+    d[i] = d[i + 1] = d[i + 2] = v
+  }
+  ctx.putImageData(img, 0, 0)
+  return canvas
+}
+
+// Schärfen mit grösserem Radius (Unscharf-Maskieren auf der Helligkeit, kein Farbrauschen)
+export function scharfzeichnen(canvas, staerke = 0.7, r = 2) {
+  const W = canvas.width, H = canvas.height
+  const ctx = canvas.getContext('2d')
+  const img = ctx.getImageData(0, 0, W, H), d = img.data
+  const lum = new Float32Array(W * H)
+  for (let i = 0; i < W * H; i++) lum[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]
+  const blur = boxBlur(boxBlur(lum, W, H, r), W, H, r)
+  for (let i = 0; i < W * H; i++) {
+    const diff = (lum[i] - blur[i]) * staerke
+    if (Math.abs(diff) < 2) continue // Papierrauschen nicht verstärken
+    for (let k = 0; k < 3; k++) d[i * 4 + k] = Math.max(0, Math.min(255, d[i * 4 + k] + diff))
+  }
+  ctx.putImageData(img, 0, 0)
+  return canvas
+}
+
+// Steht der Text auf dem Kopf? Lateinische Schrift: Oberlängen (b d f h k l t, Grossbuchstaben) sind viel häufiger
+// als Unterlängen (g j p q y) – der Tintenschwerpunkt einer Zeile liegt darum UNTER der Zeilenmitte.
+// Liegt er bei den meisten Zeilen darüber, ist das Blatt um 180° gedreht.
+export function stehtKopf(canvas) {
+  const f = Math.min(1, 1600 / canvas.width)
+  const W = Math.round(canvas.width * f), H = Math.round(canvas.height * f)
+  const k = document.createElement('canvas'); k.width = W; k.height = H
+  const x = k.getContext('2d'); x.drawImage(canvas, 0, 0, W, H)
+  const d = x.getImageData(0, 0, W, H).data
+  const dunkel = new Uint8Array(W * H)
+  let summe = 0
+  for (let i = 0; i < W * H; i++) summe += d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]
+  const grenze = (summe / (W * H)) * 0.6
+  for (let i = 0; i < W * H; i++) dunkel[i] = d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2] < grenze ? 1 : 0
+  // in senkrechten Streifen arbeiten (Spalten/Tabellen), je Streifen Zeilen über die Projektion finden
+  let oben = 0, unten = 0
+  const streifen = 6, sw = Math.floor(W / streifen)
+  for (let st = 0; st < streifen; st++) {
+    const proj = new Float32Array(H)
+    for (let y = 0; y < H; y++) { let c = 0; for (let xx = st * sw; xx < (st + 1) * sw; xx++) c += dunkel[y * W + xx]; proj[y] = c }
+    let y = 0
+    while (y < H) {
+      if (proj[y] <= 1) { y++; continue }
+      const a = y; let masse = 0, moment = 0
+      while (y < H && proj[y] > 1) { masse += proj[y]; moment += proj[y] * y; y++ }
+      const h = y - a
+      if (h < 6 || h > 60 || masse < 40) continue // Linien, Rauschen, Unterschriften auslassen
+      const rel = (moment / masse - a) / h // 0 = oben, 1 = unten
+      if (rel > 0.52) unten++; else if (rel < 0.48) oben++
+    }
+  }
+  return oben > unten * 1.3 && oben - unten >= 4
+}

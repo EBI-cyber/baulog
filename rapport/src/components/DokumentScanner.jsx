@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ScanLine, RotateCw, Crop, Check, Loader2 } from 'lucide-react'
-import { ladeBild, verkleinern, entzerren, verbessern, eckenFinden, dokumentFilter, schaerfen, graustufen, drehen, kopie } from '../lib/scan'
+import { ladeBild, verkleinern, entzerren, eckenFinden, scanFarbe, scanSW, scharfzeichnen, drehen, kopie, stehtKopf } from '../lib/scan'
 
 const LUPE = 110
-const FILTER = [['dokument', 'Dokument'], ['farbe', 'Farbe'], ['grau', 'Graustufen'], ['original', 'Original']]
+const FILTER = [['scan', 'Scan'], ['sw', 'S/W'], ['grau', 'Grau'], ['original', 'Original']]
 
 // Viereck leicht zur Mitte einrücken, damit kein Untergrund am Rand stehen bleibt
 function einruecken(ecken, anteil) {
@@ -22,7 +22,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
   const [schritt, setSchritt] = useState('ecken') // ecken | filter
-  const [filter, setFilter] = useState('dokument')
+  const [filter, setFilter] = useState('scan')
   const [scharf, setScharf] = useState(true)
   const [ergebnis, setErgebnis] = useState('')
   const [busy, setBusy] = useState('')
@@ -39,7 +39,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
       try {
         const img = await ladeBild(url)
         if (!aktiv) return
-        voll.current = verkleinern(img, 3000)
+        voll.current = verkleinern(img, 4096) // volle Kamera-Auflösung für scharfe Schrift
         const c = verkleinern(img, 1400)
         const W = c.width, H = c.height
         const gefunden = eckenFinden(c)
@@ -123,27 +123,34 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
   const anwenden = (f = filter, s = scharf) => {
     if (!roh.current) return
     const c = kopie(roh.current)
-    if (f === 'dokument') dokumentFilter(c)
-    else if (f === 'farbe') verbessern(c)
-    else if (f === 'grau') graustufen(c)
-    if (s && f !== 'original') schaerfen(c, f === 'dokument' ? 0.5 : 0.8)
-    setErgebnis(c.toDataURL('image/jpeg', 0.88))
+    if (f === 'scan') scanFarbe(c)
+    else if (f === 'sw') scanSW(c)
+    else if (f === 'grau') {
+      scanFarbe(c)
+      const x = c.getContext('2d'), im = x.getImageData(0, 0, c.width, c.height), d = im.data
+      for (let i = 0; i < d.length; i += 4) { const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; d[i] = d[i + 1] = d[i + 2] = g }
+      x.putImageData(im, 0, 0)
+    }
+    if (s && f !== 'original') scharfzeichnen(c, f === 'sw' ? 0.5 : 0.8, Math.max(1, Math.round(c.width / 1400)))
+    setErgebnis(c.toDataURL('image/jpeg', 0.9))
   }
   const zuschneiden = () => {
     setBusy('Wird entzerrt …')
     setTimeout(() => {
       try {
         const f = voll.current.width / quelle.width
-        roh.current = entzerren(voll.current, ecken.map((p) => ({ x: p.x * f, y: p.y * f })), 2200)
+        roh.current = entzerren(voll.current, ecken.map((p) => ({ x: p.x * f, y: p.y * f })), 3000)
         // Rapport ist quer (A4 quer): hochkant fotografiert → automatisch drehen
         if (roh.current.height > roh.current.width * 1.15) roh.current = drehen(roh.current)
+        // auf dem Kopf? (Handy andersherum gehalten) → 180° drehen
+        if (stehtKopf(roh.current)) roh.current = drehen(drehen(roh.current))
         setSchritt('filter'); anwenden()
       } catch { /* Ecken ungültig */ }
       setBusy('')
     }, 30)
   }
-  const waehle = (f) => { setFilter(f); setBusy('…'); setTimeout(() => { anwenden(f, scharf); setBusy('') }, 20) }
-  const schaerfeUm = () => { const s = !scharf; setScharf(s); setBusy('…'); setTimeout(() => { anwenden(filter, s); setBusy('') }, 20) }
+  const waehle = (f) => { setFilter(f); setBusy('Wird verarbeitet …'); setTimeout(() => { anwenden(f, scharf); setBusy('') }, 20) }
+  const schaerfeUm = () => { const s = !scharf; setScharf(s); setBusy('Wird verarbeitet …'); setTimeout(() => { anwenden(filter, s); setBusy('') }, 20) }
   const dreh = () => { roh.current = drehen(roh.current); anwenden() }
 
   const r = quelle ? quelle.width / 30 : 10
@@ -152,7 +159,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
       <div className="flex items-center gap-2 px-3 pb-2" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
         <div className="flex-1 min-w-0">
           <div className="font-semibold">{schritt === 'ecken' ? titel : 'Als Dokument'}</div>
-          <div className="text-white/65 text-xs leading-tight">{schritt === 'ecken' ? 'Ecken oder Kantenmitten an den Rand des Blatts ziehen – die Lupe zeigt die Stelle.' : 'Filter wählen – „Dokument“ macht das Papier weiss und die Schrift schwarz.'}</div>
+          <div className="text-white/65 text-xs leading-tight">{schritt === 'ecken' ? 'Ecken oder Kantenmitten an den Rand des Blatts ziehen – die Lupe zeigt die Stelle.' : '„Scan“: Papier weiss, Schatten weg, Tinte bleibt farbig. „S/W“: reines Schwarz-Weiss.'}</div>
         </div>
         <button onClick={onAbbrechen} className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center shrink-0" aria-label="Abbrechen"><X className="w-5 h-5" /></button>
       </div>
@@ -183,7 +190,8 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
           </div>
         </div>
       </> : <>
-        <div className="flex-1 min-h-0 flex items-center justify-center p-2">
+        <div className="relative flex-1 min-h-0 flex items-center justify-center p-2">
+          {busy && <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40"><div className="rounded-2xl bg-black/80 px-4 py-3 inline-flex items-center gap-2 text-sm"><Loader2 className="w-5 h-5 animate-spin" /> Wird verarbeitet …</div></div>}
           {ergebnis ? <img src={ergebnis} alt="Dokument" className="max-w-full max-h-full object-contain rounded-lg bg-white" /> : <Loader2 className="w-8 h-8 animate-spin text-white/60" />}
         </div>
         <div className="p-3 space-y-2.5" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
