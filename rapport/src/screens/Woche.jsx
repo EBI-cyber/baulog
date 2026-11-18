@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom'
 import { useEinstellungen } from '../lib/settings'
 import { isoWoche, wochenKey, ausKey, wocheVersetzt, wochenTage, isoDatum, TAGE_LANG, datumKurz, datumLang, arbeitMs, hm, dezimal, uhr } from '../lib/zeit'
 import RapportKarte from '../components/RapportKarte'
+import { AblageHinweis } from '../components/AblageKarte'
 import AbschlussSheet from '../components/AbschlussSheet'
 import { rapportGruppen } from '../lib/rapporte'
 import Erfassen from '../components/Erfassen'
@@ -151,7 +152,7 @@ export default function Woche() {
           <IconChip icon={FileText} />
           <div className="text-sm text-white/65">Noch keine Einträge in dieser Woche.</div>
         </section>
-      ) : gruppen.map((g) => <RapportKarte key={g.firma} g={g} woche={woche} wKey={wKey} mehrere={gruppen.length > 1} onAbschluss={() => setAbschluss(true)} />)}
+      ) : <><AblageHinweis />{gruppen.map((g) => <RapportKarte key={g.firma} g={g} woche={woche} wKey={wKey} mehrere={gruppen.length > 1} onAbschluss={() => setAbschluss(true)} />)}</>}
 
       {/* Tage */}
       <section className="space-y-4">

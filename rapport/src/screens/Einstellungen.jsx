@@ -12,6 +12,7 @@ import EinsatzSheet from '../components/EinsatzSheet'
 import { vertragPruefen } from '../lib/vertragscheck'
 import MicrosoftKarte from '../components/MicrosoftKarte'
 import KurzbefehlKarte from '../components/KurzbefehlKarte'
+import AblageKarte from '../components/AblageKarte'
 import { inOneDriveSichern, tageSeitSicherung } from '../lib/sicherung'
 import { useMs } from '../lib/microsoft'
 import Unterschrift from '../components/Unterschrift'
@@ -97,6 +98,7 @@ export default function Einstellungen() {
 
       <KurzbefehlKarte Karte={Karte} />
 
+      <AblageKarte Karte={Karte} />
       <MicrosoftKarte Karte={Karte} />
 
       <Karte icon={Building2} titel="Temporärbüro (Standard)">

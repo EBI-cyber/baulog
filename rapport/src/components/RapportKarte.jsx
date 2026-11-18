@@ -75,8 +75,8 @@ export default function RapportKarte({ g, woche, wKey, mehrere, onAbschluss }) {
           {status?.gesendetAm ? `Gesendet ${zeitpunkt(status.gesendetAm)}${status.gesendetAn ? ' an ' + status.gesendetAn : ''}` : 'Noch nicht gesendet'}
         </span>
         <span className="inline-flex items-center gap-1">
-          <CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.gespeichertAm ? 'text-mint' : 'text-white/40')} />
-          {status?.gespeichertAm ? `Gesichert ${zeitpunkt(status.gespeichertAm)}` : 'Noch nicht gesichert'}
+          <CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.gespeichertAm || status?.abgelegtAm ? 'text-mint' : 'text-white/40')} />
+          {status?.gespeichertAm ? `Gesichert ${zeitpunkt(status.gespeichertAm)}` : status?.abgelegtAm ? `In OneDrive abgelegt ${zeitpunkt(status.abgelegtAm)}` : 'Noch nicht gesichert'}
         </span>
       </div>
       <div className="flex flex-wrap gap-2 pt-1">
