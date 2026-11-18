@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Camera, ScanSearch, Loader2, CheckCircle2, AlertTriangle, X, Share2, CloudUpload, Check } from 'lucide-react'
 import Sheet from './Sheet'
+import DokumentScanner from './DokumentScanner'
 import { db, speichereAbsenz } from '../lib/db'
 import { useEinstellungen, zahl } from '../lib/settings'
 import { alsDataUrl } from '../lib/bild'
@@ -33,6 +34,9 @@ export default function PapierRapportSheet({ woche, onClose }) {
   const [meldung, setMeldung] = useState('')
   const [gesendet, setGesendet] = useState(false)
   const datei = useRef()
+  // Fotos laufen einzeln durch den Dokument-Scanner (zuschneiden, entzerren, Filter); Originale bleiben für „neu zuschneiden“
+  const [warte, setWarte] = useState([]) // [{ datei, index }]
+  const originale = useRef([])
   const wKey = wochenKey(woche)
 
   const einsatz = (einsaetze || []).find((e) => ki?.firma && kern(e.firma) === kern(ki.firma)) || (einsaetze || []).find((e) => e.firma === einst.firma) || null
@@ -45,11 +49,23 @@ export default function PapierRapportSheet({ woche, onClose }) {
   }, [bilder]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function dazu(e) {
-    const neu = []
-    for (const f of [...(e.target.files || [])]) neu.push(await alsDataUrl(f, 2200, 0.85))
+    const dateien = [...(e.target.files || [])]
     e.target.value = ''
-    setBilder((b) => [...b, ...neu].slice(0, 4))
+    const pdfs = [], fotos = []
+    for (const f of dateien) {
+      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '')) pdfs.push(await alsDataUrl(f, 2200, 0.85))
+      else fotos.push(f)
+    }
+    if (pdfs.length) setBilder((b) => [...b, ...pdfs].slice(0, 4))
+    if (fotos.length) setWarte((w) => [...w, ...fotos.map((d) => ({ datei: d, index: null }))])
   }
+  const scanFertig = (url) => {
+    const { datei: d, index } = warte[0]
+    if (index != null) { setBilder((b) => b.map((x, i) => (i === index ? url : x))); originale.current[index] = d }
+    else setBilder((b) => { if (b.length >= 4) return b; originale.current[b.length] = d; return [...b, url] })
+    setWarte((w) => w.slice(1))
+  }
+  const entfernen = (i) => { setBilder(bilder.filter((_, j) => j !== i)); originale.current = originale.current.filter((_, j) => j !== i) }
   async function auswerten() {
     setFehler(''); setSchritt('lesen')
     try {
@@ -102,17 +118,22 @@ export default function PapierRapportSheet({ woche, onClose }) {
   return (
     <Sheet titel={`Papier-Rapport KW ${woche.kw}`} icon={Camera} onClose={onClose}>
       {schritt === 'fotos' && <>
-        <div className="text-sm text-white/60">Den unterschriebenen Rapport flach hinlegen und fotografieren (oder als PDF/Scan wählen). Die App liest die Stunden, vergleicht sie mit deinen Zeiten und leitet den Rapport an deinen Berater weiter.</div>
+        <div className="text-sm text-white/60">Den unterschriebenen Rapport flach hinlegen und fotografieren (oder als PDF/Scan wählen). Danach Ecken zurechtziehen – die App entzerrt, schärft und macht ein sauberes Dokument daraus. Die App liest die Stunden, vergleicht sie mit deinen Zeiten und leitet den Rapport an deinen Berater weiter.</div>
         {bilder.length > 0 && <div className="flex gap-2 overflow-x-auto">{bilder.map((b, i) => (
           <div key={i} className="relative shrink-0">
-            {b.startsWith('data:application/pdf') ? <div className="h-24 w-32 rounded-lg border border-white/15 bg-white/10 flex items-center justify-center text-xs font-bold">PDF</div> : <img src={b} alt="" className="h-24 w-32 object-cover rounded-lg border border-white/15" />}
-            <button onClick={() => setBilder(bilder.filter((_, j) => j !== i))} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-black/80 flex items-center justify-center" aria-label="Entfernen"><X className="w-3.5 h-3.5" /></button>
+            {b.startsWith('data:application/pdf') ? <div className="h-24 w-32 rounded-lg border border-white/15 bg-white/10 flex items-center justify-center text-xs font-bold">PDF</div>
+              : <button onClick={() => originale.current[i] && setWarte((w) => [...w, { datei: originale.current[i], index: i }])} className="block relative">
+                <img src={b} alt="" className="h-24 w-32 object-cover rounded-lg border border-white/15 bg-white" />
+                {originale.current[i] && <span className="absolute bottom-1 left-1 text-xs bg-black/75 rounded px-1.5 py-0.5">Bearbeiten</span>}
+              </button>}
+            <button onClick={() => entfernen(i)} className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-black/80 flex items-center justify-center" aria-label="Entfernen"><X className="w-4 h-4" /></button>
           </div>))}</div>}
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => datei.current?.click()} className="rounded-2xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2"><Camera className="w-5 h-5" /> {bilder.length ? 'Seite dazu' : 'Foto / Scan'}</button>
           <button onClick={auswerten} disabled={!bilder.length || !kiVerfuegbar} className="rounded-2xl py-3 btn-grad font-bold inline-flex items-center justify-center gap-2 disabled:opacity-40"><ScanSearch className="w-5 h-5" /> Auswerten</button>
         </div>
         <input ref={datei} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={dazu} />
+        {warte.length > 0 && <DokumentScanner key={warte.length + ':' + (warte[0].index ?? 'n')} datei={warte[0].datei} titel={`Rapport zuschneiden${warte.length > 1 ? ` (noch ${warte.length})` : ''}`} onFertig={scanFertig} onAbbrechen={() => setWarte((w) => w.slice(1))} />}
         {bilder.length > 0 && <button onClick={nurVermerken} className="w-full py-2 text-xs text-white/65 underline">Ohne Auswertung nur als gesendet vermerken</button>}
         {fehler && <div className="text-sm text-ember">{fehler}</div>}
       </>}
