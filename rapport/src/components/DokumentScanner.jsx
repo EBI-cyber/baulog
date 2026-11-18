@@ -53,13 +53,19 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
   // Bild in die freie Fläche einpassen
   useEffect(() => {
     if (!quelle || schritt !== 'ecken') return
+    // Innenmass der Fläche (ohne Padding), Bild genau im Seitenverhältnis des Fotos – sonst würde das Bild
+    // gestreckt, die Linien aber nicht, und Linie und Zuschnitt lägen versetzt
+    const f = flaeche.current; if (!f) return
     const passen = () => {
-      const f = flaeche.current; if (!f) return
-      const r = f.getBoundingClientRect(), s = Math.min(r.width / quelle.width, r.height / quelle.height)
-      setBildMass({ w: quelle.width * s, h: quelle.height * s })
+      const cs = getComputedStyle(f)
+      const fw = f.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+      const fh = f.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+      const s = Math.min(fw / quelle.width, fh / quelle.height)
+      if (s > 0) setBildMass({ w: Math.floor(quelle.width * s), h: Math.floor(quelle.height * s) })
     }
-    passen(); window.addEventListener('resize', passen)
-    return () => window.removeEventListener('resize', passen)
+    passen()
+    const ro = new ResizeObserver(passen); ro.observe(f)
+    return () => ro.disconnect()
   }, [quelle, schritt])
 
   // Zeigerposition → Bildpixel
@@ -154,9 +160,9 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
       {schritt === 'ecken' ? <>
         <div ref={flaeche} className="flex-1 min-h-0 flex items-center justify-center px-2">
           {!quelle ? <Loader2 className="w-8 h-8 animate-spin text-white/60" /> :
-            <div className="relative select-none touch-none" style={bildMass ? { width: bildMass.w, height: bildMass.h } : { visibility: 'hidden' }} onPointerDown={runter} onPointerMove={bewegen} onPointerUp={hoch} onPointerCancel={hoch}>
-              <img ref={bild} src={vorschau} alt="" className="block w-full h-full rounded-lg pointer-events-none" draggable={false} />
-              {ecken && <svg ref={svg} viewBox={'0 0 ' + quelle.width + ' ' + quelle.height} className="absolute inset-0 w-full h-full pointer-events-none">
+            <div className="relative shrink-0 select-none touch-none" style={bildMass ? { width: bildMass.w, height: bildMass.h } : { visibility: 'hidden' }} onPointerDown={runter} onPointerMove={bewegen} onPointerUp={hoch} onPointerCancel={hoch}>
+              <img ref={bild} src={vorschau} alt="" className="block w-full h-full pointer-events-none" draggable={false} />
+              {ecken && <svg ref={svg} viewBox={'0 0 ' + quelle.width + ' ' + quelle.height} preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none">
                 <polygon points={ecken.map((p) => p.x + ',' + p.y).join(' ')} fill="rgba(34,211,238,0.15)" stroke="#22d3ee" strokeWidth={quelle.width / 200} />
                 {griffe(ecken).map((p, i) => (
                   <circle key={i} data-g={i} cx={p.x} cy={p.y} r={i < 4 ? r : r * 0.65} fill={i < 4 ? 'rgba(34,211,238,0.9)' : 'rgba(255,255,255,0.85)'} stroke={i < 4 ? '#fff' : '#22d3ee'} strokeWidth={quelle.width / 300} />
