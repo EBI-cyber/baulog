@@ -46,7 +46,10 @@ export async function abgleichen(woche, ki) {
     const appAbw = absenzen.filter((a) => a.datum === datum)
     const pStd = p ? zahl(p.normal) + zahl(p.h125) + zahl(p.h150) + zahl(p.h200) : 0
     const stimmt = Math.abs(pStd - app) < 0.01
-    return { datum, tag: d, papier: p, pStd, app, appAbw, stimmt, fehltInApp: pStd > 0 && app === 0 }
+    // Abwesenheit in der App (z.B. Ferien), aber Stunden auf dem Rapport → nie automatisch übernehmen, sondern prüfen lassen
+    const abwKonflikt = appAbw.length > 0 && pStd > 0
+    return { datum, tag: d, papier: p, pStd, app, appAbw, stimmt, abwKonflikt, fehltInApp: pStd > 0 && app === 0 && !appAbw.length,
+      zuViel: app > 0 && pStd === 0 }
   })
 }
 

@@ -198,9 +198,11 @@ Deno.serve(async (req) => {
       messages = [
         { role: 'system', content: 'Du liest ein Foto/Scan eines ausgefüllten Arbeitsrapports (Wochenrapport eines Temporärbüros, Schweiz; handschriftlich oder gedruckt; Foto kann schräg sein). ' +
           'Zahlen sind Dezimalstunden (9,50 = 9.5 h; 10,75 = 10.75 h). Übernimm Ziffer für Ziffer, nichts erfinden; Unlesbares = null. ' +
+          'WICHTIG: Die Zeile „Datum“ enthält Kalenderdaten (z.B. 09.11 = 9. November) – das sind NIE Stunden. Stunden stehen nur in den Zeilen Normalstunden / 125 % / 150 %. ' +
+          'Ein Strich (/ oder –), ein Kreuz, ein durchgestrichenes oder leeres Feld bei den Stunden = 0 Stunden (kein Arbeitstag, z.B. Ferien) – dann normal 0 bzw. den Tag weglassen, nie das Datum oder einen Nachbarwert einsetzen. ' +
           'Felder: kw (Zahl), jahr (Zahl, falls nicht lesbar null), firma (Einsatzbetrieb, z.B. aus Stempel), mitarbeiter, ' +
           'tage: für jeden Tag mit Eintrag {datum (YYYY-MM-DD; Datum steht meist als TT.MM in der Zeile Datum; Jahr aus KW/Unterschrift/' + String(body.heute || '') + '), normal (Normalstunden), h125, h150, h200, spesen (CHF), abwesenheit (Text wie Ferien/krank/Unfall/Feiertag/unbezahlt, sonst null), abwesenheitStunden, ort}, ' +
-          'total (Total Normalstunden laut Rapport), unterschriftTMA (true/false), unterschriftBetrieb (true/false, Stempel/Unterschrift des Einsatzbetriebs), ' +
+          'total (die Zahl in der Spalte Total, genau wie geschrieben – nicht selbst ausrechnen), unterschriftTMA (true/false), unterschriftBetrieb (true/false, Stempel/Unterschrift des Einsatzbetriebs), ' +
           'unterzeichner (Name in Blockschrift, falls lesbar), unterschriftDatum (YYYY-MM-DD), ortUnterschrift, einsatzWeiter (true = geht weiter, false = beendet, null), beendetAm, bewertung (1–5 oder null). ' +
           'Antworte NUR als JSON mit genau diesen Feldern.' },
         { role: 'user', content: [{ type: 'text', text: 'Arbeitsrapport:' }, ...bilder.map((url: string, i: number) => teil(url, i))] },
@@ -308,7 +310,7 @@ Deno.serve(async (req) => {
         const neu = await ask([
           ...messages,
           { role: 'assistant', content },
-          { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen das Foto: Die Summe der Normalstunden aller Tage muss total ergeben — sonst hast du dich verlesen (typisch: 8,50 vs 8,00; 10,75 vs 10,25). Stimmen die Daten (Montag bis Sonntag der KW)? Nichts erfinden. Antworte NUR mit dem vollständigen korrigierten JSON.' },
+          { role: 'user', content: 'Prüfe jede Zahl Ziffer für Ziffer gegen das Foto. total ist die geschriebene Zahl in der Spalte Total – ändere total NIE, damit es zur Summe passt. Ergibt die Summe der Tage nicht total, hast du einen Tag falsch gelesen: typisch ein Tag mit Strich (/) als Stunden gelesen, ein Datum (z.B. 09.11) als 9 Stunden gelesen oder 8,50 vs 8,00. Korrigiere dann die Tage. Stimmen die Daten (Montag bis Sonntag der KW)? Nichts erfinden. Antworte NUR mit dem vollständigen korrigierten JSON.' },
         ], 0)
         JSON.parse(neu); content = neu
       } catch { /* erste Antwort behalten */ }
