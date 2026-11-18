@@ -45,7 +45,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
         const W = c.width, H = c.height
         const gefunden = eckenFinden(c)
         setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85))
-        setEcken(gefunden && !direkt ? einruecken(gefunden, 0.01) : direkt ? [{ x: W * 0.15, y: H * 0.3 }, { x: W * 0.85, y: H * 0.3 }, { x: W * 0.85, y: H * 0.7 }, { x: W * 0.15, y: H * 0.7 }] : [{ x: W * 0.04, y: H * 0.04 }, { x: W * 0.96, y: H * 0.04 }, { x: W * 0.96, y: H * 0.96 }, { x: W * 0.04, y: H * 0.96 }])
+        setEcken(gefunden && !direkt ? einruecken(gefunden, 0.01) : direkt ? [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }] : [{ x: W * 0.04, y: H * 0.04 }, { x: W * 0.96, y: H * 0.04 }, { x: W * 0.96, y: H * 0.96 }, { x: W * 0.04, y: H * 0.96 }])
       } catch { onAbbrechen?.() } finally { URL.revokeObjectURL(url) }
     })()
     return () => { aktiv = false }
