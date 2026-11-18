@@ -50,10 +50,16 @@ function Inhalt({ token }) {
     if (!d) return null
     try { return URL.createObjectURL(zeitnachweisPdf({ einst: d.einst, woche: d.woche, schichten: d.schichten, absenzen: d.absenzen, spesen: d.spesen, einsatz: d.einsatz })) } catch { return null }
   }, [d])
+  // Vorschau zeigt laufend, was ins Formular kommt: Unterschrift des Mitarbeiters, Name in Blockschrift (sobald gewählt),
+  // Einsatz geht weiter/beendet, Beurteilung, Stempel und — wenn schon gezeichnet — die eigene Unterschrift
   const pdfUrl = useMemo(() => {
     if (!d) return null
-    return URL.createObjectURL(rapportPdf({ einst: d.einst, woche: d.woche, schichten: d.schichten, absenzen: d.absenzen, spesen: d.spesen, einsatz: d.einsatz }))
-  }, [d])
+    const n = gewaehlt ? gewaehlt.name : wer === 'neu' ? name.trim() : '', fn = gewaehlt ? gewaehlt.funktion : funktion
+    return URL.createObjectURL(rapportPdf({ einst: d.einst, woche: d.woche, schichten: d.schichten, absenzen: d.absenzen, spesen: d.spesen, einsatz: d.einsatz,
+      unterschriften: { maBild: d.ma?.bild, maAm: d.ma?.am, firmaName: n, firmaFunktion: fn, firmaBild: bild || null, firmaAm: bild ? Date.now() : null,
+        bewertung, einsatzWeiter: weiter, beendetAm: weiter === false ? beendetAm : null, stempel: !!(bild && stempel && d.einsatz?.stempelBild),
+        vertretungFuer: haupt && gewaehlt && haupt.id !== gewaehlt.id ? haupt.name : null } }))
+  }, [d, wer, name, funktion, bild, bewertung, weiter, beendetAm, stempel]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function senden(einverstanden) {
     setSende(true); setFehler('')
