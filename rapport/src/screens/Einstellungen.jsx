@@ -213,6 +213,7 @@ export default function Einstellungen() {
         {meldung && <div className={'text-sm rounded-xl px-3 py-2 border ' + (meldung.ok ? 'bg-lime/15 border-lime/30 text-lime' : 'bg-ember/15 border-ember/30 text-ember')}>{meldung.text}</div>}
       </Karte>
       {einsatz && <EinsatzSheet einsatz={einsatz.e || null} vorgabe={einsatz.vorgabe} onClose={() => setEinsatz(null)} />}
+      <div className="text-xs text-white/60 text-center pb-2">App-Stand {typeof __STAND__ !== 'undefined' ? __STAND__ : '–'} · neue Version: App ganz schliessen und neu öffnen</div>
     </div>
   )
 }

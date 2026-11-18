@@ -5,6 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Läuft unter https://ebi-cyber.github.io/baulog/rapport/
 export default defineConfig({
   base: '/baulog/rapport/',
+  // Stand der App (Datum/Uhrzeit des Builds, Schweizer Zeit) – unten in den Optionen sichtbar
+  define: { __STAND__: JSON.stringify(new Date().toLocaleString('de-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })) },
   plugins: [
     react(),
     VitePWA({
