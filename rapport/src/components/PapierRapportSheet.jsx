@@ -14,6 +14,7 @@ import { teileDatei } from '../lib/teilen'
 import { msVerbunden, msVersand } from '../lib/microsoft'
 import { ordnerPfad } from '../lib/versand'
 import { wochenKey, TAGE, datumKurz, wochenTage } from '../lib/zeit'
+import { absenzArt } from '../lib/arten'
 
 const ARTEN = [[/ferien/i, 'ferien'], [/krank/i, 'krank'], [/unfall/i, 'unfall'], [/feiertag/i, 'feiertag'], [/unbezahlt/i, 'unbezahlt'], [/arzt/i, 'arzt'], [/milit/i, 'militaer'], [/kein einsatz/i, 'kein_einsatz']]
 const dez = (n) => (Math.round(n * 100) / 100).toFixed(2)
@@ -75,9 +76,17 @@ export default function PapierRapportSheet({ woche, onClose }) {
   }
   const neuVergleich = async () => setVergleich(await abgleichen(woche, ki))
 
+  // Arbeitszeit eines Tages in der App löschen (z.B. fälschlich übernommen, obwohl Ferien eingetragen sind)
+  async function zeitLoeschen(datum) {
+    if (!window.confirm(`Arbeitszeit am ${datum.split('-').reverse().join('.')} in der App löschen? Abwesenheiten bleiben.`)) return
+    const n = await db.schichten.where('datum').equals(datum).delete()
+    setMeldung(`${n} Eintrag${n === 1 ? '' : 'e'} gelöscht.`)
+    await neuVergleich()
+  }
   async function fehlendeUebernehmen(nurDatum = null) {
     const tage = wochenTage(woche)
     const ziel = vergleich.filter((v) => (nurDatum ? v.datum === nurDatum : v.fehltInApp))
+    if (nurDatum && ziel[0]?.appAbw.length && !window.confirm(`In der App steht am ${nurDatum.split('-').reverse().join('.')} ${ziel[0].appAbw.map((a) => absenzArt(a.art).label).join(', ')}. Trotzdem ${dez(ziel[0].pStd)} h Arbeitszeit vom Rapport übernehmen?`)) return
     // bei „Papier übernehmen“ für einen Tag mit anderen Zeiten: Tag in der App ersetzen
     if (nurDatum) await db.schichten.where('datum').equals(nurDatum).delete()
     const stunden = tage.map((d, i) => { const v = ziel.find((x) => x.tag.getTime() === d.getTime()); return v ? String(v.pStd) : '' })
@@ -112,6 +121,9 @@ export default function PapierRapportSheet({ woche, onClose }) {
   }
 
   const fehlend = vergleich.filter((v) => v.fehltInApp).length
+  // Total auf dem Rapport ≠ Summe der gelesenen Tage → ein Tag ist falsch gelesen: nichts automatisch übernehmen
+  const totalFalsch = ki?.total != null && ki.total !== '' && Math.abs(zahl(ki.total) - vergleich.reduce((a, v) => a + v.pStd, 0)) > 0.01
+  const konflikte = vergleich.filter((v) => v.abwKonflikt)
   const kwFalsch = ki?.kw && +ki.kw !== woche.kw
   const summePapier = vergleich.reduce((a, v) => a + v.pStd, 0), summeApp = vergleich.reduce((a, v) => a + v.app, 0)
 
@@ -139,6 +151,7 @@ export default function PapierRapportSheet({ woche, onClose }) {
       </>}
       {schritt === 'lesen' && <div className="py-10 text-center text-white/60 space-y-2"><Loader2 className="w-8 h-8 animate-spin mx-auto" /><div>Rapport wird gelesen …</div></div>}
       {schritt === 'ergebnis' && ki && <>
+        <button onClick={() => { setSchritt('fotos'); setMeldung('') }} className="text-sm text-aqua self-start">← Fotos / neu auswerten</button>
         {kwFalsch && <div className="text-sm rounded-xl px-3 py-2 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> Auf dem Rapport steht KW {ki.kw} — geöffnet ist KW {woche.kw}. Richtige Woche im Kalender öffnen.</div>}
         <div className="text-xs text-white/65">{[ki.firma, ki.unterschriftBetrieb ? `unterschrieben${ki.unterzeichner ? ' von ' + ki.unterzeichner : ''}` : 'ohne Unterschrift Einsatzbetrieb', ki.unterschriftDatum && ki.unterschriftDatum.split('-').reverse().join('.')].filter(Boolean).join(' · ')}</div>
         <table className="w-full text-sm tabular-nums">
@@ -147,14 +160,19 @@ export default function PapierRapportSheet({ woche, onClose }) {
             <tr key={v.datum} className="border-t border-white/5">
               <td className="py-1.5">{TAGE[v.tag.getDay()]} {datumKurz(v.tag)}{v.papier?.abwesenheit ? <span className="text-xs text-white/65"> · {v.papier.abwesenheit}</span> : ''}</td>
               <td className="text-right">{v.pStd ? dez(v.pStd) : '–'}</td>
-              <td className="text-right">{v.app ? dez(v.app) : '–'}</td>
-              <td className="text-right pl-2">{v.stimmt ? (v.pStd || v.app ? <CheckCircle2 className="w-4 h-4 text-lime inline" /> : '') : v.fehltInApp ? <span className="text-xs text-amber-300">fehlt</span>
-                : <button onClick={() => fehlendeUebernehmen(v.datum)} className="text-xs rounded-lg px-2 py-0.5 bg-white/10">Rapport übernehmen</button>}</td>
+              <td className="text-right">{v.app ? dez(v.app) : v.appAbw.length ? '' : '–'}{v.appAbw.length > 0 && <div className="text-xs text-violet-300">{v.appAbw.map((a) => absenzArt(a.art).kurz || absenzArt(a.art).label).join(', ')}</div>}</td>
+              <td className="text-right pl-2">{v.abwKonflikt
+                ? (v.app > 0 ? <button onClick={() => zeitLoeschen(v.datum)} className="text-xs rounded-lg px-2 py-1 bg-ember/20 text-rose-200">Zeit löschen</button> : <span className="text-xs text-amber-300">prüfen</span>)
+                : v.stimmt ? (v.pStd || v.app || v.appAbw.length ? <CheckCircle2 className="w-4 h-4 text-lime inline" /> : '')
+                : v.fehltInApp ? <span className="text-xs text-amber-300">fehlt</span>
+                : v.zuViel ? <button onClick={() => zeitLoeschen(v.datum)} className="text-xs rounded-lg px-2 py-1 bg-white/10">wie Rapport (löschen)</button>
+                : <button onClick={() => fehlendeUebernehmen(v.datum)} className="text-xs rounded-lg px-2 py-1 bg-white/10">Rapport übernehmen</button>}</td>
             </tr>))}</tbody>
           <tfoot><tr className="border-t border-white/15 font-bold"><td className="pt-1.5">Total</td><td className="text-right pt-1.5">{dez(summePapier)}</td><td className="text-right pt-1.5">{dez(summeApp)}</td><td className="text-right pt-1.5">{Math.abs(summePapier - summeApp) < 0.01 ? <CheckCircle2 className="w-4 h-4 text-lime inline" /> : <AlertTriangle className="w-4 h-4 text-amber-300 inline" />}</td></tr></tfoot>
         </table>
-        {ki.total != null && Math.abs(zahl(ki.total) - summePapier) > 0.01 && <div className="text-xs text-amber-300">Total auf dem Rapport: {dez(zahl(ki.total))} h — die Tage ergeben {dez(summePapier)} h. Bitte prüfen.</div>}
-        {fehlend > 0 && <button onClick={() => fehlendeUebernehmen()} className="w-full rounded-2xl py-2.5 bg-white/10 font-semibold text-sm">{fehlend} fehlende Tag{fehlend === 1 ? '' : 'e'} vom Rapport übernehmen</button>}
+        {totalFalsch && <div className="text-sm rounded-xl px-3 py-2 bg-ember/10 border border-ember/40 text-rose-200 flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /><span>Auf dem Rapport steht Total <b>{dez(zahl(ki.total))} h</b>, die gelesenen Tage ergeben {dez(summePapier)} h — ein Tag wurde falsch gelesen (z.B. ein Strich „/“ für Ferien). Darum wird nichts automatisch übernommen. Foto schärfer zuschneiden und neu auswerten, oder einzelne Tage selbst prüfen.</span></div>}
+        {konflikte.length > 0 && <div className="text-sm rounded-xl px-3 py-2 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /><span>{konflikte.map((v) => `${TAGE[v.tag.getDay()]} ${datumKurz(v.tag)}`).join(', ')}: in der App als {konflikte.map((v) => v.appAbw.map((a) => absenzArt(a.art).label).join('/')).join(', ')} eingetragen, auf dem Rapport mit Stunden gelesen. Abwesenheiten werden nie überschrieben.{konflikte.some((v) => v.app > 0) ? ' Falls die Arbeitszeit falsch übernommen wurde: „Zeit löschen“.' : ''}</span></div>}
+        {fehlend > 0 && !totalFalsch && <button onClick={() => fehlendeUebernehmen()} className="w-full rounded-2xl py-2.5 bg-white/10 font-semibold text-sm">{fehlend} fehlende Tag{fehlend === 1 ? '' : 'e'} vom Rapport übernehmen</button>}
         {meldung && <div className="text-sm rounded-xl px-3 py-2 bg-lime/10 border border-lime/30 text-lime flex gap-2"><Check className="w-4 h-4 shrink-0 mt-0.5" />{meldung}</div>}
         {!gesendet ? <>
           <button onClick={weiterleiten} className="w-full rounded-2xl py-3 btn-grad font-bold inline-flex items-center justify-center gap-2"><Share2 className="w-5 h-5" /> An Berater weiterleiten (WhatsApp …)</button>
