@@ -1,7 +1,8 @@
+import { pausenAusWahl, standardWahl } from './pausen'
 import { supabase } from './ki'
 import { speichern, laufendeSchicht } from './db'
 import { ladeEinstellungen, speichereEinstellungen } from './settings'
-import { pauseMs } from './zeit'
+import { pauseMs, isoDatum } from './zeit'
 import { mindestPause } from './profil'
 
 // Stempeln per iPhone-Kurzbefehl (Rückseite doppelt/dreifach tippen, Siri, Ort) über die Edge Function „rapport-stempel“.
@@ -38,6 +39,13 @@ export function zustandMelden(zustand) {
  */
 export function schichtBeenden(laufend, n, einst) {
   const fertig = { ...laufend, ende: n, pausen: (laufend.pausen || []).map((p) => (p.ende == null ? { ...p, ende: n } : p)) }
+  // keine Pause gestempelt → Pausen nach dem Tagesablauf (Znüni 09:00, Mittag 12:00) vorläufig eintragen und nachfragen
+  if (!fertig.pausen.some((p) => p.ende - p.start > 60000)) {
+    const tag = isoDatum(new Date(fertig.start))
+    fertig.pausen = pausenAusWahl(tag, fertig.start, n, standardWahl(tag, fertig.start, n))
+    fertig.pausePruefen = true
+    return fertig
+  }
   const pause = pauseMs(fertig) / 60000, arbeit = (n - fertig.start) / 60000 - pause
   const soll = mindestPause(arbeit)
   if (pause < soll) {

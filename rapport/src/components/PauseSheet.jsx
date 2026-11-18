@@ -1,48 +1,41 @@
 import { useState } from 'react'
 import { Coffee } from 'lucide-react'
 import Sheet from './Sheet'
+import PausenWahl from './PausenWahl'
 import { speichern } from '../lib/db'
-import { uhr, isoDatum, hm, arbeitMs } from '../lib/zeit'
+import { uhr, isoDatum } from '../lib/zeit'
+import { ladeEinstellungen, speichereEinstellungen } from '../lib/settings'
+import { pausenAusWahl, standardWahl, wahlAusPausen, nurPlan, plan } from '../lib/pausen'
 
-/** Pause nachtragen: Beginn und Dauer mit zwei Tipps (für vergessene Pausen) */
+/** Feierabend: Pausen (Znüni, Mittag) und Ende mit wenigen Tipps bestätigen → echte Pausenzeiten im Protokoll */
 export default function PauseSheet({ schicht, onClose }) {
-  const vorschlaege = ['11:30', '11:45', '12:00', '12:15', '12:30', '12:45']
-  const [beginn, setBeginn] = useState('12:00')
-  const [dauer, setDauer] = useState(30)
   const tag = isoDatum(new Date(schicht.start))
+  const [endeZeit, setEndeZeit] = useState(uhr(schicht.ende))
+  let ende = new Date(`${tag}T${endeZeit}`).getTime()
+  if (ende <= schicht.start) ende += 864e5
+  const vorhanden = (schicht.pausen || []).filter((x) => x.ende && x.ende - x.start > 60000)
+  const [wahl, setWahl] = useState(() => (vorhanden.length && nurPlan(vorhanden) ? wahlAusPausen(tag, vorhanden) : standardWahl(tag, schicht.start, schicht.ende)))
 
-  async function sichern(keine) {
-    const neu = { ...schicht }
+  async function sichern() {
+    const neu = { ...schicht, ende }
     delete neu.pausePruefen; delete neu.pauseAuto; delete neu.pauseMin
-    if (keine) { neu.pausen = []; neu.pauseMin = 0 }
-    else {
-      const s = new Date(`${tag}T${beginn}`).getTime()
-      neu.pausen = [...(schicht.pausen || []).filter((p) => p.ende && p.ende - p.start > 60000), { start: s, ende: s + dauer * 60000 }]
-    }
+    neu.pausen = pausenAusWahl(tag, schicht.start, ende, wahl)
     await speichern(neu)
+    // gewählte Mittagsdauer als neuen Standard merken
+    const e = ladeEinstellungen()
+    speichereEinstellungen({ ...e, pausenPlan: { ...plan(), mittagMin: wahl.mittag || plan().mittagMin, mittagVon: wahl.mittag ? wahl.mittagVon : plan().mittagVon } })
     onClose()
   }
 
-  const chip = (aktiv) => 'px-3 py-2 rounded-xl text-sm border ' + (aktiv ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/70')
   return (
-    <Sheet titel="Pause vergessen?" icon={Coffee} onClose={onClose}>
-      <div className="text-sm text-white/70">{schicht.firma} · {uhr(schicht.start)}–{uhr(schicht.ende)} — keine Pause gedrückt. Wann und wie lange?</div>
-      <div className="space-y-2">
-        <div className="text-xs text-white/65">Beginn</div>
-        <div className="flex flex-wrap gap-2">
-          {vorschlaege.map((v) => <button key={v} className={chip(beginn === v)} onClick={() => setBeginn(v)}>{v}</button>)}
-          <input type="time" value={beginn} onChange={(e) => setBeginn(e.target.value)} className="eingabe w-28 py-1.5" />
-        </div>
+    <Sheet titel="Pausen & Feierabend" icon={Coffee} onClose={onClose}>
+      <div className="text-sm text-white/70">{schicht.firma} · Beginn {uhr(schicht.start)}{vorhanden.length && !nurPlan(vorhanden) ? '' : ' — Pausen bitte bestätigen'}</div>
+      <div className="flex items-center gap-2">
+        <span className="text-sm w-28">Feierabend</span>
+        <input type="time" value={endeZeit} onChange={(e) => setEndeZeit(e.target.value)} className="eingabe !w-32 !py-1.5" />
       </div>
-      <div className="space-y-2">
-        <div className="text-xs text-white/65">Dauer</div>
-        <div className="flex flex-wrap gap-2">
-          {[15, 30, 45, 60, 90].map((d) => <button key={d} className={chip(dauer === d)} onClick={() => setDauer(d)}>{d} Min.</button>)}
-        </div>
-      </div>
-      <div className="text-sm text-white/60">Arbeitszeit danach: <b className="text-white tabular-nums">{hm(arbeitMs({ ...schicht, pauseMin: dauer }))} h</b></div>
-      <button onClick={() => sichern(false)} className="w-full rounded-2xl py-3.5 font-bold btn-grad">Pause {beginn}–{(() => { const d = new Date(`${tag}T${beginn}`); d.setMinutes(d.getMinutes() + dauer); return uhr(d) })()} eintragen</button>
-      <button onClick={() => sichern(true)} className="w-full py-2 text-sm text-white/65">Ich habe keine Pause gemacht</button>
+      <PausenWahl datum={tag} start={schicht.start} ende={ende} wert={wahl} onChange={setWahl} />
+      <button onClick={sichern} className="w-full rounded-2xl py-3.5 font-bold btn-grad">Speichern</button>
     </Sheet>
   )
 }
