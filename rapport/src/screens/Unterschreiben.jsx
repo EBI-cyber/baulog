@@ -26,6 +26,7 @@ function Inhalt({ token }) {
   const [wer, setWer] = useState(null) // id einer bekannten Person | 'neu'
   const [funktion, setFunktion] = useState('')
   const [weiter, setWeiter] = useState(null), [beendetAm, setBeendetAm] = useState(''), [bewertung, setBewertung] = useState(null)
+  const [stempel, setStempel] = useState(true) // Firmenstempel einsetzen (nur wenn der Mitarbeiter einen hinterlegt hat)
   const [durchschlag, setDurchschlag] = useState(null) // Blob-URL des PDFs mit beiden Unterschriften
 
   useEffect(() => {
@@ -56,12 +57,12 @@ function Inhalt({ token }) {
       const person = bekannte.find((x) => x.id === wer)
       const n = person ? person.name : name.trim(), fn = person ? person.funktion : funktion
       await signaturAntworten(token, einverstanden
-        ? { einverstanden: true, bild, name: n, funktion: fn, unterschreiberId: person?.id || null, email, tel, bewertung, einsatzWeiter: weiter, beendetAm: weiter === false ? beendetAm : null }
+        ? { einverstanden: true, bild, name: n, funktion: fn, unterschreiberId: person?.id || null, email, tel, bewertung, einsatzWeiter: weiter, beendetAm: weiter === false ? beendetAm : null, stempel: !!(stempel && d.einsatz?.stempelBild) }
         : { einverstanden: false, name: n, funktion: fn, bemerkung })
       if (einverstanden) {
         // Durchschlag sofort: PDF mit beiden Unterschriften, hier auf dem Handy erzeugt
         const blob = rapportPdf({ einst: d.einst, woche: d.woche, schichten: d.schichten, absenzen: d.absenzen, spesen: d.spesen, einsatz: d.einsatz,
-          unterschriften: { maBild: d.ma?.bild, maAm: d.ma?.am, firmaBild: bild, firmaName: n, firmaFunktion: fn, firmaAm: Date.now(), bewertung, einsatzWeiter: weiter, beendetAm: weiter === false ? beendetAm : null,
+          unterschriften: { maBild: d.ma?.bild, maAm: d.ma?.am, firmaBild: bild, firmaName: n, firmaFunktion: fn, firmaAm: Date.now(), bewertung, einsatzWeiter: weiter, beendetAm: weiter === false ? beendetAm : null, stempel: !!(stempel && d.einsatz?.stempelBild),
             vertretungFuer: haupt && haupt.id !== person?.id ? haupt.name : null } })
         setDurchschlag(URL.createObjectURL(blob))
       }
@@ -179,6 +180,11 @@ function Inhalt({ token }) {
             <div className="flex justify-between text-xs text-white/60"><span>ungenügend</span><span>sehr gut</span></div>
           </div>
           <Unterschrift wert={bild} onChange={setBild} hoehe={170} />
+          {d.einsatz?.stempelBild && <label className="flex items-center gap-3 rounded-2xl px-3 py-2.5 bg-white/[0.04] border border-white/10 text-sm">
+            <input type="checkbox" className="w-5 h-5 accent-cyan-400" checked={stempel} onChange={(e) => setStempel(e.target.checked)} />
+            <img src={d.einsatz.stempelBild} alt="Firmenstempel" className="h-10 max-w-[45%] object-contain bg-white rounded" />
+            <span className="flex-1">Unseren Firmenstempel neben die Unterschrift setzen</span>
+          </label>}
           <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
             <div className="text-sm font-semibold">Durchschlag für Sie — wohin?</div>
             {gewaehlt && (gewaehlt.hatEmail || gewaehlt.hatTel) && <div className="text-xs text-white/65">Bereits hinterlegt ({[gewaehlt.hatEmail && 'E-Mail', gewaehlt.hatTel && 'WhatsApp'].filter(Boolean).join(' + ')}). Nur ausfüllen, wenn es sich geändert hat.</div>}

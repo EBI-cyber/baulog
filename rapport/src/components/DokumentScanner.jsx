@@ -18,7 +18,7 @@ function einruecken(ecken, anteil) {
  * (Ecken oder Kantenmitten, Lupe), perspektivisch entzerren (glätten), Filter Dokument / Farbe / Graustufen /
  * Original, schärfen, drehen. Ergebnis als JPEG-DataURL über onFertig.
  */
-export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 'Rapport zuschneiden' }) {
+export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 'Rapport zuschneiden', direkt = false }) {
   const [quelle, setQuelle] = useState(null) // Vorschau-Canvas (max 1400 px)
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
@@ -45,7 +45,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
         const W = c.width, H = c.height
         const gefunden = eckenFinden(c)
         setQuelle(c); setVorschau(c.toDataURL('image/jpeg', 0.85))
-        setEcken(gefunden ? einruecken(gefunden, 0.01) : [{ x: W * 0.04, y: H * 0.04 }, { x: W * 0.96, y: H * 0.04 }, { x: W * 0.96, y: H * 0.96 }, { x: W * 0.04, y: H * 0.96 }])
+        setEcken(gefunden && !direkt ? einruecken(gefunden, 0.01) : direkt ? [{ x: W * 0.15, y: H * 0.3 }, { x: W * 0.85, y: H * 0.3 }, { x: W * 0.85, y: H * 0.7 }, { x: W * 0.15, y: H * 0.7 }] : [{ x: W * 0.04, y: H * 0.04 }, { x: W * 0.96, y: H * 0.04 }, { x: W * 0.96, y: H * 0.96 }, { x: W * 0.04, y: H * 0.96 }])
       } catch { onAbbrechen?.() } finally { URL.revokeObjectURL(url) }
     })()
     return () => { aktiv = false }
@@ -154,6 +154,8 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
       try {
         const f = voll.current.width / quelle.width
         roh.current = entzerren(voll.current, ecken.map((p) => ({ x: p.x * f, y: p.y * f })), 3000)
+        // nur zuschneiden (z.B. Firmenstempel): ohne Drehen und Filter direkt zurück
+        if (direkt) { onFertig(roh.current.toDataURL('image/png')); setBusy(''); return }
         // Rapport ist quer (A4 quer): hochkant fotografiert → automatisch drehen
         if (roh.current.height > roh.current.width * 1.15) roh.current = drehen(roh.current)
         // auf dem Kopf? (Handy andersherum gehalten) → 180° drehen

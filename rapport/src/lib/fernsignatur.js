@@ -71,6 +71,7 @@ export async function fernPruefen() {
         vertretungFuer: vertretung?.name || null, kopieCc: vertretung?.email || '',
         kopieEmail: person.email.trim(), kopieTel: person.tel.trim(),
         bewertung: r.bewertung ?? null, einsatzWeiter: r.einsatzWeiter ?? null, beendetAm: r.einsatzWeiter === false ? r.beendetAm : null,
+        stempel: r.stempel === true,
       }
       // Unbekannte Person (nicht in der Liste der Unterschriftsberechtigten): erst vom Mitarbeiter bestätigen lassen
       if (!bekannt && liste(einsatz).length) {

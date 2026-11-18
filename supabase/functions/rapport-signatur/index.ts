@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
         bewertung: [1, 2, 3, 4, 5].includes(+b.bewertung) ? +b.bewertung : null,
         einsatz_weiter: typeof b.einsatzWeiter === 'boolean' ? b.einsatzWeiter : null,
         beendet_am: /^\d{4}-\d{2}-\d{2}$/.test(String(b.beendetAm || '')) ? b.beendetAm : null,
+        stempel: ok && b.stempel === true, // Firmenstempel darf eingesetzt werden (vom Unterzeichner bestätigt)
         // Durchschlag: E-Mail und/oder WhatsApp-Nummer des Unterzeichners
         kopie_email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.email || '').trim()) ? String(b.email).trim().slice(0, 200) : null,
         kopie_tel: String(b.tel || '').replace(/[^\d+]/g, '').slice(0, 20) || null,
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
     }
 
     if (b.task === 'status') {
-      const antwort = { status: z.status, bild: z.bild, name: z.name, bemerkung: z.bemerkung, beantwortet: z.beantwortet, email: z.kopie_email, tel: z.kopie_tel, funktion: z.funktion, unterschreiberId: z.unterschreiber_id, bewertung: z.bewertung, einsatzWeiter: z.einsatz_weiter, beendetAm: z.beendet_am }
+      const antwort = { status: z.status, bild: z.bild, name: z.name, bemerkung: z.bemerkung, beantwortet: z.beantwortet, email: z.kopie_email, tel: z.kopie_tel, funktion: z.funktion, unterschreiberId: z.unterschreiber_id, bewertung: z.bewertung, einsatzWeiter: z.einsatz_weiter, beendetAm: z.beendet_am, stempel: !!z.stempel }
       // abgeholt → löschen (die Unterschrift liegt jetzt beim Mitarbeiter)
       if (z.status !== 'offen' && b.abholen) await db.from(T).delete().eq('token', b.token)
       return out(antwort)
