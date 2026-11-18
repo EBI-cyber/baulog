@@ -43,7 +43,7 @@ export default function FernSenden({ g, woche, wKey, ma, wer, setWer, ort, eb, e
   if (fern?.gesendetAm && !fern.erledigt && !vorb) return (
     <div className="rounded-2xl px-3 py-2.5 bg-sky-400/10 border border-sky-400/30 text-sky-200 text-sm space-y-1.5">
       <div className="flex gap-2"><Clock className="w-4 h-4 shrink-0 mt-0.5" />
-        <div>Zur Kontrolle gesendet an <b>{fern.an || 'Einsatzbetrieb'}</b> ({fern.kanal === 'email' ? 'E-Mail' : 'WhatsApp'}, {zeit(fern.gesendetAm)}). Sobald unterschrieben ist, sendet die App automatisch ans Büro.</div></div>
+        <div>Zur Kontrolle gesendet an <b>{fern.an || 'Einsatzbetrieb'}</b> ({fern.kanal === 'email' ? 'E-Mail' : 'WhatsApp'}, {zeit(fern.gesendetAm)}). {fern.schluessel ? <>Neue Stunden kommen automatisch in seinen Link{fern.aktualisiertAm ? ` (zuletzt ${zeit(fern.aktualisiertAm)})` : ''} — bis er unterschreibt. </> : ''}Sobald unterschrieben ist, geht es weiter.</div></div>
       <button type="button" onClick={vorbereiten} className="text-xs underline text-sky-100/80">Nochmals senden</button>
     </div>
   )

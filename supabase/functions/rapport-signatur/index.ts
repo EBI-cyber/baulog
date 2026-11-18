@@ -28,9 +28,10 @@ Deno.serve(async (req) => {
       const { count } = await db.from(T).select('token', { count: 'exact', head: true }).gt('erstellt', new Date(Date.now() - 3600_000).toISOString())
       if ((count || 0) >= 200) return out({ error: 'Gerade zu viele Anfragen — bitte in einer Stunde nochmal.' }, 429)
       const token = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, '0')).join('')
-      const { error } = await db.from(T).insert({ token, daten: b.daten })
+      const schluessel = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, '0')).join('')
+      const { error } = await db.from(T).insert({ token, daten: b.daten, schluessel })
       if (error) return out({ error: error.message }, 500)
-      return out({ token })
+      return out({ token, schluessel })
     }
 
     if (b.task === 'durchschlag') {
@@ -56,6 +57,17 @@ Deno.serve(async (req) => {
       return out({ pdf: z.pdf, name: z.daten.name, titel: z.daten.titel })
     }
     if (z.daten?.art === 'durchschlag') return out({ error: 'Ungültiger Link' }, 400)
+
+    if (b.task === 'aktualisieren') {
+      // neue Stunden nachführen, solange noch nicht unterschrieben (nur mit dem Schlüssel aus „anlegen“)
+      if (!z.schluessel || b.schluessel !== z.schluessel) return out({ error: 'Nicht berechtigt' }, 403)
+      if (z.status !== 'offen') return out({ error: 'Bereits beantwortet', status: z.status }, 409)
+      const daten = JSON.stringify(b.daten || {})
+      if (daten.length > 300_000) return out({ error: 'Rapport zu gross' }, 400)
+      const { error: e3 } = await db.from(T).update({ daten: b.daten }).eq('token', b.token).eq('status', 'offen')
+      if (e3) return out({ error: e3.message }, 500)
+      return out({ ok: true })
+    }
 
     if (b.task === 'lesen') return out({ daten: z.daten, status: z.status, name: z.name, beantwortet: z.beantwortet })
 
