@@ -184,12 +184,12 @@ function Inhalt({ token }) {
             </div>
             <div className="flex justify-between text-xs text-white/60"><span>ungenügend</span><span>sehr gut</span></div>
           </div>
-          <Unterschrift wert={bild} onChange={setBild} hoehe={170} />
           {d.einsatz?.stempelBild && <label className="flex items-center gap-3 rounded-2xl px-3 py-2.5 bg-white/[0.04] border border-white/10 text-sm">
             <input type="checkbox" className="w-5 h-5 accent-cyan-400" checked={stempel} onChange={(e) => setStempel(e.target.checked)} />
             <img src={d.einsatz.stempelBild} alt="Firmenstempel" className="h-10 max-w-[45%] object-contain bg-white rounded" />
-            <span className="flex-1">Unseren Firmenstempel neben die Unterschrift setzen</span>
+            <span className="flex-1">Firmenstempel einsetzen (neben Ihre Unterschrift)</span>
           </label>}
+          <Unterschrift wert={bild} onChange={setBild} hoehe={170} />
           <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
             <div className="text-sm font-semibold">Durchschlag für Sie — wohin?</div>
             {gewaehlt && (gewaehlt.hatEmail || gewaehlt.hatTel) && <div className="text-xs text-white/65">Bereits hinterlegt ({[gewaehlt.hatEmail && 'E-Mail', gewaehlt.hatTel && 'WhatsApp'].filter(Boolean).join(' + ')}). Nur ausfüllen, wenn es sich geändert hat.</div>}
