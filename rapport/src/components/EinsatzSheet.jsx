@@ -3,7 +3,7 @@ import { stempelFreistellen } from '../lib/firmenstempel'
 import { visitenkarteLesen } from '../lib/ki'
 import { alsDataUrl } from '../lib/bild'
 import DokumentScanner from './DokumentScanner'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Briefcase, Camera, Sparkles, Trash2, X, Loader2, AlertTriangle, Star, UserPlus } from 'lucide-react'
 import Sheet from './Sheet'
 import { db } from '../lib/db'
@@ -76,7 +76,7 @@ function FirmenStempel({ f, setF }) {
     try { const png = await stempelFreistellen(url); setF((x) => ({ ...x, stempelBild: png })); setStatus('') } catch (e) { setStatus(e.message) }
   }
   return (
-    <div className="rounded-xl bg-white/[0.04] border border-white/10 p-2.5 space-y-2">
+    <div id="firmenstempel" className="rounded-xl bg-white/[0.04] border border-white/10 p-2.5 space-y-2">
       <div className="text-white/80 font-semibold">Firmenstempel des Einsatzbetriebs</div>
       {f.stempelBild ? <>
         <div className="rounded-lg bg-white p-2 flex justify-center"><img src={f.stempelBild} alt="Firmenstempel" className="max-h-24 object-contain" /></div>
@@ -112,7 +112,7 @@ function FormularVorlage({ f, setF }) {
     window.open(URL.createObjectURL(blob))
   }
   return (
-    <div className="rounded-xl bg-white/[0.04] border border-white/10 p-2.5 space-y-2">
+    <div id="rapport-vorlage" className="rounded-xl bg-white/[0.04] border border-white/10 p-2.5 space-y-2">
       <div className="text-white/80 font-semibold">Original-Formular des Büros</div>
       {f.formularBild ? <>
         <img src={f.formularBild} alt="Formular" className="w-full rounded-lg bg-white" />
@@ -132,7 +132,9 @@ function FormularVorlage({ f, setF }) {
   )
 }
 
-export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
+export default function EinsatzSheet({ einsatz, vorgabe, onClose, ziel }) {
+  // direkt zu einem Abschnitt springen (z.B. Firmenstempel aus den Optionen)
+  useEffect(() => { if (!ziel) return; const t = setTimeout(() => document.getElementById(ziel)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 350); return () => clearTimeout(t) }, [ziel])
   const [einst, setEinst] = useEinstellungen()
   const [f, setF] = useState(() => ({ ...NEU, ...(vorgabe || {}), ...(einsatz || {}), unterschreiber: liste(einsatz) }))
   const setU = (fn) => setF((x) => ({ ...x, unterschreiber: fn(x.unterschreiber || []) }))
