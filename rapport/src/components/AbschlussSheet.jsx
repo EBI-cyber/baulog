@@ -51,7 +51,7 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
   // wer unterschreibt für den Einsatzbetrieb: { id?, name, funktion, email, tel, neu?, bestaetigt? }
   const [wer, setWer] = useState({ name: '', funktion: '', email: '', tel: '' })
   const [wunsch, setWunsch] = useState({ mail: true, onedrive: true })
-  const [eb, setEb] = useState({ einsatzWeiter: null, beendetAm: '', bewertung: null }) // Angaben des Einsatzbetriebs
+  const [eb, setEb] = useState({ einsatzWeiter: null, beendetAm: '', bewertung: null, stempel: true }) // Angaben des Einsatzbetriebs
   const [laeuft, setLaeuft] = useState(false), [ergebnis, setErgebnis] = useState(null)
   // Ort der Unterschrift: gespeicherter Ort, sonst Standort des Handys, sonst Wohnort (änderbar)
   const [ort, setOrt] = useState(null), [ortQuelle, setOrtQuelle] = useState('')
@@ -67,7 +67,7 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
     if (status === undefined) return
     setMa(status?.maBild || einst.unterschrift?.bild || null)
     setFi(status?.firmaBild || null)
-    if (status) setEb({ einsatzWeiter: status.einsatzWeiter ?? null, beendetAm: status.beendetAm || '', bewertung: status.bewertung ?? null })
+    if (status) setEb({ einsatzWeiter: status.einsatzWeiter ?? null, beendetAm: status.beendetAm || '', bewertung: status.bewertung ?? null, stempel: status.stempel ?? true })
     if (status?.firmaName) setWer({ id: status.firmaId, name: status.firmaName, funktion: status.firmaFunktion || '', email: status.kopieEmail || '', tel: status.kopieTel || '',
       // per Link unterschrieben, aber nicht in der Liste: erst bestätigen
       ...(status.fern?.bestaetigen && !status.firmaId ? { neu: true, bestaetigt: false } : { bestaetigt: true }) })
@@ -87,7 +87,8 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
     firmaAm: fi ? (fiAm || (status?.firmaBild === fi ? status.firmaAm : jetzt)) : null,
     vertretungFuer: vertretung?.name || null, kopieCc: vertretung?.email || '',
     kopieEmail: (wer.email || '').trim(), kopieTel: (wer.tel || '').trim(),
-    bewertung: eb.bewertung, einsatzWeiter: eb.einsatzWeiter, beendetAm: eb.einsatzWeiter === false ? eb.beendetAm : null }
+    bewertung: eb.bewertung, einsatzWeiter: eb.einsatzWeiter, beendetAm: eb.einsatzWeiter === false ? eb.beendetAm : null,
+    stempel: !!(fi && eb.stempel && g.einsatz?.stempelBild) }
   // PDF vorab (für das Teilen-Menü ohne Microsoft — iOS verlangt den direkten Klick)
   const datei = useMemo(() => gruppenPdf(g, woche, unterschriften, mehrere), [ma, fi, wer, fiAm, eb, g, ort]) // eslint-disable-line react-hooks/exhaustive-deps
   const email = g.einsatz?.bueroEmail
@@ -151,9 +152,9 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
           Vertretung: unterschreibt für <b>{vertretung.name}</b> ({vertretung.funktion}). Im Rapport steht „i.V.“{vertretung.email ? `, ${vertretung.name} bekommt eine Kopie` : ''}.
         </div>}
         <Unterschrift wert={fi} onChange={(b) => { setFi(b); setFiAm(null) }} hoehe={150} />
-        {!fi && <QrSignatur g={g} woche={woche} ma={{ bild: ma, am: unterschriften.maAm }} onUnterschrift={({ bild, name, funktion, id, am, email, tel, bewertung, einsatzWeiter, beendetAm }) => {
+        {!fi && <QrSignatur g={g} woche={woche} ma={{ bild: ma, am: unterschriften.maAm }} onUnterschrift={({ bild, name, funktion, id, am, email, tel, bewertung, einsatzWeiter, beendetAm, stempel }) => {
           setFi(bild); setFiAm(am)
-          setEb({ einsatzWeiter: einsatzWeiter ?? null, beendetAm: beendetAm || '', bewertung: bewertung ?? null })
+          setEb({ einsatzWeiter: einsatzWeiter ?? null, beendetAm: beendetAm || '', bewertung: bewertung ?? null, stempel: stempel === true })
           const p = finde(einsatz, { id, email, name })
           // bekannte Person → direkt; neue Person → erst bestätigen
           setWer(p ? { ...p, email: email || p.email, tel: tel || p.tel, bestaetigt: true }
@@ -172,6 +173,11 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
             </div>
           </div>
         )}
+        {fi && g.einsatz?.stempelBild && <label className="flex items-center gap-3 rounded-xl px-3 py-2 bg-white/[0.04] border border-white/10 text-sm">
+          <input type="checkbox" className="w-5 h-5 accent-cyan-400" checked={!!eb.stempel} onChange={(e) => setEb({ ...eb, stempel: e.target.checked })} />
+          <img src={g.einsatz.stempelBild} alt="Firmenstempel" className="h-9 max-w-[45%] object-contain bg-white rounded" />
+          <span className="flex-1">Firmenstempel einsetzen <span className="text-white/60">(nur mit Zustimmung des Unterzeichners)</span></span>
+        </label>}
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <span className="text-white/65">Einsatz</span>
           {[[true, 'geht weiter'], [false, 'ist beendet']].map(([v, l]) => (

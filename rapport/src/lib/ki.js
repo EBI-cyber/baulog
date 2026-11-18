@@ -24,6 +24,11 @@ export async function einsatzvertragLesen(bilder) {
   return callAI({ task: 'einsatzvertrag', bilder })
 }
 
+/** Visitenkarte (Foto als DataURL) → { name, funktion, firma, strasse, plz, ort, telefon, mobile, email } */
+export async function visitenkarteLesen(bild) {
+  return callAI({ task: 'visitenkarte', bilder: [bild] })
+}
+
 export async function anmelden(email, passwort) {
   const { error } = await supabase.auth.signInWithPassword({ email, password: passwort })
   if (error) throw new Error(error.message === 'Invalid login credentials' ? 'E-Mail oder Passwort falsch.' : error.message)

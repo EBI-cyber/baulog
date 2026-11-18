@@ -1,4 +1,8 @@
 import { formularAusDatei } from '../lib/formular'
+import { stempelFreistellen } from '../lib/firmenstempel'
+import { visitenkarteLesen } from '../lib/ki'
+import { alsDataUrl } from '../lib/bild'
+import DokumentScanner from './DokumentScanner'
 import { useRef, useState } from 'react'
 import { Briefcase, Camera, Sparkles, Trash2, X, Loader2, AlertTriangle, Star, UserPlus } from 'lucide-react'
 import Sheet from './Sheet'
@@ -35,6 +39,62 @@ function Feld({ label, einheit, breit, ...rest }) {
 }
 
 const Titel = ({ children }) => <div className="text-xs font-semibold uppercase tracking-wider text-white/60 pt-3">{children}</div>
+
+function Visitenkarte({ setU }) {
+  const ref = useRef()
+  const [status, setStatus] = useState('')
+  async function lesen(e) {
+    const d = e.target.files?.[0]; e.target.value = ''
+    if (!d) return
+    setStatus('Visitenkarte wird gelesen …')
+    try {
+      const k = await visitenkarteLesen(await alsDataUrl(d, 1600, 0.85))
+      if (!k.name) throw new Error('Kein Name auf der Karte erkannt.')
+      const adresse = [k.strasse, [k.plz, k.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+      const person = { name: k.name, funktion: k.funktion || 'Andere', email: k.email || '', tel: k.mobile || k.telefon || '', festnetz: k.mobile && k.telefon ? k.telefon : '', adresse, firma: k.firma || '' }
+      // schon in der Liste (gleicher Name)? → ergänzen, sonst neu
+      setU((l) => {
+        const i = l.findIndex((x) => x.name.trim().toLowerCase() === person.name.trim().toLowerCase())
+        if (i >= 0) return l.map((x, j) => (j === i ? { ...x, ...Object.fromEntries(Object.entries(person).filter(([, v]) => v)) } : x))
+        return [...l, { id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), ...person, standard: !l.some((x) => x.standard) }]
+      })
+      setStatus(`${person.name} übernommen — bitte prüfen und speichern.`)
+    } catch (err) { setStatus(err.message) }
+  }
+  return <>
+    <button type="button" onClick={() => ref.current?.click()} className="w-full rounded-xl py-2 bg-white/10 text-sm font-semibold inline-flex items-center justify-center gap-1.5"><Camera className="w-4 h-4" /> Visitenkarte fotografieren</button>
+    {status && <div className="text-xs text-white/70">{status}</div>}
+    <input ref={ref} type="file" accept="image/*" className="hidden" onChange={lesen} />
+  </>
+}
+
+function FirmenStempel({ f, setF }) {
+  const ref = useRef()
+  const [datei, setDatei] = useState(null), [status, setStatus] = useState('')
+  async function fertig(url) {
+    setDatei(null); setStatus('Stempel wird freigestellt …')
+    try { const png = await stempelFreistellen(url); setF((x) => ({ ...x, stempelBild: png })); setStatus('') } catch (e) { setStatus(e.message) }
+  }
+  return (
+    <div className="rounded-xl bg-white/[0.04] border border-white/10 p-2.5 space-y-2">
+      <div className="text-white/80 font-semibold">Firmenstempel des Einsatzbetriebs</div>
+      {f.stempelBild ? <>
+        <div className="rounded-lg bg-white p-2 flex justify-center"><img src={f.stempelBild} alt="Firmenstempel" className="max-h-24 object-contain" /></div>
+        <div className="text-xs text-white/65">Kommt nur dann neben die Unterschrift, wenn der Unterzeichner beim Unterschreiben „Firmenstempel einsetzen“ bestätigt.</div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <button type="button" onClick={() => ref.current?.click()} className="rounded-lg py-2 bg-white/10 text-xs font-semibold">Ersetzen</button>
+          <button type="button" onClick={() => setF((x) => ({ ...x, stempelBild: '' }))} className="rounded-lg py-2 bg-white/10 text-xs font-semibold text-rose-300">Entfernen</button>
+        </div>
+      </> : <>
+        <div className="text-xs text-white/65">Foto eines Rapports mit Stempel → Rahmen eng um den Stempel ziehen. Am besten ein Stempel ohne Unterschrift darüber. Die App stellt nur die Stempelfarbe frei (durchsichtiger Hintergrund).</div>
+        <button type="button" onClick={() => ref.current?.click()} className="w-full rounded-lg py-2.5 bg-white/10 text-sm font-semibold">Stempel fotografieren</button>
+      </>}
+      {status && <div className="text-xs text-amber-300">{status}</div>}
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => { const d = e.target.files?.[0]; e.target.value = ''; if (d) setDatei(d) }} />
+      {datei && <DokumentScanner datei={datei} direkt titel="Rahmen eng um den Stempel ziehen" onFertig={fertig} onAbbrechen={() => setDatei(null)} />}
+    </div>
+  )
+}
 
 function FormularVorlage({ f, setF }) {
   const ref = useRef()
@@ -259,13 +319,16 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
             </div>
             <div className="grid grid-cols-3 gap-2">
               <select className="eingabe py-1.5 text-sm" value={p.funktion} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, funktion: e.target.value } : x)))}>
-                {FUNKTIONEN.map((fn) => <option key={fn}>{fn}</option>)}
+                {[...FUNKTIONEN, ...(p.funktion && !FUNKTIONEN.includes(p.funktion) ? [p.funktion] : [])].map((fn) => <option key={fn}>{fn}</option>)}
               </select>
               <input className="eingabe py-1.5 text-sm" type="email" placeholder="E-Mail" value={p.email || ''} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
               <input className="eingabe py-1.5 text-sm" type="tel" placeholder="WhatsApp" value={p.tel || ''} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, tel: e.target.value } : x)))} />
             </div>
+            <input className="eingabe py-1.5 text-sm" placeholder="Adresse (Strasse, PLZ Ort)" value={p.adresse || ''} onChange={(e) => setU((l) => l.map((x, j) => (j === i ? { ...x, adresse: e.target.value } : x)))} />
+            {p.festnetz && <div className="text-xs text-white/60 px-1">Festnetz {p.festnetz}</div>}
           </div>
         ))}
+        <Visitenkarte setU={setU} />
         <button type="button" onClick={() => setU((l) => [...l, { id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), name: '', funktion: l.length ? 'Vorarbeiter' : 'Polier', email: '', tel: '', standard: !l.some((x) => x.standard) }])}
           className="w-full rounded-xl py-2 border border-dashed border-white/20 text-white/60 text-sm inline-flex items-center justify-center gap-1.5"><UserPlus className="w-4 h-4" /> Person hinzufügen</button>
       </div>
@@ -316,6 +379,7 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose }) {
           ))}
         </div>
         <FormularVorlage f={f} setF={setF} />
+        <FirmenStempel f={f} setF={setF} />
         <div className="flex items-center gap-2">
           <span className="w-28 shrink-0 text-white/70">Überstunden</span>
           {[['woche', 'ab Wochensoll (125 %)'], ['keine', 'durchschnittl. Arbeitszeit']].map(([v, l]) => (

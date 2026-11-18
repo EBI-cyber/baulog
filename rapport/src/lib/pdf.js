@@ -91,7 +91,7 @@ const BELLINI_V3 = {
   zvJa: [354, 1252], zvNein: [436, 1252], maOrt: [712, 1260], maUnterschrift: [1575, 1272, 470, 115],
   weiter: [104, 1410], beendet: [572, 1410], beendetAm: [1020, 1402],
   bewertung: [[1848, 1400], [1940, 1400], [2032, 1400], [2128, 1400], [2224, 1400]],
-  ebOrt: [100, 1552], ebUnterschrift: [600, 1560, 800, 125], ebName: [1500, 1552],
+  ebOrt: [100, 1552], ebUnterschrift: [600, 1560, 800, 125], ebName: [1500, 1552], stempel: [900, 1545, 560, 175],
 }
 
 function originalFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [], einsatz: e, unterschriften = null }) {
@@ -169,6 +169,8 @@ function originalFormularPdf({ einst, woche, schichten, absenzen = [], spesen = 
   if (+u.bewertung >= 1 && +u.bewertung <= 5) { const [bx, by] = L.bewertung[+u.bewertung - 1]; doc.setDrawColor(...TINTE); doc.setLineWidth(0.5); doc.circle(X(bx), Y(by), X(26)) }
   const ortEB = u.firmaOrt || (e?.einsatzort || '').replace(/^\d{4}\s*/, '')
   schreib(`${ortEB}${u.firmaAm ? (ortEB ? ', ' : '') + am(u.firmaAm) : ''}`, L.ebOrt[0], L.ebOrt[1], 11)
+  // Firmenstempel (nur wenn der Unterzeichner beim Unterschreiben zugestimmt hat), Unterschrift darüber wie auf Papier
+  if (u.stempel && u.firmaBild && e?.stempelBild) bild(e.stempelBild, L.stempel[0], L.stempel[1], L.stempel[2], L.stempel[3])
   bild(u.firmaBild, L.ebUnterschrift[0], L.ebUnterschrift[1], L.ebUnterschrift[2], L.ebUnterschrift[3])
   schreib(unterzeichnerText(u).toUpperCase(), L.ebName[0], L.ebName[1], 11)
   if (u.maBild || u.firmaBild) { doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(90); doc.text(`Elektronisch unterschrieben in der Rapport-App · erstellt ${datumLang(new Date())} ${uhr(Date.now())}`, W - 4, H - 1.5, { align: 'right' }) }
@@ -522,6 +524,7 @@ function rapportFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [
   y = 189
   const ortEB = u.firmaOrt || (e?.einsatzort || '').replace(/^\d{4}\s*/, '')
   wert(`${ortEB}${u.firmaAm ? (ortEB ? ', ' : '') + am(u.firmaAm) : ''}`, 13, y - 1.5, 11)
+  if (u.stempel && u.firmaBild && e?.stempelBild) bild(e.stempelBild, 100, y - 0.5, 55, 17)
   bild(u.firmaBild, 80, y, 70, 15)
   wert(unterzeichnerText(u).toUpperCase(), 172, y - 1.5, 10)
   doc.setDrawColor(...LINIE); doc.line(11, y, 62, y); doc.line(66, y, 166, y); doc.line(172, y, R - 3, y)

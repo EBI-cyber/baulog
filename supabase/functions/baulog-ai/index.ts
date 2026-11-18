@@ -223,11 +223,22 @@ Deno.serve(async (req) => {
           : 'Buchungsverlauf:\n' + text },
       ]
       if (bilder.length) body.__bild = true
+    } else if (task === 'visitenkarte') {
+      // Rapport-App: Visitenkarte (Foto) → Kontakt eines Unterschriftsberechtigten
+      jsonMode = true
+      const bilder = (Array.isArray(body.bilder) ? body.bilder : []).filter(Boolean).slice(0, 2)
+      if (!bilder.length) return out({ error: 'Kein Foto übergeben.' }, 400)
+      messages = [
+        { role: 'system', content: 'Du liest eine Visitenkarte (Foto, Schweiz). Handschriftliche Ergänzungen (z.B. eine Handynummer) gehören dazu. ' +
+          'Antworte NUR als JSON {name (Vor- und Nachname der Person), funktion (Funktion/Titel wie gedruckt, mehrere mit „ / “ verbinden), firma, strasse, plz, ort, ' +
+          'telefon (Festnetz wie gedruckt), mobile (Handynummer, auch handschriftlich; Schweizer Nummern im Format 076 830 81 31), email, web}. Unlesbares = "". Ziffern genau übernehmen, nichts erfinden.' },
+        { role: 'user', content: [{ type: 'text', text: 'Visitenkarte:' }, ...bilder.map((url: string, i: number) => teil(url, i))] },
+      ]
     } else {
       return out({ error: 'unbekannter task' }, 400)
     }
 
-    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen', 'einsatzvertrag', 'lohnabrechnung', 'rapport'].includes(task) || (task === 'zahlungen' && body.__bild) ? 'gpt-4o' : 'gpt-4o-mini'
+    const model = ['korrektur', 'leistungen', 'beleg', 'privat', 'finden', 'zuordnen', 'einsatzvertrag', 'lohnabrechnung', 'rapport', 'visitenkarte'].includes(task) || (task === 'zahlungen' && body.__bild) ? 'gpt-4o' : 'gpt-4o-mini'
     const temperature = task === 'din' ? 0.3 : task === 'korrektur' ? 0.4 : task === 'leistungen' ? 0 : 0.2
     const ask = async (msgs, temp) => {
       const payload = { model, temperature: temp, messages: msgs }
