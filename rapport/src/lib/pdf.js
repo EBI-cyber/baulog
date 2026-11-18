@@ -3,7 +3,7 @@ import { TAGE, wochenTage, isoDatum, datumLang, datumKurz, uhr, pauseMs, arbeitM
 import { absenzArt, spesenArt } from './arten'
 import { zahl } from './settings'
 import { wochenRechnung, std } from './woche'
-import { unterzeichnerText } from './unterschreiber'
+import { unterzeichnerText, blockschrift } from './unterschreiber'
 import { rapportTage } from './rapporttage'
 
 const sauber = (t) => String(t || '').trim().replace(/\s+/g, '_').replace(/[^\wäöüÄÖÜß-]/g, '')
@@ -172,7 +172,7 @@ function originalFormularPdf({ einst, woche, schichten, absenzen = [], spesen = 
   // Firmenstempel (nur wenn der Unterzeichner beim Unterschreiben zugestimmt hat), Unterschrift darüber wie auf Papier
   if (u.stempel && u.firmaBild && e?.stempelBild) bild(e.stempelBild, L.stempel[0], L.stempel[1], L.stempel[2], L.stempel[3])
   bild(u.firmaBild, L.ebUnterschrift[0], L.ebUnterschrift[1], L.ebUnterschrift[2], L.ebUnterschrift[3])
-  schreib(unterzeichnerText(u).toUpperCase(), L.ebName[0], L.ebName[1], 11)
+  schreib(blockschrift(u), L.ebName[0], L.ebName[1], 11)
   if (u.maBild || u.firmaBild) { doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(90); doc.text(`Elektronisch unterschrieben in der Rapport-App · erstellt ${datumLang(new Date())} ${uhr(Date.now())}`, W - 4, H - 1.5, { align: 'right' }) }
   doc.setTextColor(0)
   return doc.output('blob')
@@ -526,7 +526,7 @@ function rapportFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [
   wert(`${ortEB}${u.firmaAm ? (ortEB ? ', ' : '') + am(u.firmaAm) : ''}`, 13, y - 1.5, 11)
   if (u.stempel && u.firmaBild && e?.stempelBild) bild(e.stempelBild, 100, y - 0.5, 55, 17)
   bild(u.firmaBild, 80, y, 70, 15)
-  wert(unterzeichnerText(u).toUpperCase(), 172, y - 1.5, 10)
+  wert(blockschrift(u), 172, y - 1.5, 10)
   doc.setDrawColor(...LINIE); doc.line(11, y, 62, y); doc.line(66, y, 166, y); doc.line(172, y, R - 3, y)
   label('Ort | Datum', 11, y + 3.6, 9); label('Stempel und rechtsgültige Unterschrift', 66, y + 3.6, 9); label('Name Unterzeichner in Blockschrift', 172, y + 3.6, 9)
   doc.setFont('helvetica', 'italic'); doc.setFontSize(8.2); doc.setTextColor(40)

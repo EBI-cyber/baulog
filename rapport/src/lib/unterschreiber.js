@@ -43,7 +43,13 @@ export async function merken(einsatz, p) {
 }
 
 /** Anzeige im Rapport: „Hans Muster, Vorarbeiter (i.V. Peter Polier)" */
+/** Für das Feld „Name Unterzeichner in Blockschrift“: nur der Name (ohne Funktion), bei Vertretung „i.V. …“ */
+export function blockschrift(u) {
+  if (!u?.firmaName) return ''
+  return `${u.firmaName}${u.vertretungFuer ? ` i.V. ${u.vertretungFuer}` : ''}`.toUpperCase()
+}
+
 export function unterzeichnerText(u) {
   if (!u?.firmaName) return ''
-  return `${u.firmaName}${u.firmaFunktion ? ', ' + u.firmaFunktion : ''}${u.vertretungFuer ? ` (i.V. ${u.vertretungFuer})` : ''}`
+  return `${u.firmaName}${u.firmaFunktion && u.firmaFunktion !== 'Andere' ? ', ' + u.firmaFunktion : ''}${u.vertretungFuer ? ` (i.V. ${u.vertretungFuer})` : ''}`
 }
