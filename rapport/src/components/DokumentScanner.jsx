@@ -89,10 +89,12 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
     const fx = ev ? ev.clientX - r.left : x, fy = ev ? ev.clientY - r.top : y // Finger relativ zum Bild
     const ABSTAND = 60 // Fingerkuppe + Luft
     const vw = window.innerWidth
+    // Platz der Lupe einmal beim Antippen festlegen und während des Ziehens behalten (sonst springt sie)
+    if (!lage.current) lage.current = r.top + fy - ABSTAND - LUPE < 70 ? (r.left + fx > vw / 2 ? 'links' : 'rechts') : 'oben'
     let left = fx - LUPE / 2, top = fy - ABSTAND - LUPE
-    if (r.top + top < 70) { // zu nah am oberen Rand → neben den Finger
+    if (lage.current !== 'oben') {
       top = fy - LUPE / 2
-      left = r.left + fx > vw / 2 ? fx - ABSTAND - LUPE : fx + ABSTAND
+      left = lage.current === 'links' ? fx - ABSTAND - LUPE : fx + ABSTAND
     }
     left = Math.max(-r.left + 4, Math.min(vw - r.left - LUPE - 4, left))
     l.style.display = 'block'
@@ -101,7 +103,8 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
     l.style.backgroundSize = r.width * z + 'px ' + r.height * z + 'px'
     l.style.backgroundPosition = (LUPE / 2 - x * z) + 'px ' + (LUPE / 2 - y * z) + 'px'
   }
-  const lupeAus = () => { if (lupe.current) lupe.current.style.display = 'none' }
+  const lage = useRef(null) // 'oben' | 'links' | 'rechts' für die Dauer eines Zugs
+  const lupeAus = () => { lage.current = null; if (lupe.current) lupe.current.style.display = 'none' }
   const runter = (ev) => {
     const p = punkt(ev), g = griffe(ecken)
     let best = 0
