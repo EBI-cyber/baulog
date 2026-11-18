@@ -21,7 +21,9 @@ export async function fernVorbereiten({ g, woche, wKey, ma, wer, maOrt, eb }) {
   const einsatz = g.einsatz?.id ? await db.einsaetze.get(g.einsatz.id) : null
   const p = wer?.name?.trim() ? await merken(einsatz, { ...wer, bestaetigt: true }).catch(() => null) : null
   if (p && !wer.id) wer = { ...wer, id: p.id }
-  const daten = schnappschuss({ ...g, einsatz: einsatz || g.einsatz }, woche, ma)
+  // nach dem Merken neu laden, damit der Empfänger auf der Seite schon in der Auswahl steht
+  const aktuell = g.einsatz?.id ? await db.einsaetze.get(g.einsatz.id) : null
+  const daten = schnappschuss({ ...g, einsatz: aktuell || einsatz || g.einsatz }, woche, ma)
   const { token, schluessel } = await signaturAnlegenMit(daten)
   const key = statusKey(wKey, g.firma)
   const alt = (await db.wochen.get(key)) || { key }
