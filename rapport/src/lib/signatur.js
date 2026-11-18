@@ -40,3 +40,11 @@ export const signaturAntworten = (token, antwort) => aufruf({ task: 'antworten',
 export const signaturStatus = (token, abholen) => aufruf({ task: 'status', token, abholen })
 
 export const signaturLink = (token) => `${location.origin}${location.pathname}#/unterschreiben/${token}`
+
+// Durchschlag: fertiges PDF für den Unterzeichner zum Abholen per Link (30 Tage), ohne Anhang in WhatsApp/E-Mail
+export async function durchschlagHochladen(blob, name, titel) {
+  const pdf = await new Promise((ok, nein) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = nein; r.readAsDataURL(blob) })
+  return (await aufruf({ task: 'durchschlag', pdf, name, titel })).token
+}
+export const durchschlagLaden = (token) => aufruf({ task: 'pdf', token })
+export const durchschlagLink = (token) => `${location.origin}${location.pathname}#/durchschlag/${token}`
