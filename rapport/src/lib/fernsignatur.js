@@ -5,7 +5,7 @@ import { abschliessen } from './versand'
 import { ladeEinstellungen } from './settings'
 import { liste, standardPerson, finde, merken } from './unterschreiber'
 import { msVerbunden } from './microsoft'
-import { ausKey } from './zeit'
+import { ausKey, wochenStart } from './zeit'
 
 /**
  * Rapport zur Kontrolle vorab schicken: Der Polier bekommt per WhatsApp oder E-Mail einen Link
@@ -30,10 +30,20 @@ export async function fernVorbereiten({ g, woche, wKey, ma, wer, maOrt, eb }) {
   return { token, link: signaturLink(token) }
 }
 
+const TAG_NAME = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
 export function fernText({ einst, woche, an, link }) {
-  return `Guten Tag${an ? ' ' + an : ''}\n\nHier meine Arbeitszeiten für KW ${woche.kw}/${woche.jahr} zur Kontrolle (mit Pausen). ` +
-    `Bitte prüfen und direkt auf dem Handy unterschreiben (bis Montag früh) — dort können Sie auch angeben, ob der Einsatz weitergeht, und eine Leistungsbeurteilung abgeben.\n\n` +
-    `Zum Prüfen und Unterschreiben hier tippen:\n${link}\n\nVielen Dank und freundliche Grüsse\n${einst.name || ''}`
+  // letzter Arbeitstag der Woche (Abschluss-Tag, Standard Freitag) und der Montag danach
+  const tag = Number(einst?.abschlussTag) || 5
+  const ende = wochenStart(woche); ende.setDate(ende.getDate() + ((tag + 6) % 7))
+  const montag = wochenStart(woche); montag.setDate(montag.getDate() + 7)
+  const d = (x) => `${String(x.getDate()).padStart(2, '0')}.${String(x.getMonth() + 1).padStart(2, '0')}.`
+  return `Guten Tag${an ? ' ' + an : ''}\n\n` +
+    `Hier der Link zu meinen Arbeitszeiten für KW ${woche.kw}/${woche.jahr} (mit Pausen) zur Kontrolle:\n${link}\n\n` +
+    `• Der Link ist jederzeit einsehbar. Die Stunden werden laufend nachgeführt — bis zum Ende der Woche (${TAG_NAME[tag]}, ${d(ende)}).\n` +
+    `• Bitte danach prüfen und direkt auf dem Handy unterschreiben, spätestens ${TAG_NAME[1]} ${d(montag)} früh. Dort können Sie auch angeben, ob der Einsatz weitergeht, und eine Leistungsbeurteilung abgeben.\n` +
+    `• Mit Ihrer Unterschrift sind die Stunden dieser Woche festgeschrieben; spätere Änderungen gibt es nur mit einer neuen Unterschrift. Ihren Durchschlag (PDF) erhalten Sie gleich nach dem Unterschreiben.\n` +
+    `• Für jede Kalenderwoche erhalten Sie einen neuen Link.\n\n` +
+    `Vielen Dank und freundliche Grüsse\n${einst.name || ''}`
 }
 
 /** Als gesendet markieren (Kanal: whatsapp | email | teilen) */

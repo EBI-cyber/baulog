@@ -104,7 +104,7 @@ function Inhalt({ token }) {
       <section className="glass rounded-3xl p-5 space-y-1">
         <div className="text-2xl font-extrabold grad-text">KW {d.woche.kw} / {d.woche.jahr}</div>
         <div className="text-sm text-white/65">{datumLang(tage[0])} – {datumLang(tage[6])}</div>
-        {d.stand && <div className="text-xs text-white/60">Stand {new Date(d.stand).toLocaleString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} — neue Stunden des Mitarbeiters erscheinen hier automatisch, bis Sie unterschreiben.</div>}
+        {d.stand && <div className="text-xs text-white/60">Stand {new Date(d.stand).toLocaleString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} — die Stunden werden bis Ende Woche laufend nachgeführt; mit Ihrer Unterschrift sind sie festgeschrieben. Für jede Kalenderwoche gibt es einen neuen Link.</div>}
         <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 pt-3 text-sm">
           <span className="text-white/65">Mitarbeiter</span><b>{d.einst.name}</b>
           <span className="text-white/65">Einsatzbetrieb</span><b>{d.firma}</b>
