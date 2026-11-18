@@ -1,5 +1,5 @@
 import { db } from './db'
-import { schnappschuss, signaturAnlegenMit, signaturAktualisieren, signaturStatus, signaturLink, zeitenHash } from './signatur'
+import { schnappschuss, signaturAnlegenMit, signaturAktualisieren, signaturStatus, signaturLink, zeitenHash, snapHash } from './signatur'
 import { gruppenLaden, statusKey } from './rapporte'
 import { abschliessen } from './versand'
 import { ladeEinstellungen } from './settings'
@@ -26,7 +26,7 @@ export async function fernVorbereiten({ g, woche, wKey, ma, wer, maOrt, eb }) {
   const key = statusKey(wKey, g.firma)
   const alt = (await db.wochen.get(key)) || { key }
   await db.wochen.put({ ...alt, maBild: ma.bild, maAm: ma.am, maOrt: maOrt || alt.maOrt || null, ...(eb || {}),
-    fern: { token, schluessel: schluessel || null, hash: zeitenHash(daten), an: wer?.name || '', unterschreiberId: wer?.id || null, kontakt: { email: wer?.email || '', tel: wer?.tel || '' }, angelegtAm: Date.now() } })
+    fern: { token, schluessel: schluessel || null, hash: zeitenHash(daten), snap: snapHash(daten), an: wer?.name || '', unterschreiberId: wer?.id || null, kontakt: { email: wer?.email || '', tel: wer?.tel || '' }, angelegtAm: Date.now() } })
   return { token, link: signaturLink(token) }
 }
 
@@ -119,11 +119,12 @@ async function nachfuehren(s) {
   if (!g) return
   const einsatz = g.einsatz?.id ? await db.einsaetze.get(g.einsatz.id) : g.einsatz
   const daten = schnappschuss({ ...g, einsatz: einsatz || g.einsatz }, ausKey(wKey), s.maBild ? { bild: s.maBild, am: s.maAm } : null)
-  const hash = zeitenHash(daten)
-  if (hash === s.fern.hash) return
+  // ganzer Schnappschuss (auch Stempel, Firmenadresse, Unterschriftsberechtigte) — nicht nur die Zeiten
+  const hash = zeitenHash(daten), snap = snapHash(daten)
+  if (snap === s.fern.snap && hash === s.fern.hash) return
   await signaturAktualisieren(s.fern.token, s.fern.schluessel, daten)
   const neu = await db.wochen.get(s.key)
-  await db.wochen.put({ ...neu, fern: { ...neu.fern, hash, aktualisiertAm: Date.now() } })
+  await db.wochen.put({ ...neu, fern: { ...neu.fern, hash, snap, aktualisiertAm: Date.now() } })
 }
 
 /** Beim Start, beim Zurückkehren in die App und jede Minute nachsehen */

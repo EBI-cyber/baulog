@@ -39,6 +39,14 @@ export const signaturAnlegen = (daten) => aufruf({ task: 'anlegen', daten }).the
 export const signaturAnlegenMit = (daten) => aufruf({ task: 'anlegen', daten })
 export const signaturAktualisieren = (token, schluessel, daten) => aufruf({ task: 'aktualisieren', token, schluessel, daten })
 
+/** Fingerabdruck des ganzen Schnappschusses (ohne Zeitstempel) — z.B. Firmenstempel nachträglich hinterlegt */
+export function snapHash(daten) {
+  const t = JSON.stringify({ ...daten, stand: 0 })
+  let h = 5381
+  for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0
+  return (h >>> 0).toString(36)
+}
+
 /** Fingerabdruck der Zeiten (Schichten, Abwesenheiten, Spesen) — ändert sich, sobald Stunden dazukommen */
 export function zeitenHash(daten) {
   const t = JSON.stringify([daten.schichten, daten.absenzen, daten.spesen])
