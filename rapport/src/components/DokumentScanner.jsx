@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import ZoomBild from './ZoomBild'
 import { X, ScanLine, RotateCw, Crop, Check, Loader2 } from 'lucide-react'
 import { ladeBild, verkleinern, entzerren, eckenFinden, scanFarbe, scanSW, scharfzeichnen, drehen, kopie, stehtKopf } from '../lib/scan'
 
@@ -22,7 +23,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
   const [vorschau, setVorschau] = useState('')
   const [ecken, setEcken] = useState(null)
   const [schritt, setSchritt] = useState('ecken') // ecken | filter
-  const [filter, setFilter] = useState('scan')
+  const [filter, setFilter] = useState(() => { try { return localStorage.getItem('scanFilter') || 'scan' } catch { return 'scan' } })
   const [scharf, setScharf] = useState(true)
   const [ergebnis, setErgebnis] = useState('')
   const [busy, setBusy] = useState('')
@@ -159,7 +160,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
       setBusy('')
     }, 30)
   }
-  const waehle = (f) => { setFilter(f); setBusy('Wird verarbeitet …'); setTimeout(() => { anwenden(f, scharf); setBusy('') }, 20) }
+  const waehle = (f) => { setFilter(f); try { localStorage.setItem('scanFilter', f) } catch { /* egal */ } setBusy('Wird verarbeitet …'); setTimeout(() => { anwenden(f, scharf); setBusy('') }, 20) }
   const schaerfeUm = () => { const s = !scharf; setScharf(s); setBusy('Wird verarbeitet …'); setTimeout(() => { anwenden(filter, s); setBusy('') }, 20) }
   const dreh = () => { roh.current = drehen(roh.current); anwenden() }
 
@@ -202,7 +203,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
       </> : <>
         <div className="relative flex-1 min-h-0 flex items-center justify-center p-2">
           {busy && <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40"><div className="rounded-2xl bg-black/80 px-4 py-3 inline-flex items-center gap-2 text-sm"><Loader2 className="w-5 h-5 animate-spin" /> Wird verarbeitet …</div></div>}
-          {ergebnis ? <img src={ergebnis} alt="Dokument" className="max-w-full max-h-full object-contain rounded-lg bg-white" /> : <Loader2 className="w-8 h-8 animate-spin text-white/60" />}
+          {ergebnis ? <ZoomBild src={ergebnis} alt="Dokument" /> : <Loader2 className="w-8 h-8 animate-spin text-white/60" />}
         </div>
         <div className="p-3 space-y-2.5" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
           <div className="grid grid-cols-4 gap-1.5">
