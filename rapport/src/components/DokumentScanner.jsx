@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, ScanLine, RotateCw, Crop, Check, Loader2 } from 'lucide-react'
 import { ladeBild, verkleinern, entzerren, eckenFinden, scanFarbe, scanSW, scharfzeichnen, drehen, kopie, stehtKopf } from '../lib/scan'
 
-const LUPE = 110
+const LUPE = 130
 const FILTER = [['scan', 'Scan'], ['sw', 'S/W'], ['grau', 'Grau'], ['original', 'Original']]
 
 // Viereck leicht zur Mitte einrücken, damit kein Untergrund am Rand stehen bleibt
@@ -80,13 +80,23 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
     s.querySelector('polygon').setAttribute('points', e.map((p) => p.x + ',' + p.y).join(' '))
     griffe(e).forEach((p, i) => { const c = s.querySelector('[data-g="' + i + '"]'); c.setAttribute('cx', p.x); c.setAttribute('cy', p.y) })
   }
-  const lupeZeigen = (p) => {
+  // Lupe immer ÜBER dem Finger (Abstand für die Fingerkuppe); oben kein Platz → seitlich neben den Finger
+  const lupeZeigen = (p, ev) => {
     const l = lupe.current, b = bild.current; if (!l || !b) return
-    const r = b.getBoundingClientRect(), f = r.width / quelle.width, z = 2.5
+    const r = b.getBoundingClientRect(), f = r.width / quelle.width, z = 3
     const x = p.x * f, y = p.y * f
+    const fx = ev ? ev.clientX - r.left : x, fy = ev ? ev.clientY - r.top : y // Finger relativ zum Bild
+    const ABSTAND = 60 // Fingerkuppe + Luft
+    const vw = window.innerWidth
+    let left = fx - LUPE / 2, top = fy - ABSTAND - LUPE
+    if (r.top + top < 70) { // zu nah am oberen Rand → neben den Finger
+      top = fy - LUPE / 2
+      left = r.left + fx > vw / 2 ? fx - ABSTAND - LUPE : fx + ABSTAND
+    }
+    left = Math.max(-r.left + 4, Math.min(vw - r.left - LUPE - 4, left))
     l.style.display = 'block'
-    l.style.left = Math.max(0, Math.min(r.width - LUPE, x - LUPE / 2)) + 'px'
-    l.style.top = (y > LUPE * 1.4 ? y - LUPE * 1.3 : y + LUPE * 0.3) + 'px'
+    l.style.left = left + 'px'
+    l.style.top = Math.max(-r.top + 60, top) + 'px'
     l.style.backgroundSize = r.width * z + 'px ' + r.height * z + 'px'
     l.style.backgroundPosition = (LUPE / 2 - x * z) + 'px ' + (LUPE / 2 - y * z) + 'px'
   }
@@ -98,7 +108,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
     ev.currentTarget.setPointerCapture?.(ev.pointerId)
     live.current = ecken.map((q) => ({ ...q }))
     griff.current = { i: best, start: p, basis: ecken.map((q) => ({ ...q })) }
-    lupeZeigen(g[best])
+    lupeZeigen(g[best], ev)
   }
   const bewegen = (ev) => {
     const gr = griff.current; if (!gr) return
@@ -116,7 +126,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
     }
     live.current = e
     zeichne(e)
-    lupeZeigen(gr.i < 4 ? e[gr.i] : mitte(e, gr.i - 4))
+    lupeZeigen(gr.i < 4 ? e[gr.i] : mitte(e, gr.i - 4), ev)
   }
   const hoch = () => { lupeAus(); if (griff.current) { setEcken(live.current); griff.current = null } }
 
@@ -175,7 +185,7 @@ export default function DokumentScanner({ datei, onFertig, onAbbrechen, titel = 
                   <circle key={i} data-g={i} cx={p.x} cy={p.y} r={i < 4 ? r : r * 0.65} fill={i < 4 ? 'rgba(34,211,238,0.9)' : 'rgba(255,255,255,0.85)'} stroke={i < 4 ? '#fff' : '#22d3ee'} strokeWidth={quelle.width / 300} />
                 ))}
               </svg>}
-              <div ref={lupe} className="absolute pointer-events-none rounded-full border-2 border-aqua shadow-2xl overflow-hidden"
+              <div ref={lupe} className="absolute pointer-events-none rounded-full border-2 border-aqua shadow-2xl overflow-hidden z-20"
                 style={{ display: 'none', width: LUPE, height: LUPE, backgroundImage: 'url(' + vorschau + ')', backgroundRepeat: 'no-repeat', backgroundColor: '#000' }}>
                 <div className="absolute left-1/2 top-0 bottom-0 w-px bg-aqua/90" />
                 <div className="absolute top-1/2 left-0 right-0 h-px bg-aqua/90" />
