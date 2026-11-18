@@ -9,6 +9,7 @@ import { rapportStatus, statusKey } from '../lib/rapporte'
 import { wochenRechnung, std } from '../lib/woche'
 import { datumKurz, uhr } from '../lib/zeit'
 import IconChip from '../ui/IconChip'
+import DurchschlagSenden from './DurchschlagSenden'
 
 const zeitpunkt = (ts) => `${datumKurz(new Date(ts))} ${uhr(ts)}`
 
@@ -18,7 +19,7 @@ export default function RapportKarte({ g, woche, wKey, mehrere, onAbschluss }) {
   const [meldung, setMeldung] = useState(null)
   const pdf = useMemo(() => rapportPdf({ einst: g.einst, woche, schichten: g.schichten, absenzen: g.absenzen, spesen: g.spesen, einsatz: g.einsatz, unterschriften: status }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [JSON.stringify([g.schichten, g.absenzen, g.spesen, g.einst, g.einsatz?.einsatznummer]), wKey, status?.maBild, status?.firmaBild])
+    [JSON.stringify([g.schichten, g.absenzen, g.spesen, g.einst, g.einsatz?.einsatznummer, g.einsatz?.formularBild?.length, g.einsatz?.stempelBild?.length]), wKey, status?.maBild, status?.firmaBild, status?.stempel, status?.bewertung, status?.einsatzWeiter])
   const name = dateiName(g.einst, woche, mehrere ? g.firma : null)
   const [url, setUrl] = useState(null)
   useEffect(() => { const u = URL.createObjectURL(pdf); setUrl(u); return () => URL.revokeObjectURL(u) }, [pdf])
@@ -65,6 +66,7 @@ export default function RapportKarte({ g, woche, wKey, mehrere, onAbschluss }) {
         className="w-full rounded-2xl py-3 font-semibold bg-white/10 inline-flex items-center justify-center gap-2">
         <Share2 className="w-5 h-5" /> Teilen (WhatsApp, Dateien …)
       </button>
+      <DurchschlagSenden g={g} woche={woche} wKey={wKey} status={status} pdf={pdf} name={name} />
       {(status?.maBild || status?.firmaBild) && <div className="text-xs text-white/65 flex gap-3">
         <span className="inline-flex items-center gap-1"><CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.maBild ? 'text-mint' : 'text-white/40')} /> Mitarbeiter</span>
         <span className="inline-flex items-center gap-1"><CheckCircle2 className={'w-3.5 h-3.5 ' + (status?.firmaBild ? 'text-mint' : 'text-white/40')} /> Einsatzbetrieb{status?.firmaName ? ` (${status.firmaName})` : ''}</span>

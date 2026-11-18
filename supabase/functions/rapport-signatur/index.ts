@@ -33,10 +33,29 @@ Deno.serve(async (req) => {
       return out({ token })
     }
 
+    if (b.task === 'durchschlag') {
+      // fertiges PDF (beide Unterschriften) zum Abholen durch den Unterzeichner — 30 Tage
+      const pdf = String(b.pdf || '')
+      if (!/^[A-Za-z0-9+/=]+$/.test(pdf) || pdf.length > 4_000_000) return out({ error: 'PDF fehlt oder ist zu gross' }, 400)
+      const { count } = await db.from(T).select('token', { count: 'exact', head: true }).gt('erstellt', new Date(Date.now() - 3600_000).toISOString())
+      if ((count || 0) >= 200) return out({ error: 'Gerade zu viele Anfragen — bitte in einer Stunde nochmal.' }, 429)
+      const token = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, '0')).join('')
+      const { error } = await db.from(T).insert({ token, daten: { art: 'durchschlag', name: String(b.name || 'Rapport.pdf').slice(0, 120), titel: String(b.titel || '').slice(0, 200) },
+        pdf, status: 'durchschlag', ablauf: new Date(Date.now() + 30 * 864e5).toISOString() })
+      if (error) return out({ error: error.message }, 500)
+      return out({ token })
+    }
+
     if (!gueltig(b.token)) return out({ error: 'Ungültiger Link' }, 400)
     const { data: z, error } = await db.from(T).select('*').eq('token', b.token).maybeSingle()
     if (error) return out({ error: error.message }, 500)
     if (!z || new Date(z.ablauf) < new Date()) return out({ error: 'Dieser Link ist abgelaufen oder wurde bereits verwendet.' }, 404)
+
+    if (b.task === 'pdf') {
+      if (z.daten?.art !== 'durchschlag') return out({ error: 'Kein Durchschlag' }, 404)
+      return out({ pdf: z.pdf, name: z.daten.name, titel: z.daten.titel })
+    }
+    if (z.daten?.art === 'durchschlag') return out({ error: 'Ungültiger Link' }, 400)
 
     if (b.task === 'lesen') return out({ daten: z.daten, status: z.status, name: z.name, beantwortet: z.beantwortet })
 
