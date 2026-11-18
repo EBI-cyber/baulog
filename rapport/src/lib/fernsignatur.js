@@ -1,5 +1,5 @@
 import { db } from './db'
-import { schnappschuss, signaturAnlegen, signaturStatus, signaturLink } from './signatur'
+import { schnappschuss, signaturAnlegenMit, signaturAktualisieren, signaturStatus, signaturLink, zeitenHash } from './signatur'
 import { gruppenLaden, statusKey } from './rapporte'
 import { abschliessen } from './versand'
 import { ladeEinstellungen } from './settings'
@@ -21,11 +21,12 @@ export async function fernVorbereiten({ g, woche, wKey, ma, wer, maOrt, eb }) {
   const einsatz = g.einsatz?.id ? await db.einsaetze.get(g.einsatz.id) : null
   const p = wer?.name?.trim() ? await merken(einsatz, { ...wer, bestaetigt: true }).catch(() => null) : null
   if (p && !wer.id) wer = { ...wer, id: p.id }
-  const token = await signaturAnlegen(schnappschuss({ ...g, einsatz: einsatz || g.einsatz }, woche, ma))
+  const daten = schnappschuss({ ...g, einsatz: einsatz || g.einsatz }, woche, ma)
+  const { token, schluessel } = await signaturAnlegenMit(daten)
   const key = statusKey(wKey, g.firma)
   const alt = (await db.wochen.get(key)) || { key }
   await db.wochen.put({ ...alt, maBild: ma.bild, maAm: ma.am, maOrt: maOrt || alt.maOrt || null, ...(eb || {}),
-    fern: { token, an: wer?.name || '', unterschreiberId: wer?.id || null, kontakt: { email: wer?.email || '', tel: wer?.tel || '' }, angelegtAm: Date.now() } })
+    fern: { token, schluessel: schluessel || null, hash: zeitenHash(daten), an: wer?.name || '', unterschreiberId: wer?.id || null, kontakt: { email: wer?.email || '', tel: wer?.tel || '' }, angelegtAm: Date.now() } })
   return { token, link: signaturLink(token) }
 }
 
@@ -51,7 +52,8 @@ export async function fernPruefen() {
     const offen = await db.wochen.filter((w) => !!w.fern?.token && !w.fern.erledigt).toArray()
     for (const s of offen) {
       const r = await signaturStatus(s.fern.token, true).catch(() => null)
-      if (!r || r.status === 'offen') continue
+      if (r?.status === 'offen') { await nachfuehren(s).catch(() => {}); continue }
+      if (!r) continue
       if (r.status === 'abgelehnt') {
         await db.wochen.put({ ...s, fern: { ...s.fern, erledigt: true, abgelehnt: { name: r.name || '', bemerkung: r.bemerkung || '', am: Date.now() } } })
         continue
@@ -73,6 +75,7 @@ export async function fernPruefen() {
         kopieEmail: person.email.trim(), kopieTel: person.tel.trim(),
         bewertung: r.bewertung ?? null, einsatzWeiter: r.einsatzWeiter ?? null, beendetAm: r.einsatzWeiter === false ? r.beendetAm : null,
         stempel: r.stempel === true,
+        signiertHash: s.fern.hash || null, // Stand der Zeiten, den der Unterzeichner gesehen hat
       }
       // Unbekannte Person (nicht in der Liste der Unterschriftsberechtigten): erst vom Mitarbeiter bestätigen lassen
       if (!bekannt && liste(einsatz).length) {
@@ -91,6 +94,26 @@ export async function fernPruefen() {
       }
     }
   } finally { laeuft = false }
+}
+
+/**
+ * Kontroll-Link nachführen: Kommen nach dem Versand noch Stunden dazu (z.B. Link am Mittwoch, gearbeitet bis Freitag),
+ * wird der Schnappschuss auf dem Server aktualisiert — solange der Unterzeichner noch nicht unterschrieben hat.
+ */
+async function nachfuehren(s) {
+  if (!s.fern?.schluessel) return
+  const [wKey, firma] = s.key.includes('|') ? s.key.split('|') : [s.key, null]
+  const einst = ladeEinstellungen()
+  const gruppen = await gruppenLaden(wKey, einst)
+  const g = gruppen.find((x) => x.firma === firma) || gruppen[0]
+  if (!g) return
+  const einsatz = g.einsatz?.id ? await db.einsaetze.get(g.einsatz.id) : g.einsatz
+  const daten = schnappschuss({ ...g, einsatz: einsatz || g.einsatz }, ausKey(wKey), s.maBild ? { bild: s.maBild, am: s.maAm } : null)
+  const hash = zeitenHash(daten)
+  if (hash === s.fern.hash) return
+  await signaturAktualisieren(s.fern.token, s.fern.schluessel, daten)
+  const neu = await db.wochen.get(s.key)
+  await db.wochen.put({ ...neu, fern: { ...neu.fern, hash, aktualisiertAm: Date.now() } })
 }
 
 /** Beim Start, beim Zurückkehren in die App und jede Minute nachsehen */

@@ -19,7 +19,7 @@ async function aufruf(body) {
 export function schnappschuss(g, woche, ma = null) {
   const s = (x) => ({ start: x.start, ende: x.ende, pausen: x.pausen, pauseMin: x.pauseMin, firma: x.firma, notiz: x.notiz, datum: x.datum, wocheKey: x.wocheKey })
   return {
-    v: 1, woche, firma: g.firma,
+    v: 1, woche, firma: g.firma, stand: Date.now(),
     einst: { name: g.einst.name, buero: g.einst.buero, waehrung: g.einst.waehrung, wochenSoll: g.einst.wochenSoll,
       profil: { strasse: g.einst.profil?.strasse, plz: g.einst.profil?.plz, ort: g.einst.profil?.ort, rav: g.einst.profil?.rav } },
     // nur was der Rapport zeigt — kein Lohn
@@ -35,6 +35,17 @@ export function schnappschuss(g, woche, ma = null) {
 }
 
 export const signaturAnlegen = (daten) => aufruf({ task: 'anlegen', daten }).then((r) => r.token)
+/** wie signaturAnlegen, mit Schlüssel zum späteren Nachführen: { token, schluessel } */
+export const signaturAnlegenMit = (daten) => aufruf({ task: 'anlegen', daten })
+export const signaturAktualisieren = (token, schluessel, daten) => aufruf({ task: 'aktualisieren', token, schluessel, daten })
+
+/** Fingerabdruck der Zeiten (Schichten, Abwesenheiten, Spesen) — ändert sich, sobald Stunden dazukommen */
+export function zeitenHash(daten) {
+  const t = JSON.stringify([daten.schichten, daten.absenzen, daten.spesen])
+  let h = 5381
+  for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0
+  return (h >>> 0).toString(36)
+}
 export const signaturLesen = (token) => aufruf({ task: 'lesen', token })
 export const signaturAntworten = (token, antwort) => aufruf({ task: 'antworten', token, ...antwort })
 export const signaturStatus = (token, abholen) => aufruf({ task: 'status', token, abholen })
