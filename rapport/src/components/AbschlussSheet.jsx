@@ -9,6 +9,7 @@ import FernSenden from './FernSenden'
 import { useEinstellungen } from '../lib/settings'
 import { gruppenLaden, rapportStatus } from '../lib/rapporte'
 import { abschliessen, gruppenPdf, ordnerPfad } from '../lib/versand'
+import { AblageHinweis } from './AblageKarte'
 import { useMs } from '../lib/microsoft'
 import { teileDatei, whatsappLink } from '../lib/teilen'
 import { db } from '../lib/db'
@@ -229,6 +230,7 @@ function Gruppe({ g, wKey, woche, einst, verbunden, mehrere }) {
               className="w-full rounded-2xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2">
               <Copy className="w-5 h-5" /> Durchschlag teilen (WhatsApp {s.kopieTel})</button>
       )}
+      <AblageHinweis />
       {s?.versandOffen && <div className="text-sm text-amber-300 flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> Kein Netz — wird automatisch nachgesendet.</div>}
       {s?.fehler && !s?.versandOffen && <div className="text-sm text-ember flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {s.fehler}</div>}
     </section>

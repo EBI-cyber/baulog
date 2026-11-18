@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Camera, ScanSearch, Loader2, CheckCircle2, AlertTriangle, X, Share2, CloudUpload, Check } from 'lucide-react'
 import Sheet from './Sheet'
 import DokumentScanner from './DokumentScanner'
+import { AblageHinweis } from './AblageKarte'
 import { db, speichereAbsenz } from '../lib/db'
 import { useEinstellungen, zahl } from '../lib/settings'
 import { alsDataUrl } from '../lib/bild'
@@ -179,6 +180,7 @@ export default function PapierRapportSheet({ woche, onClose }) {
           <div className="text-xs text-white/60 text-center">Danach ist die Woche als gesendet vermerkt{msVerbunden() ? ' und der Rapport liegt in OneDrive' : ''}.</div>
           <button onClick={nurVermerken} className="w-full py-2 text-xs text-white/65 underline">Schon gesendet — nur vermerken</button>
         </> : <button onClick={onClose} className="w-full rounded-2xl py-3 btn-grad font-bold">Fertig</button>}
+        {gesendet && <AblageHinweis />}
         {msVerbunden() && gesendet && <div className="text-xs text-white/60 inline-flex items-center gap-1"><CloudUpload className="w-3.5 h-3.5" /> OneDrive: {ordnerPfad(einst.onedriveOrdner, woche, { buero: einsatz?.buero || einst.buero, firma })}</div>}
       </>}
     </Sheet>

@@ -18,6 +18,7 @@ import { kantonFuer } from '../lib/kanton'
 import { speichereAbsenz } from '../lib/db'
 import { offeneRapporte } from '../lib/rapporte'
 import FernHinweise from '../components/FernHinweise'
+import { AblageHinweis } from '../components/AblageKarte'
 import { profilFertig, ausweisTage } from '../lib/profil'
 import { schichtBeenden, zustandMelden } from '../lib/stempel'
 import PauseSheet from '../components/PauseSheet'
@@ -180,6 +181,7 @@ export default function Heute() {
       })()}
 
       <FernHinweise onOeffnen={setAbschluss} />
+      <AblageHinweis />
       {offen && (
         <button onClick={() => setAbschluss(offen)} className="w-full text-left rounded-3xl p-4 flex items-center gap-3 bg-aqua/10 border border-aqua/30">
           <IconChip icon={Send} variant="grad" />
