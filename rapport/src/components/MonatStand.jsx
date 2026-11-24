@@ -9,6 +9,8 @@ import { chf } from '../lib/lohn'
 import { useLohn } from '../lib/useLohn'
 import { useKonten } from '../lib/konten'
 import ZahlungenKarte from './ZahlungenKarte'
+import LohnDetailSheet from './LohnDetailSheet'
+import { useState } from 'react'
 import { tageBisEnde, einsatzEnde } from '../lib/einsatzende'
 import { isoDatum, arbeitMs, datumKurz, TAGE } from '../lib/zeit'
 
@@ -28,6 +30,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
   const laufend = heuteIso >= mVon && heuteIso <= mBis
   const zukunft = mVon > heuteIso
   const bis = laufend ? heuteIso : mBis
+  const [detail, setDetail] = useState(null)
   const erster = useLiveQuery(() => db.schichten.orderBy('start').first(), [], null)
   const lohn = useLohn(mVon, zukunft ? mVon : bis, einst)
   const konten = useKonten(einst, bis)
@@ -66,12 +69,27 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
   const hochNetto = lohnOk && ist > 0 ? lohn.netto + (lohn.netto / ist) * restTage * tagSoll : 0
   const ende = einsatz ? tageBisEnde(einsatz) : null
 
-  const Kachel = ({ icon: I, titel, children, farbe = '' }) => (
-    <div className={'glass rounded-3xl p-4 ' + farbe}>
+  const Kachel = ({ icon: I, titel, children, farbe = '', onClick }) => (
+    <button onClick={onClick} className={'glass rounded-3xl p-4 text-left card-hover ' + farbe}>
       <div className="text-white/65 text-xs inline-flex items-center gap-1.5"><I className="w-3.5 h-3.5" /> {titel}</div>
       {children}
-    </div>
+    </button>
   )
+  const fmtH = (n) => `${dez(n)} h`
+  const zeigArbeit = () => setDetail({
+    titel: 'Gearbeitet ' + monatsName, betrag: arbeit, fmt: fmtH,
+    was: `Deine Arbeitszeit ohne Pausen an ${tage} ${tage === 1 ? 'Tag' : 'Tagen'}${laufend ? ' bis heute' : ''}. Bezahlte Abwesenheiten (Ferien, krank …) zählen separat.`,
+    rechnung: [...wochenListe.map((x) => [`KW ${x.w.kw}${x.teil ? ' (nur Tage im ' + monatsName + ')' : ''}`, x.h]), ['Total inkl. Abwesenheiten', ist, true],
+      ...(abwBezahlt > 0 ? [['davon bezahlte Abwesenheiten', abwBezahlt]] : []), ...Object.entries(abwNachArt || {}).map(([a, n]) => [`${a}: ${n} ${n === 1 ? 'Tag' : 'Tage'}`])],
+    grundlage: 'Summe deiner erfassten Schichten (Kalender antippen → Tag → Einträge).',
+  })
+  const zeigSaldo = () => setDetail({
+    titel: saldo >= 0 ? 'Überstunden' : 'Minusstunden', betrag: saldo, fmt: (n) => `${dez(n)} h`,
+    was: 'Vergleich zwischen dem, was du gemäss Vertrag arbeiten solltest (Soll), und dem, was du gearbeitet hast oder bezahlt abwesend warst (Ist).',
+    rechnung: [[`Soll: ${sollTage} Arbeitstage × ${dez(tagSoll)} h`, soll], ['Ist: gearbeitet', arbeit], ['+ bezahlte Abwesenheiten', abwBezahlt], ['= Ist', ist, true], ['Ist − Soll', saldo, true]],
+    grundlage: `Arbeitstage = Mo–Fr ${laufend ? 'bis heute' : 'im Monat'} ab Einsatzbeginn, ohne Feiertage und unbezahlte Abwesenheiten. Tagessoll = Wochenstunden aus dem Einsatz ÷ 5${sollAngenommen ? ' (keine Wochenstunden hinterlegt → 40 h angenommen)' : ''}.`,
+    hinweis: luecken.length ? `Werktage ohne Eintrag zählen als Minusstunden: ${luecken.map((d) => `${TAGE[d.getDay()]} ${datumKurz(d)}`).join(', ')}.` : '',
+  })
 
   return (
     <section className="space-y-3">
@@ -99,11 +117,11 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
 
 
       <div className="grid grid-cols-2 gap-3">
-        <Kachel icon={Clock} titel="Gearbeitet">
+        <Kachel icon={Clock} titel="Gearbeitet" onClick={zeigArbeit}>
           <div className="text-2xl font-extrabold grad-text tabular-nums">{dez(arbeit)} h</div>
           <div className="text-xs text-white/65">an {tage} {tage === 1 ? 'Tag' : 'Tagen'}{abwBezahlt > 0 ? ` · + ${dez(abwBezahlt)} h bez. Abwesenheit` : ''}</div>
         </Kachel>
-        <Kachel icon={saldo >= 0 ? TrendingUp : TrendingDown} titel={saldo >= 0 ? 'Überstunden' : 'Minusstunden'}>
+        <Kachel icon={saldo >= 0 ? TrendingUp : TrendingDown} titel={saldo >= 0 ? 'Überstunden' : 'Minusstunden'} onClick={zeigSaldo}>
           <div className={'text-2xl font-extrabold tabular-nums ' + (saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{plusMinus(saldo)} h</div>
           <div className="text-xs text-white/65">Soll {dez(soll)} h ({sollTage} Tage à {dez(tagSoll)}){sollAngenommen ? ' · 40 h/Woche angenommen' : ''}</div>
         </Kachel>
@@ -186,6 +204,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
           ))}
         </div>
       )}
+      <LohnDetailSheet d={detail} w={einst.waehrung} onClose={() => setDetail(null)} />
     </section>
   )
 }
