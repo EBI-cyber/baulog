@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CalendarOff, Trash2 } from 'lucide-react'
 import Sheet from './Sheet'
 import { db, speichereAbsenz } from '../lib/db'
 import { ABSENZEN, absenzArt, FARBE } from '../lib/arten'
 import { useEinstellungen, tagesSoll, zahl } from '../lib/settings'
 import { isoDatum } from '../lib/zeit'
+import { krankStunden, krankBasisText } from '../lib/krankstunden'
 
 function tageZwischen(von, bis, mitWochenende) {
   const out = []
@@ -20,7 +21,9 @@ function tageZwischen(von, bis, mitWochenende) {
 /** Abwesenheit erfassen (auch über mehrere Tage) oder bearbeiten */
 export default function AbsenzSheet({ absenz, datum, onClose }) {
   const [einst] = useEinstellungen()
-  const vorschlag = (art, halb) => (absenzArt(art).bezahlt ? tagesSoll(einst) * (halb ? 0.5 : 1) : 0)
+  const [krank, setKrank] = useState(null)
+  const krankArt = (a) => a === 'krank' || a === 'unfall'
+  const vorschlag = (art, halb, k = krank) => (absenzArt(art).bezahlt ? (krankArt(art) && k ? k.stunden : tagesSoll(einst)) * (halb ? 0.5 : 1) : 0)
   const [f, setF] = useState(() => absenz
     ? { ...absenz, von: absenz.datum, bis: absenz.datum, stunden: String(absenz.stunden ?? '') }
     : { art: 'ferien', von: datum || isoDatum(new Date()), bis: datum || isoDatum(new Date()), halbtag: false,
@@ -28,6 +31,18 @@ export default function AbsenzSheet({ absenz, datum, onClose }) {
   const [fehler, setFehler] = useState('')
   const art = absenzArt(f.art)
   const tage = absenz ? [f.von] : tageZwischen(f.von, f.bis, f.mitWochenende)
+
+  // Krankheit/Unfall: Stunden nach dem Lohnausfallprinzip (Ø der letzten 3 Monate)
+  const tag0 = absenz?.datum || datum || isoDatum(new Date())
+  useEffect(() => {
+    let aus = false
+    krankStunden(tag0, einst, absenz?.firma || einst.firma).then((k) => {
+      if (aus) return
+      setKrank(k)
+      if (!absenz) setF((x) => (krankArt(x.art) ? { ...x, stunden: String(vorschlag(x.art, x.halbtag, k)) } : x))
+    })
+    return () => { aus = true }
+  }, [tag0])
 
   const waehleArt = (id) => setF({ ...f, art: id, stunden: String(vorschlag(id, f.halbtag)) })
   const halbtag = (h) => setF({ ...f, halbtag: h, stunden: String(vorschlag(f.art, h)) })
@@ -89,8 +104,12 @@ export default function AbsenzSheet({ absenz, datum, onClose }) {
       {(f.art === 'krank' || f.art === 'unfall') && (
         <div className="text-xs text-white/60 rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2">
           {f.art === 'krank'
-            ? 'Lohn bei Krankheit (GAV Personalverleih): die ersten 2 Kalendertage pro Krankheitsfall sind Wartetage ohne Lohn, ab dem 3. Tag zahlt die Krankentaggeld-Versicherung 80 % (ohne AHV-Abzüge). Die Stunden zählen trotzdem als entschuldigt, nicht als Minusstunden. Anpassbar im Einsatz.'
+            ? 'Lohn bei Krankheit (GAV Personalverleih): die ersten 2 Kalendertage pro Krankheitsfall sind Wartetage ohne Lohn, ab dem 3. Tag zahlt die Krankentaggeld-Versicherung 80 % (ohne AHV-Abzüge). Die Stunden zählen trotzdem als entschuldigt, nicht als Minusstunden. Werte aus dem Einsatzvertrag gehen vor.'
             : 'Unfall: Unfalltag + 2 Tage zahlt der Arbeitgeber 80 %, danach die Unfallversicherung 80 % Taggeld.'}
+          {krank && <div className="mt-1.5 text-white/75">Stunden pro Tag: {krankBasisText(krank, tagesSoll(einst))}</div>}
+          {krank && absenz && Math.abs(zahl(f.stunden) - vorschlag(f.art, f.halbtag)) > 0.01 && (
+            <button type="button" onClick={() => setF({ ...f, stunden: String(vorschlag(f.art, f.halbtag)) })} className="mt-1.5 rounded-lg px-2.5 py-1.5 bg-white/10 text-white font-semibold">{vorschlag(f.art, f.halbtag).toFixed(2)} h übernehmen</button>
+          )}
         </div>
       )}
       {art.zeugnis && (
