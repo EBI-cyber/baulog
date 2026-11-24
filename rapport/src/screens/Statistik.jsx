@@ -230,7 +230,7 @@ export default function Statistik() {
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/75">
             <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_A }} />{stunden ? 'Gearbeitet' : 'Ausbezahlt'}</span>
             {(stunden || sum.rueckstellung > 0) && <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: FARBE_B }} />{stunden ? 'Bezahlte Abwesenheit' : 'Ferien einbehalten'}</span>}
-            {stunden && art !== 'jahr' && <span className="inline-flex items-center gap-1.5"><span className="w-3.5 border-t-2 border-dashed border-white/75" />Soll</span>}
+            {stunden && art !== 'jahr' && <span className="inline-flex items-center gap-1.5"><span className="w-3.5 border-t-2 border-dashed border-white/75" />Vertragsstunden</span>}
             {schnittWert > 0 && <span className="inline-flex items-center gap-1.5"><span className="w-3.5 border-t-2" style={{ borderColor: FARBE_SCHNITT }} />{schnittMonat ? `Ø pro Woche im ${schnittMonat}${schnittLaufend ? ' (bisher)' : ''}` : `Durchschnitt${sum.fertig < sum.anzahl ? ' (abgeschlossene)' : ''}`}</span>}
           </div>
 
@@ -256,7 +256,7 @@ export default function Statistik() {
               <th className="text-right font-normal">Gearbeitet</th>
               <th className="text-right font-normal">Abwesend</th>
               <th className="text-right font-normal">Total</th>
-              {art !== 'jahr' && <th className="text-right font-normal">±Soll</th>}
+              {art !== 'jahr' && <th className="text-right font-normal">Überstd.</th>}
             </tr></thead>
             <tbody>{zeilen.map((w) => (
               <tr key={w.key} onClick={() => setWahl(w.key)} className={'border-t border-white/5 ' + (gewaehlt?.key === w.key ? 'bg-white/[0.06]' : '')}>
@@ -264,7 +264,7 @@ export default function Statistik() {
                 <td className="text-right text-white/75">{h2(w.arbeit)}</td>
                 <td className="text-right text-white/75">{w.abw > 0 ? h2(w.abw) : '–'}</td>
                 <td className="text-right font-semibold">{h2(w.ist)}</td>
-                {art !== 'jahr' && <td className={'text-right ' + (w.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{pm(w.saldo)}</td>}
+                {art !== 'jahr' && <td className={'text-right ' + (w.saldo > 0.004 ? 'text-emerald-400' : 'text-white/45')}>{w.saldo > 0.004 ? '+' + h2(w.saldo) : '–'}</td>}
               </tr>
             ))}
             {zeilen.length > 1 && <tr className="border-t border-white/20 font-bold">
@@ -272,7 +272,7 @@ export default function Statistik() {
               <td className="text-right">{h2(sum.arbeit)}</td>
               <td className="text-right">{sum.abw > 0 ? h2(sum.abw) : '–'}</td>
               <td className="text-right">{h2(sum.ist)}</td>
-              {art !== 'jahr' && <td className={'text-right ' + (sum.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{pm(sum.saldo)}</td>}
+              {art !== 'jahr' && <td className={'text-right ' + (sum.saldo > 0.004 ? 'text-emerald-400' : 'text-white/45')}>{sum.saldo > 0.004 ? '+' + h2(sum.saldo) : '–'}</td>}
             </tr>}
             </tbody>
           </table>
@@ -318,7 +318,7 @@ export default function Statistik() {
           {stunden ? <>
             <Kachel icon={Clock} titel="Total" wert={`${h2(sum.ist)} h`} sub={sum.abw > 0 ? `davon ${h2(sum.ist - sum.arbeit)} h Abwesenheit` : `${sum.anzahl} ${sum.anzahl === 1 ? ART_NAME[art] : ART_MEHR[art]} mit Einträgen`} />
             <Kachel icon={Gauge} titel={schnittMonat ? `Ø pro Woche im ${schnittMonat}` : `Ø pro ${ART_NAME[art]}`} wert={schnittWert != null ? `${h2(schnittWert)} h` : '–'} sub={schnittN ? `aus ${schnittN} ${schnittLaufend ? 'laufenden' : 'abgeschlossenen'}` : 'noch keiner abgeschlossen'} />
-            {art !== 'jahr' && <Kachel icon={TrendingUp} titel={sum.saldo >= 0 ? 'Überstunden' : 'Minusstunden'} wert={`${sum.saldo >= 0 ? '+' : '−'}${h2(Math.abs(sum.saldo))} h`} sub={`Soll ${h2(sum.soll)} h`} farbe={sum.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400'} />}
+            {art !== 'jahr' && <Kachel icon={TrendingUp} titel="Überstunden" wert={sum.saldo > 0.004 ? `+${h2(sum.saldo)} h` : 'keine'} sub={`über ${h2(werte?.find((x) => x.grenze)?.grenze || 40)} h pro Woche`} farbe={sum.saldo > 0.004 ? 'text-emerald-400' : ''} />}
             {sum.maxIst && <Kachel icon={BarChart3} titel="Meiste Stunden" wert={`${h2(sum.maxIst.ist)} h`} sub={sum.maxIst.titel} />}
           </> : <>
             <Kachel icon={Banknote} titel="Netto total" wert={chf(sum.netto, w$)} sub={sum.rueckstellung > 0 ? `ausbezahlt ${chf(sum.auszahlung, w$)} · Ferien ${chf(sum.rueckstellung, w$)}` : `brutto ${chf(sum.brutto, w$)}`} />
@@ -341,8 +341,7 @@ export default function Statistik() {
               <Zeile label={`Gearbeitet (${gewaehlt.tage} ${gewaehlt.tage === 1 ? 'Tag' : 'Tage'})`} wert={`${h2(gewaehlt.arbeit)} h`} />
               {gewaehlt.abw > 0 && <Zeile label="Bezahlte Abwesenheit" wert={`${h2(gewaehlt.abw)} h`} />}
               <Zeile label="Total angerechnet" wert={`${h2(gewaehlt.ist)} h`} stark />
-              <Zeile label="Soll" wert={`${h2(gewaehlt.soll)} h`} />
-              <Zeile label={gewaehlt.saldo >= 0 ? 'Überstunden' : 'Minusstunden'} wert={`${gewaehlt.saldo >= 0 ? '+' : '−'}${h2(Math.abs(gewaehlt.saldo))} h`} farbe={gewaehlt.saldo >= 0 ? 'text-emerald-400' : 'text-rose-400'} />
+              <Zeile label={`Überstunden (über ${h2(gewaehlt.grenze || 40)} h pro Woche)`} wert={gewaehlt.saldo > 0.004 ? `+${h2(gewaehlt.saldo)} h` : 'keine'} farbe={gewaehlt.saldo > 0.004 ? 'text-emerald-400' : ''} />
               {Object.keys(gewaehlt.nachArt).length > 0 && <Zeile label="Abwesend" wert={Object.entries(gewaehlt.nachArt).map(([k, n]) => `${n} T. ${k}`).join(', ')} />}
             </> : gewaehlt.lohnFehlt ? <div className="text-white/65 py-2">Kein Stundenlohn im Einsatz hinterlegt — in den Einstellungen beim Einsatz eintragen.</div> : <>
               <Zeile label="Bruttolohn" wert={chf(gewaehlt.brutto, w$)} />
@@ -357,7 +356,7 @@ export default function Statistik() {
         </section>}
 
 
-        <div className="text-xs text-white/60 px-1">Geschätzt aus deinen Zeiten und dem Einsatzvertrag (wie im Lohn). Stunden = Arbeitszeit + bezahlte Abwesenheiten; Soll ab Einsatzbeginn ohne Feiertage. Massgebend ist die Abrechnung des Büros.</div>
+        <div className="text-xs text-white/60 px-1">Geschätzt aus deinen Zeiten und dem Einsatzvertrag (wie im Lohn). Stunden = Arbeitszeit + bezahlte Abwesenheiten. Als Temporärer gibt es keine Minusstunden — bezahlt wird jede Stunde; Überstunden = was pro Kalenderwoche über den Wochenstunden laut Vertrag liegt. Massgebend ist die Abrechnung des Büros.</div>
       </>}
     </div>
   )

@@ -93,14 +93,14 @@ export default function Woche() {
         </div>
         <div className="glass rounded-3xl p-4">
           {r.soll ? <>
-            <div className="text-white/60 text-xs">Soll {std(r.soll)} h</div>
-            <div className={'text-2xl font-extrabold tabular-nums ' + (r.differenz >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
-              {r.differenz >= 0 ? '+' : ''}{std(r.differenz)} h
+            <div className="text-white/60 text-xs">Überstunden</div>
+            <div className={'text-2xl font-extrabold tabular-nums ' + (r.differenz > 0 ? 'text-emerald-400' : 'text-white/70')}>
+              {r.differenz > 0 ? '+' + std(r.differenz) : '0:00'} h
             </div>
-            <div className="text-xs text-white/60">{r.differenz >= 0 ? 'Überstunden' : 'Minusstunden'}</div>
+            <div className="text-xs text-white/60">ab {std(r.soll)} h pro Woche</div>
           </> : <>
-            <div className="text-white/60 text-xs">Soll</div>
-            <div className="text-sm text-white/65 mt-1">In den Einstellungen festlegen, dann siehst du Über-/Minusstunden.</div>
+            <div className="text-white/60 text-xs">Überstunden</div>
+            <div className="text-sm text-white/65 mt-1">Wochenstunden in den Einstellungen festlegen, dann siehst du die Überstunden.</div>
           </>}
         </div>
         <div className="glass rounded-3xl p-4">

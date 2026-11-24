@@ -63,7 +63,7 @@ export function auswerten({ p, daten, einst, kanton, qstTarife = {}, heute = iso
   const r = (n) => Math.round(n * 100) / 100
   return {
     ...p, laufend, bisEff: bis,
-    arbeit: s.arbeit, abw: s.abwBezahlt, ist: s.ist, soll: s.soll, saldo: s.saldo, tage: s.tage, nachArt: s.nachArt,
+    arbeit: s.arbeit, abw: s.abwBezahlt, ist: s.ist, soll: s.soll, saldo: s.saldo, grenze: s.wochenStd, tage: s.tage, nachArt: s.nachArt,
     brutto: r(lohn.brutto), netto: r(lohn.netto), abzuege: r(lohn.brutto - lohn.netto), auszahlung: r(lohn.auszahlung), spesen: r(lohn.spesen), rueckstellung: r(lohn.rueck),
     lohnFehlt: lohn.fehlt,
     leer: s.ist === 0 && lohn.brutto === 0,

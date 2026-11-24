@@ -80,11 +80,11 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
     grundlage: 'Summe deiner erfassten Schichten (Kalender antippen → Tag → Einträge).',
   })
   const zeigSaldo = () => setDetail({
-    titel: saldo >= 0 ? 'Überstunden' : 'Minusstunden', betrag: saldo, fmt: (n) => `${dez(n)} h`,
-    was: 'Vergleich zwischen dem, was du gemäss Vertrag arbeiten solltest (Soll), und dem, was du gearbeitet hast oder bezahlt abwesend warst (Ist).',
-    rechnung: [[`Soll: ${sollTage} Arbeitstage × ${dez(tagSoll)} h`, soll], ['Ist: gearbeitet', arbeit], ['+ bezahlte Abwesenheiten', abwBezahlt], ['= Ist', ist, true], ['Ist − Soll', saldo, true]],
-    grundlage: `Arbeitstage = Mo–Fr ${laufend ? 'bis heute' : 'im Monat'} ab Einsatzbeginn, ohne Feiertage und unbezahlte Abwesenheiten. Tagessoll = Wochenstunden aus dem Einsatz ÷ 5${sollAngenommen ? ' (keine Wochenstunden hinterlegt → 40 h angenommen)' : ''}.`,
-    hinweis: luecken.length ? `Werktage ohne Eintrag zählen als Minusstunden: ${luecken.map((d) => `${TAGE[d.getDay()]} ${datumKurz(d)}`).join(', ')}.` : '',
+    titel: 'Überstunden ' + monatsName, betrag: r.ueber, fmt: (n) => `${dez(n)} h`,
+    was: `Als Temporärer bekommst du jede gearbeitete Stunde bezahlt — Minusstunden gibt es nicht. Die ${dez(r.wochenStd)} h pro Woche laut Einsatzvertrag legen nur fest, ab wann eine Stunde als Überstunde zählt.`,
+    rechnung: [...r.ueberWochen.map((w) => [`Woche ${w.von.slice(8)}.${w.von.slice(5, 7)}.: ${dez(w.ist)} h − ${dez(w.grenze)} h`, w.ueber]), ['Überstunden total', r.ueber, true]],
+    grundlage: 'Pro Kalenderwoche: Arbeitszeit + bezahlte Abwesenheiten (Ferien, Krankheit … höchstens mit dem Tagessoll) über den Wochenstunden des Einsatzes. Eine Woche zählt zum Monat ihres Donnerstags. Zuschlag laut Vertrag (OR 321c: 25 %, sofern nichts anderes vereinbart).',
+    hinweis: einsatz?.ueberstundenModus === 'keine' ? 'Dein Vertrag rechnet mit durchschnittlicher Arbeitszeit — dafür zahlt das Büro keinen automatischen Überstundenzuschlag pro Woche.' : '',
   })
 
   return (
@@ -98,7 +98,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
         <div className="space-y-2">
           {luecken.length > 0 && <div className="text-sm rounded-2xl px-4 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>Ohne Eintrag: {luecken.map((d) => `${TAGE[d.getDay()]} ${datumKurz(d)}`).join(', ')} — Arbeitszeit oder Abwesenheit eintragen (zählt sonst als Minusstunden).</div>
+            <div>Ohne Eintrag: {luecken.map((d) => `${TAGE[d.getDay()]} ${datumKurz(d)}`).join(', ')} — Arbeitszeit oder Abwesenheit eintragen, damit der Rapport vollständig ist.</div>
           </div>}
           {offen.length > 0 && <div className="text-sm rounded-2xl px-4 py-3 bg-amber-400/10 border border-amber-400/30 text-amber-300 flex gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -117,9 +117,9 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
           <div className="text-2xl font-extrabold grad-text tabular-nums">{dez(arbeit)} h</div>
           <div className="text-xs text-white/65">an {tage} {tage === 1 ? 'Tag' : 'Tagen'}{abwBezahlt > 0 ? ` · + ${dez(abwBezahlt)} h bez. Abwesenheit` : ''}</div>
         </Kachel>
-        <Kachel icon={saldo >= 0 ? TrendingUp : TrendingDown} titel={saldo >= 0 ? 'Überstunden' : 'Minusstunden'} onClick={zeigSaldo}>
-          <div className={'text-2xl font-extrabold tabular-nums ' + (saldo >= 0 ? 'text-emerald-400' : 'text-rose-400')}>{plusMinus(saldo)} h</div>
-          <div className="text-xs text-white/65">Soll {dez(soll)} h ({sollTage} Tage à {dez(tagSoll)}){sollAngenommen ? ' · 40 h/Woche angenommen' : ''}</div>
+        <Kachel icon={TrendingUp} titel="Überstunden" onClick={zeigSaldo}>
+          <div className={'text-2xl font-extrabold tabular-nums ' + (r.ueber > 0.004 ? 'text-emerald-400' : 'text-white/70')}>{r.ueber > 0.004 ? '+' + dez(r.ueber) : '0.00'} h</div>
+          <div className="text-xs text-white/65">über {dez(r.wochenStd)} h pro Woche{sollAngenommen ? ' (angenommen)' : ''}</div>
         </Kachel>
         <Link to="/lohn" className="glass rounded-3xl p-4 col-span-2 card-hover block">
           <div className="text-white/65 text-xs inline-flex items-center gap-1.5"><Banknote className="w-3.5 h-3.5" /> Lohn {laufend ? 'bisher' : 'im Monat'} (geschätzt)</div>
