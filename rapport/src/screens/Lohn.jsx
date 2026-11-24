@@ -16,6 +16,8 @@ import LohnPruefung from '../components/LohnPruefung'
 import { db } from '../lib/db'
 import { Link } from 'react-router-dom'
 import IconChip from '../ui/IconChip'
+import LohnDetailSheet from '../components/LohnDetailSheet'
+import { lohnDetail } from '../lib/lohnDetail'
 
 const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
 
@@ -28,15 +30,16 @@ function zeitraum(modus, basis) {
   return { von: isoDatum(a), bis: isoDatum(b), titel: `KW ${w.kw} / ${w.jahr}`, unter: `${datumLang(a)} – ${datumLang(b)}` }
 }
 
-function Zeile({ label, info, betrag, w, fett, minus }) {
+function Zeile({ label, info, betrag, w, fett, minus, onClick }) {
+  const Tag = onClick ? 'button' : 'div'
   return (
-    <div className={'flex items-baseline justify-between gap-3 py-1.5 ' + (fett ? 'font-bold border-t border-white/10 mt-1 pt-2.5' : 'text-sm')}>
+    <Tag onClick={onClick} className={'w-full text-left flex items-baseline justify-between gap-3 py-1.5 ' + (onClick ? 'rounded-lg active:bg-white/5 ' : '') + (fett ? 'font-bold border-t border-white/10 mt-1 pt-2.5' : 'text-sm')}>
       <div className="min-w-0">
         <div className={fett ? '' : 'text-white/80'}>{label}</div>
         {info && <div className="text-xs text-white/60 tabular-nums">{info}</div>}
       </div>
-      <div className={'shrink-0 tabular-nums ' + (minus ? 'text-rose-300' : '')}>{minus ? '− ' : ''}{chf(betrag, w)}</div>
-    </div>
+      <div className={'shrink-0 tabular-nums inline-flex items-baseline gap-1 ' + (minus ? 'text-rose-300' : '')}>{minus ? '− ' : ''}{chf(betrag, w)}{onClick && <ChevronRight className="w-3.5 h-3.5 text-white/35 self-center" />}</div>
+    </Tag>
   )
 }
 
@@ -46,6 +49,7 @@ export default function Lohn() {
   const [basis, setBasis] = useState(() => new Date())
   const [einsatzNeu, setEinsatzNeu] = useState(null)
   const [pruefung, setPruefung] = useState(null) // true = neu | gespeicherter Datensatz
+  const [detail, setDetail] = useState(null)
   const geprueft = useLiveQuery(() => db.lohnabrechnungen.orderBy('von').reverse().limit(12).toArray(), [], [])
   const laufend = useLiveQuery(laufendeSchicht, [], null)
   const [jetzt, setJetzt] = useState(Date.now())
@@ -62,6 +66,7 @@ export default function Lohn() {
   const erhalten = Math.round((zahlungen || []).reduce((a, x) => a + x.betrag, 0) * 100) / 100
   const offen = lohn ? Math.round((lohn.auszahlung - erhalten) * 100) / 100 : 0
   const w = einst.waehrung
+  const zeig = (ziel) => () => setDetail(lohnDetail(ziel, { lohn, w, einst, erhalten, zahlungen: zahlungen || [] }))
 
   const blaettern = (d) => setBasis((b) => modus === 'monat'
     ? new Date(b.getFullYear(), b.getMonth() + d, 1)
@@ -117,12 +122,14 @@ export default function Lohn() {
         <>
           <section className="glass rounded-4xl p-6 text-center">
             <div className="text-xs text-white/65">{erhalten > 0 ? (offen >= -0.025 ? 'Noch auszuzahlen (Büro schuldet dir)' : 'Zu viel ausbezahlt (wird verrechnet)') : 'Auszahlung (geschätzt)'}{laufend ? ' · live' : ''}</div>
-            <div className="text-5xl font-extrabold grad-text tabular-nums tracking-tight">{chf(Math.abs(erhalten > 0 ? offen : runde5(lohn.auszahlung, w)), w)}</div>
+            <div onClick={zeig({ art: 'auszahlung' })} role="button" className="text-5xl font-extrabold grad-text tabular-nums tracking-tight">{chf(Math.abs(erhalten > 0 ? offen : runde5(lohn.auszahlung, w)), w)}</div>
             {erhalten > 0 && <div className="text-xs text-white/65 mt-1 tabular-nums">Anspruch {chf(lohn.auszahlung, w)} − bereits erhalten {chf(erhalten, w)}</div>}
             <div className="grid grid-cols-3 gap-2 mt-4 text-sm">
-              <div><div className="text-white/60 text-xs">Brutto</div><div className="font-bold tabular-nums">{chf(lohn.brutto, w)}</div></div>
-              <div><div className="text-white/60 text-xs">Abzüge</div><div className="font-bold tabular-nums text-rose-300">{chf(lohn.abzuege, w)}</div></div>
-              <div><div className="text-white/60 text-xs">Netto</div><div className="font-bold tabular-nums">{chf(lohn.netto, w)}</div></div>
+              <button onClick={lohn.posten.length === 1 ? zeig({ art: 'brutto', p: lohn.posten[0] }) : undefined} className="rounded-xl py-1 active:bg-white/5"><div className="text-white/60 text-xs">Brutto</div><div className="font-bold tabular-nums">{chf(lohn.brutto, w)}</div></button>
+              <button onClick={zeig({ art: 'abzuege' })} className="rounded-xl py-1 active:bg-white/5"><div className="text-white/60 text-xs">Abzüge</div><div className="font-bold tabular-nums text-rose-300">{chf(lohn.abzuege, w)}</div></button>
+              <button onClick={lohn.posten.length === 1 ? zeig({ art: 'netto', p: lohn.posten[0] }) : undefined} className="rounded-xl py-1 active:bg-white/5"><div className="text-white/60 text-xs">Netto</div><div className="font-bold tabular-nums">{chf(lohn.netto, w)}</div></button>
+            </div>
+            <div className="text-xs text-white/50 mt-3">Tipp: jede Zahl antippen — die App erklärt, woher sie kommt.
             </div>
           </section>
 
@@ -179,32 +186,32 @@ export default function Lohn() {
                 </div>
               </div>
               {p.zeilen.filter((x) => !x.konto).map((x, i) => (
-                <Zeile key={i} w={w} betrag={x.betrag} info={x.info}
+                <Zeile key={i} w={w} betrag={x.betrag} info={x.info} onClick={zeig({ art: 'zeile', p, x })}
                   label={x.art ? `${absenzArt(x.art).label} (${x.ausKonto ? 'aus Konto' : x.art === 'krank' || x.art === 'unfall' ? (x.taggeld ? 'Taggeld' : x.betrag ? 'Lohnfortzahlung' : 'unbezahlt') : 'Lohnfortzahlung'})` : x.label} />
               ))}
               {p.zeilen.some((x) => x.konto) && (
                 <div className="mt-1 rounded-xl bg-white/[0.03] border border-dashed border-white/15 px-3 py-1">
                   <div className="text-xs uppercase tracking-wider text-white/55 pt-1">Angespart beim Büro (nicht im Bruttolohn)</div>
-                  {p.zeilen.filter((x) => x.konto).map((x, i) => <Zeile key={i} w={w} betrag={x.betrag} info={x.info} label={`→ ${x.label}`} />)}
+                  {p.zeilen.filter((x) => x.konto).map((x, i) => <Zeile key={i} w={w} betrag={x.betrag} info={x.info} label={`→ ${x.label}`} onClick={zeig({ art: 'zeile', p, x })} />)}
                 </div>
               )}
-              <Zeile fett label="Bruttolohn" betrag={p.brutto} w={w} />
-              {p.abzuege.map((a) => <Zeile key={a.k} minus label={`${a.label} ${a.prozent} %`} betrag={a.betrag} w={w} />)}
-              <Zeile fett label="Nettolohn" betrag={p.netto} w={w} />
+              <Zeile fett label="Bruttolohn" betrag={p.brutto} w={w} onClick={zeig({ art: 'brutto', p })} />
+              {p.abzuege.map((a) => <Zeile key={a.k} minus label={`${a.label} ${a.prozent} %`} info={a.basis !== p.brutto ? `auf ${chf(a.basis, w)}` : ''} betrag={a.betrag} w={w} onClick={zeig({ art: 'abzug', p, x: a })} />)}
+              <Zeile fett label="Nettolohn" betrag={p.netto} w={w} onClick={zeig({ art: 'netto', p })} />
             </section>
           ))}
 
           {(lohn.posten.length > 0 || lohn.spesen > 0) && (
             <section className="glass rounded-3xl p-5">
               <Zeile label="Nettolohn" betrag={lohn.netto} w={w} />
-              <Zeile label="Spesen (nicht AHV-pflichtig)" betrag={lohn.spesen} w={w} />
-              {lohn.mittag > 0 && <Zeile label="Mittagszulage" info={lohn.posten.filter((p) => p.mittag).map((p) => `${p.tage} Tage`).join(', ')} betrag={lohn.mittag} w={w} />}
-              {lohn.rueckstellung > 0 && <Zeile minus label="Zurückbehalten (Guthaben, netto)" info="Feriengeld usw. — gehört dir, wird bei Ferien ausbezahlt" betrag={lohn.rueckstellung} w={w} />}
-              <Zeile fett label={erhalten > 0 ? 'Lohnanspruch' : 'Auszahlung'} info={erhalten > 0 ? '' : w === 'CHF' ? 'auf 5 Rappen gerundet' : ''} betrag={erhalten > 0 ? lohn.auszahlung : runde5(lohn.auszahlung, w)} w={w} />
+              <Zeile label="Spesen (nicht AHV-pflichtig)" betrag={lohn.spesen} w={w} onClick={zeig({ art: 'spesen' })} />
+              {lohn.mittag > 0 && <Zeile label="Mittagszulage" info={lohn.posten.filter((p) => p.mittag).map((p) => `${p.tage} Tage`).join(', ')} betrag={lohn.mittag} w={w} onClick={zeig({ art: 'mittag' })} />}
+              {lohn.rueckstellung > 0 && <Zeile minus label="Zurückbehalten (Guthaben, netto)" info="Feriengeld usw. — gehört dir, wird bei Ferien ausbezahlt" betrag={lohn.rueckstellung} w={w} onClick={zeig({ art: 'rueckstellung' })} />}
+              <Zeile fett label={erhalten > 0 ? 'Lohnanspruch' : 'Auszahlung'} info={erhalten > 0 ? '' : w === 'CHF' ? 'auf 5 Rappen gerundet' : ''} betrag={erhalten > 0 ? lohn.auszahlung : runde5(lohn.auszahlung, w)} w={w} onClick={zeig({ art: 'auszahlung' })} />
               {(zahlungen || []).map((x) => (
                 <Zeile key={x.id} minus label={`Bereits ausbezahlt: ${x.art === 'lohn' ? 'Lohn' : x.art === 'vorschuss' ? 'Vorschuss' : 'Zahlung'} ${x.datum.split('-').reverse().join('.').slice(0, 6)}`} info={x.kw ? `für KW ${x.kw}` : x.text || ''} betrag={x.betrag} w={w} />
               ))}
-              {erhalten > 0 && <Zeile fett label={offen >= -0.005 ? 'Noch auszuzahlen (Büro schuldet dir)' : 'Zu viel ausbezahlt (wird verrechnet)'} betrag={Math.abs(offen)} w={w} />}
+              {erhalten > 0 && <Zeile fett label={offen >= -0.005 ? 'Noch auszuzahlen (Büro schuldet dir)' : 'Zu viel ausbezahlt (wird verrechnet)'} betrag={Math.abs(offen)} w={w} onClick={zeig({ art: 'auszahlung' })} />}
             </section>
           )}
 
@@ -220,11 +227,12 @@ export default function Lohn() {
           <div className="text-xs text-white/60 flex gap-2">
             <Info className="w-4 h-4 shrink-0" />
             Schätzung nach dem Schema des GAV Personalverleih (Grundlohn, Zuschläge, Feiertags- und Ferienentschädigung, 13. Monatslohn, Sozialabzüge).
-            Quellensteuer nach der offiziellen Tabelle der Steuerverwaltung (Wohnkanton, Tarif, Monatslohn). Karenztage und Lohnobergrenzen werden nicht abgebildet. Massgebend ist die Abrechnung des Temporärbüros.
+            Quellensteuer nach der offiziellen Tabelle der Steuerverwaltung (Wohnkanton, Tarif, Monatslohn). Lohnobergrenzen werden nicht abgebildet. Massgebend ist die Abrechnung des Temporärbüros.
           </div>
         </>
       )}
 
+      <LohnDetailSheet d={detail} w={w} onClose={() => setDetail(null)} />
       {pruefung && <LohnPruefung gespeichert={pruefung === true ? null : pruefung} onClose={() => setPruefung(null)} />}
       {einsatzNeu && <EinsatzSheet einsatz={null} vorgabe={einsatzNeu} onClose={() => setEinsatzNeu(null)} />}
     </div>

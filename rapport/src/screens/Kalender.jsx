@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, CalendarOff, Wallet, CalendarRange, PartyPopper, ClipboardPaste } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock, CalendarOff, Wallet, CalendarRange, PartyPopper, ClipboardPaste, FolderTree } from 'lucide-react'
 import { db } from '../lib/db'
 import { useEinstellungen, zahl } from '../lib/settings'
 import { feiertagAm } from '../lib/feiertage'
@@ -151,6 +151,12 @@ export default function Kalender() {
         <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-300" /> Spesen</span>
         <span className="inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-mint" /> Rapport gesendet</span>
       </div>
+
+      <Link to="/rapporte" className="w-full glass rounded-2xl px-4 py-3 flex items-center gap-3 card-hover">
+        <FolderTree className="w-5 h-5 text-amber-300 shrink-0" />
+        <span className="flex-1"><span className="font-semibold">Alle Rapporte</span><span className="block text-xs text-white/60">Ordner nach Jahr → Monat → KW, jede Datei zum Ansehen</span></span>
+        <ChevronRight className="w-4 h-4 text-white/50" />
+      </Link>
 
       <MonatStand jahr={jahr} mon={mon} wochen={wochen} schichten={schichten} absenzen={absenzen} spesen={spesen}
         einsaetze={einsaetze} status={status} kanton={kanton} einst={einst} monatsName={MONATE[mon]} />

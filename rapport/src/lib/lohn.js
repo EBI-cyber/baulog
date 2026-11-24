@@ -29,6 +29,7 @@ export const ABZUEGE = [
 ]
 
 /** Vertragswert oder Standard (leer im Vertrag = Standard) */
+export const einsatzWert = (e, k) => wert(e, k)
 const wert = (e, k) => zahl(e?.[k] !== undefined && e?.[k] !== '' ? e[k] : LOHN_STANDARD[k])
 const prozent = (e, k) => wert(e, k) / 100
 
@@ -213,17 +214,17 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
   const posten = Object.values(topf).map((t) => {
     const e = t.einsatz, g = t.stundenlohn
     const zeilen = []
-    const z = (label, betrag, info) => { betrag = rp(betrag); if (Math.abs(betrag) >= 0.005 || info?.immer) zeilen.push({ label, betrag, info: info?.text }) }
+    const z = (label, betrag, info) => { betrag = rp(betrag); if (Math.abs(betrag) >= 0.005 || info?.immer) zeilen.push({ label, betrag, info: info?.text, typ: info?.typ }) }
     const std = (h) => `${h.toFixed(2)} h`
     // Grundlohn je Kalenderwoche auf den Rappen (wie auf der Abrechnung „Stundenlohn, KW 44“)
     const grund = Object.values(t.wochenStd).reduce((a, h) => a + rp(h * g), 0)
-    z('Grundlohn', grund, { text: `${std(t.grundStd)} × ${g.toFixed(2)}`, immer: true })
-    z(`Überstundenzuschlag ${wert(e, 'ueberstundenZuschlag')} %`, t.ueberStd * g * prozent(e, 'ueberstundenZuschlag'), { text: std(t.ueberStd) })
-    z(`Nachtzuschlag ${wert(e, 'nachtZuschlag')} % (${wert(e, 'nachtVon')}–${wert(e, 'nachtBis')} Uhr)`, t.nachtStd * g * prozent(e, 'nachtZuschlag'), { text: std(t.nachtStd) })
-    z(`Samstagszuschlag ${wert(e, 'samstagZuschlag')} %`, t.samstagStd * g * prozent(e, 'samstagZuschlag'), { text: std(t.samstagStd) })
-    z(`Sonntagszuschlag ${wert(e, 'sonntagZuschlag')} %`, t.sonntagStd * g * prozent(e, 'sonntagZuschlag'), { text: std(t.sonntagStd) })
-    z(`Feiertagsarbeit ${wert(e, 'feiertagArbeitZuschlag')} %`, t.feiertagStd * g * prozent(e, 'feiertagArbeitZuschlag'), { text: std(t.feiertagStd) })
-    z('Zulage pro Stunde', t.grundStd * wert(e, 'zulageStunde'), { text: `${std(t.grundStd)} × ${wert(e, 'zulageStunde').toFixed(2)}` })
+    z('Grundlohn', grund, { typ: 'grund', text: `${std(t.grundStd)} × ${g.toFixed(2)}`, immer: true })
+    z(`Überstundenzuschlag ${wert(e, 'ueberstundenZuschlag')} %`, t.ueberStd * g * prozent(e, 'ueberstundenZuschlag'), { typ: 'ueber', text: std(t.ueberStd) })
+    z(`Nachtzuschlag ${wert(e, 'nachtZuschlag')} % (${wert(e, 'nachtVon')}–${wert(e, 'nachtBis')} Uhr)`, t.nachtStd * g * prozent(e, 'nachtZuschlag'), { typ: 'nacht', text: std(t.nachtStd) })
+    z(`Samstagszuschlag ${wert(e, 'samstagZuschlag')} %`, t.samstagStd * g * prozent(e, 'samstagZuschlag'), { typ: 'samstag', text: std(t.samstagStd) })
+    z(`Sonntagszuschlag ${wert(e, 'sonntagZuschlag')} %`, t.sonntagStd * g * prozent(e, 'sonntagZuschlag'), { typ: 'sonntag', text: std(t.sonntagStd) })
+    z(`Feiertagsarbeit ${wert(e, 'feiertagArbeitZuschlag')} %`, t.feiertagStd * g * prozent(e, 'feiertagArbeitZuschlag'), { typ: 'feiertagarbeit', text: std(t.feiertagStd) })
+    z('Zulage pro Stunde', t.grundStd * wert(e, 'zulageStunde'), { typ: 'zulage', text: `${std(t.grundStd)} × ${wert(e, 'zulageStunde').toFixed(2)}` })
     // Konten: Gutschrift (angespart) und Bezug (Ferien/Feiertage aus dem Konto bezahlt)
     const konten = Object.fromEntries(KONTEN.map(([k]) => [k, { gutschrift: 0, bezug: 0 }]))
     for (const [art, a] of Object.entries(t.absenzen)) {
