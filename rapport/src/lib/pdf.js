@@ -268,7 +268,7 @@ function rapportListePdf({ einst, woche, schichten, absenzen = [], spesen = [], 
   doc.setFontSize(9.5)
   const zus = [['Gearbeitet', `${std(r.arbeit)} h`], ['Abwesenheiten', `${std(r.absenzStd)} h`
     + (Object.keys(r.nachArt).length ? `  (${Object.entries(r.nachArt).map(([k, v]) => `${k}: ${v} Tg.`).join(', ')})` : '')]]
-  if (r.soll) zus.push(['Soll', `${std(r.soll)} h`], [r.differenz >= 0 ? 'Überstunden' : 'Minusstunden', `${r.differenz >= 0 ? '+' : ''}${std(r.differenz)} h`])
+  if (r.soll && r.differenz > 0) zus.push(['Überstunden', `+${std(r.differenz)} h (über ${std(r.soll)} h/Woche)`])
   for (const [k, v] of zus) {
     doc.setFont('helvetica', 'normal'); doc.setTextColor(90); doc.text(k, L, y)
     doc.setFont('helvetica', 'bold'); doc.setTextColor(0); doc.text(v, L + 38, y)

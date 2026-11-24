@@ -16,7 +16,7 @@ export function wochenRechnung({ schichten = [], absenzen = [], spesen = [], ein
   return {
     arbeit, absenzStd, total, nachArt,
     soll: soll || null,
-    differenz: soll ? total - soll : null,
+    differenz: soll ? Math.max(0, total - soll) : null, // Temporär: keine Minusstunden
     spesen: spesen.reduce((a, x) => a + zahl(x.betrag), 0),
   }
 }
