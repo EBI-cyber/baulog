@@ -62,3 +62,16 @@ export function sollIst({ von, bis, schichten, absenzen, einsaetze = [], einst, 
   return { arbeit, abwBezahlt, ist, soll, saldo: ueber, ueber, ueberWochen, wochenStd: wochenStd || 40, sollTage, tagSoll, sollAngenommen: !wochenStd, luecken, einsatz,
     tage: new Set(sch.map((s) => s.datum)).size, nachArt, hatEintrag }
 }
+
+/**
+ * Überstunden-Konto eines Jahres (GAV Betonwaren: Überstunden innert eines Jahres mit Freizeit gleicher Dauer
+ * kompensieren, sonst Auszahlung ohne Zuschlag): Überstunden seit 1. Januar − kompensierte Stunden (Abwesenheit
+ * „Überzeit kompensiert“, mit Stunden bzw. Tagessoll).
+ */
+export function stundenkonto({ jahr, bis, schichten, absenzen, einsaetze = [], einst, kanton }) {
+  const von = `${jahr}-01-01`
+  const r = sollIst({ von, bis, schichten, absenzen, einsaetze, einst, kanton })
+  const komp = absenzen.filter((a) => a.art === 'kompensation' && a.datum >= von && a.datum <= bis)
+    .reduce((t, a) => t + (zahl(a.stunden) || r.tagSoll * (a.halbtag ? 0.5 : 1)), 0)
+  return { aufgebaut: r.ueber, kompensiert: komp, saldo: r.ueber - komp, wochen: r.ueberWochen, grenze: r.wochenStd }
+}

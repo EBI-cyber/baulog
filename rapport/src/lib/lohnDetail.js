@@ -23,7 +23,8 @@ export function lohnDetail(ziel, { lohn, w = 'CHF', einst, erhalten = 0, zahlung
       grundlage: `Stundenlohn ${g.toFixed(2)} laut Einsatzvertrag ${p.firma}. Die Stunden stammen aus deinen Einträgen (Arbeitszeit ohne Pausen).`,
       hinweis: 'Wie auf der Abrechnung wird jede Kalenderwoche einzeln auf den Rappen gerundet.',
     }
-    const zuschlag = { ueber: ['ueberstundenZuschlag', 'Überstundenzuschlag', 'Stunden über der vereinbarten Wochenarbeitszeit werden mit einem Zuschlag bezahlt.', 'OR Art. 321c (mind. 25 %), Einsatzvertrag / GAV.', p?.ueberStd],
+    const zuschlag = { ueberzeit: ['ueberzeitZuschlag', 'Überzeitzuschlag', `Angeordnete Arbeit über der gesetzlichen Höchstarbeitszeit (${wert(e, 'ueberzeitGrenze')} h pro Woche) = Überzeit. Zählt nur in Wochen, in denen du „Länger bleiben angeordnet“ markiert hast.`, 'Arbeitsgesetz Art. 9 und 13, GAV Betonwaren-Industrie Art. 3 (25 % in Geld oder Freizeit).', p?.ueberzeitStd],
+      ueber: ['ueberstundenZuschlag', 'Überstundenzuschlag', 'Stunden über der vereinbarten Wochenarbeitszeit werden mit einem Zuschlag bezahlt.', 'OR Art. 321c (mind. 25 %), Einsatzvertrag / GAV.', p?.ueberStd],
       nacht: ['nachtZuschlag', 'Nachtzuschlag', `Arbeit zwischen ${wert(e, 'nachtVon')} und ${wert(e, 'nachtBis')} Uhr wird mit einem Zuschlag bezahlt.`, 'Arbeitsgesetz Art. 17b (vorübergehende Nachtarbeit mind. 25 %), Einsatzvertrag.', p?.nachtStd],
       samstag: ['samstagZuschlag', 'Samstagszuschlag', 'Arbeit am Samstag laut Vertrag mit Zuschlag.', 'Einsatzvertrag / GAV des Einsatzbetriebs.', p?.samstagStd],
       sonntag: ['sonntagZuschlag', 'Sonntagszuschlag', 'Sonntagsarbeit wird mit Zuschlag bezahlt.', 'Arbeitsgesetz Art. 19 (vorübergehende Sonntagsarbeit mind. 50 %), Einsatzvertrag.', p?.sonntagStd],

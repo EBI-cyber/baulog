@@ -5,7 +5,8 @@ import { Gauge, Clock, TrendingUp, TrendingDown, Banknote, CalendarOff, Wallet, 
 import { db } from '../lib/db'
 import { zahl } from '../lib/settings'
 import { feiertagAm } from '../lib/feiertage'
-import { sollIst } from '../lib/soll'
+import { sollIst, stundenkonto } from '../lib/soll'
+import { gavFuer } from '../lib/gav'
 import { chf } from '../lib/lohn'
 import { useLohn } from '../lib/useLohn'
 import LohnDetailSheet from './LohnDetailSheet'
@@ -36,6 +37,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
 
   const sp = spesen.filter((x) => x.datum >= mVon && x.datum <= bis)
   const r = sollIst({ von: mVon, bis, schichten, absenzen, einsaetze, einst, kanton, ersterTag: erster?.datum })
+  const konto = stundenkonto({ jahr, bis, schichten, absenzen, einsaetze, einst, kanton })
   const { arbeit, tage, abwBezahlt, soll, sollTage, tagSoll, sollAngenommen, ist, saldo, luecken, einsatz, hatEintrag } = r
   const abwNachArt = r.nachArt
   const jetzt = Date.now()
@@ -82,9 +84,11 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
   const zeigSaldo = () => setDetail({
     titel: 'Überstunden ' + monatsName, betrag: r.ueber, fmt: (n) => `${dez(n)} h`,
     was: `Als Temporärer bekommst du jede gearbeitete Stunde bezahlt — Minusstunden gibt es nicht. Die ${dez(r.wochenStd)} h pro Woche laut Einsatzvertrag legen nur fest, ab wann eine Stunde als Überstunde zählt.`,
-    rechnung: [...r.ueberWochen.map((w) => [`Woche ${w.von.slice(8)}.${w.von.slice(5, 7)}.: ${dez(w.ist)} h − ${dez(w.grenze)} h`, w.ueber]), ['Überstunden total', r.ueber, true]],
+    rechnung: [...r.ueberWochen.map((w) => [`Woche ${w.von.slice(8)}.${w.von.slice(5, 7)}.: ${dez(w.ist)} h − ${dez(w.grenze)} h`, w.ueber]), ['Überstunden total', r.ueber, true],
+      [`Konto ${jahr}: aufgebaut seit 1. Januar`, konto.aufgebaut], ['− mit Freizeit kompensiert', -konto.kompensiert], [`= Guthaben ${jahr}`, konto.saldo, true]],
     grundlage: 'Pro Kalenderwoche: Arbeitszeit + bezahlte Abwesenheiten (Ferien, Krankheit … höchstens mit dem Tagessoll) über den Wochenstunden des Einsatzes. Eine Woche zählt zum Monat ihres Donnerstags. Zuschlag laut Vertrag (OR 321c: 25 %, sofern nichts anderes vereinbart).',
-    hinweis: einsatz?.ueberstundenModus === 'keine' ? 'Dein Vertrag rechnet mit durchschnittlicher Arbeitszeit — dafür zahlt das Büro keinen automatischen Überstundenzuschlag pro Woche.' : '',
+    hinweis: gavFuer(einsatz) ? `${gavFuer(einsatz).name}: Überstunden innert eines Jahres mit Freizeit gleicher Dauer kompensieren (Abwesenheit „Überzeit kompensiert“ eintragen), sonst Auszahlung ohne Zuschlag. Zuschlag 25 % nur für angeordnete Überzeit über 45 h pro Woche.`
+      : einsatz?.ueberstundenModus === 'keine' ? 'Dein Vertrag rechnet mit durchschnittlicher Arbeitszeit — dafür zahlt das Büro keinen automatischen Überstundenzuschlag pro Woche.' : '',
   })
 
   return (
@@ -119,7 +123,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
         </Kachel>
         <Kachel icon={TrendingUp} titel="Überstunden" onClick={zeigSaldo}>
           <div className={'text-2xl font-extrabold tabular-nums ' + (r.ueber > 0.004 ? 'text-emerald-400' : 'text-white/70')}>{r.ueber > 0.004 ? '+' + dez(r.ueber) : '0.00'} h</div>
-          <div className="text-xs text-white/65">über {dez(r.wochenStd)} h pro Woche{sollAngenommen ? ' (angenommen)' : ''}</div>
+          <div className="text-xs text-white/65">über {dez(r.wochenStd)} h/Woche · Konto {jahr}: {dez(konto.saldo)} h</div>
         </Kachel>
         <Link to="/lohn" className="glass rounded-3xl p-4 col-span-2 card-hover block">
           <div className="text-white/65 text-xs inline-flex items-center gap-1.5"><Banknote className="w-3.5 h-3.5" /> Lohn {laufend ? 'bisher' : 'im Monat'} (geschätzt)</div>

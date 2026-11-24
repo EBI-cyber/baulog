@@ -51,7 +51,7 @@ export function zeitnachweisPdf({ einst, woche, schichten, absenzen = [], spesen
       const a = arbeitMs(x) / 36e5; total += a
       const b = bloecke(x).map(([v, bis]) => `${uhr(v)}–${uhr(bis)}`).join(' · ')
       const pm = Math.round(pauseMs(x) / 6e4)
-      zeile([dl, b, pm ? `${pm} Min.` : '–', a.toFixed(2), [x.firma && x.firma !== (einsatz?.firma || '') ? x.firma : '', (x.notiz || '').replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, '')].filter(Boolean).join(' · ')])
+      zeile([dl, b, pm ? `${pm} Min.` : '–', a.toFixed(2), [x.firma && x.firma !== (einsatz?.firma || '') ? x.firma : '', (x.notiz || '').replace(/\s*·?\s*(vom Papier-Rapport )?nachgetragen\s*$/i, ''), x.angeordnet ? `Mehrarbeit angeordnet${x.angeordnetVon ? ' von ' + x.angeordnetVon : ''}` : ''].filter(Boolean).join(' · ')])
     }
   }
   y += 2

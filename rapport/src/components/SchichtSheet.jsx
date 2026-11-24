@@ -21,6 +21,8 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
     pause: String(pauseAlt),
     firma: schicht?.firma || einst.firma || einst.firmen[0] || '',
     notiz: schicht?.notiz || '',
+    angeordnet: !!schicht?.angeordnet,
+    angeordnetVon: schicht?.angeordnetVon || '',
   }))
   const [fehler, setFehler] = useState('')
   // Pausen: gestempelte Pausen mit eigenen Zeiten bleiben, bis man sie durch den Tagesablauf ersetzt
@@ -54,7 +56,7 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
     if (isNaN(start) || (!laeuft && isNaN(ende))) return setFehler('Bitte Datum und Uhrzeiten ausfüllen.')
     if (!f.firma) return setFehler('Bitte eine Firma wählen.')
     if (start > Date.now()) return setFehler('Der Beginn liegt in der Zukunft.')
-    const neu = { ...(schicht || { pausen: [] }), start, ende, firma: f.firma, notiz: f.notiz }
+    const neu = { ...(schicht || { pausen: [] }), start, ende, firma: f.firma, notiz: f.notiz, angeordnet: f.angeordnet, angeordnetVon: f.angeordnet ? f.angeordnetVon.trim() : '' }
     // Pausen: Tagesablauf (echte Zeiten) bzw. Minuten — nur überschreiben, wenn geändert (gestempelte Pausen bleiben sonst)
     if (!laeuft && modus === 'plan' && (geaendert || !schicht || start !== schicht.start || ende !== schicht.ende)) {
       neu.pausen = pausenAusWahl(f.datum, start, ende, w); delete neu.pauseMin; delete neu.pauseAuto; delete neu.pausePruefen
@@ -101,6 +103,11 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
         <div className="col-span-2">
           <label className="block text-xs text-white/65 mb-1">Bemerkung (optional)</label>
           <input value={f.notiz} onChange={set('notiz')} placeholder="z.B. Baustelle, Tätigkeit" className="eingabe" />
+          <label className="mt-3 flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={f.angeordnet} onChange={(e) => setF({ ...f, angeordnet: e.target.checked })} className="w-5 h-5 mt-0.5 accent-cyan-400 shrink-0" />
+            <span>Länger bleiben <b>angeordnet</b> (Vorarbeiter/Chef hat Mehrarbeit verlangt)<span className="block text-xs text-white/60">Wichtig für den Überzeit-Zuschlag: Stunden über 45 pro Woche gibt es nur mit Zuschlag, wenn sie angeordnet waren.</span></span>
+          </label>
+          {f.angeordnet && <input value={f.angeordnetVon} onChange={set('angeordnetVon')} placeholder="Angeordnet von (Name)" className="eingabe mt-2" />}
         </div>
       </div>
       <div className="text-sm text-white/60">Arbeitszeit: <span className="font-bold text-white tabular-nums">{vorschau} h</span></div>

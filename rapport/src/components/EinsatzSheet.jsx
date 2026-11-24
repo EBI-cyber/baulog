@@ -12,6 +12,7 @@ import { KANTONE } from '../lib/feiertage'
 import { LOHN_STANDARD, ABZUEGE, stundenlohnTotal } from '../lib/lohn'
 import { verkleinern } from '../lib/bild'
 import { einsatzvertragLesen, kiVerfuegbar } from '../lib/ki'
+import { gavFuer } from '../lib/gav'
 import { BRANCHEN, branche, brancheAnwenden } from '../lib/branchen'
 import { liste, FUNKTIONEN } from '../lib/unterschreiber'
 import { ferienMindestProzent, alter } from '../lib/profil'
@@ -394,6 +395,13 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose, ziel }) {
         <div className="text-xs text-white/60">„Durchschnittliche Arbeitszeit“ (z.B. „40 Std. pro Woche durchschnittlich“): Stunden über dem Wochensoll bleiben Normalstunden — Überstunden nur, wenn angeordnet.</div>
       </div>
 
+      {gavFuer(f) && (
+        <div className="rounded-2xl px-4 py-3 bg-sky-400/10 border border-sky-400/30 text-sm text-sky-100 space-y-1">
+          <div className="font-semibold">GAV {gavFuer(f).name} — gilt automatisch</div>
+          <ul className="list-disc pl-5 space-y-0.5 text-xs text-sky-100/85">{gavFuer(f).text.map((t) => <li key={t}>{t}</li>)}</ul>
+          <div className="text-xs text-sky-100/60">Quelle: {gavFuer(f).quelle}. Eigene Werte im Einsatz gehen vor.</div>
+        </div>
+      )}
       <Titel>Zuschläge & Zulagen</Titel>
       <div className="grid grid-cols-2 gap-3">
         <Feld label="Überstunden" einheit="%" {...zahlFeld('ueberstundenZuschlag')} />

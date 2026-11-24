@@ -1,6 +1,7 @@
 import { db } from './db'
 import { arbeitMs, isoDatum } from './zeit'
-import { tagesSoll } from './settings'
+import { tagesSoll, zahl } from './settings'
+import { mitGav } from './gav'
 
 /**
  * Stunden für einen Krankheits-/Unfalltag nach dem Lohnausfallprinzip: was man ohne Krankheit gearbeitet hätte.
@@ -9,8 +10,10 @@ import { tagesSoll } from './settings'
  * Zu wenig Daten (< 5 Arbeitstage) → Tagessoll aus den Einstellungen.
  */
 export async function krankStunden(datum, einst, firma = einst?.firma) {
-  const soll = tagesSoll(einst)
-  const einsatz = firma ? await db.einsaetze.where('firma').equals(firma).first().catch(() => null) : null
+  const roh = firma ? await db.einsaetze.where('firma').equals(firma).first().catch(() => null) : null
+  const einsatz = roh ? mitGav(roh) : null
+  // Tagessollzeit: Wochenstunden des Einsatzes ÷ 5, sonst aus den Einstellungen
+  const soll = zahl(einsatz?.wochenstunden) > 0 ? Math.round(zahl(einsatz.wochenstunden) / 5 * 100) / 100 : tagesSoll(einst)
   if (einsatz?.krankStundenBasis === 'vertrag') return { stunden: soll, quelle: 'vertrag', tage: 0 }
   const d = new Date(datum + 'T12:00'); d.setDate(d.getDate() - 91)
   const von = isoDatum(d)
@@ -29,5 +32,5 @@ export async function krankStunden(datum, einst, firma = einst?.firma) {
 
 export const krankBasisText = (k, soll) => !k ? '' : k.quelle === 'durchschnitt'
   ? `Ø ${k.stunden.toFixed(2)} h pro Arbeitstag (${k.tage} Arbeitstage der letzten 3 Monate) — so viel hättest du ohne Krankheit gearbeitet (Lohnausfallprinzip).`
-  : k.quelle === 'vertrag' ? `${k.stunden.toFixed(2)} h laut Einsatzvertrag (vertragliche Arbeitszeit als Grundlage).`
+  : k.quelle === 'vertrag' ? `${k.stunden.toFixed(2)} h Tagessollzeit laut Einsatzvertrag (Wochenstunden ÷ 5) — so verlangt es der GAV deiner Branche.`
   : `${soll.toFixed(2)} h (Tagessoll) — noch zu wenig erfasste Arbeitstage für einen Durchschnitt.`
