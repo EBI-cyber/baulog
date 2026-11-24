@@ -17,7 +17,7 @@ import { alsDataUrl } from '../lib/bild'
 const std = (h) => (Math.round(h * 100) / 100).toFixed(2)
 
 /** Alle Rapporte als Baum: Jahr → Monat → Kalenderwoche → Firma → Dateien (werden beim Antippen frisch erzeugt) */
-export default function Rapporte() {
+export default function Rapporte({ eingebettet = false }) {
   const [einst] = useEinstellungen()
   const daten = useLiveQuery(async () => {
     const [schichten, absenzen, wochen] = await Promise.all([db.schichten.toArray(), db.absenzen.toArray(), db.wochen.toArray()])
@@ -94,15 +94,15 @@ export default function Rapporte() {
 
   return (
     <div className="space-y-4">
-      <Link to="/kalender" className="text-sm text-white/65 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Kalender</Link>
-      <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Rapporte</h1>
+      {!eingebettet && <Link to="/kalender" className="text-sm text-white/65 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Kalender</Link>}
+      {!eingebettet && <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Rapporte</h1>}
       <div className="text-sm text-white/70">Alle Wochenrapporte nach Jahr, Monat und KW. Grün = unterschriebenes Original: das Foto/PDF des Papier-Rapports bzw. der in der App unterschriebene Rapport. Fehlt es, „+ Original“ antippen und Foto oder PDF wählen.</div>
       {baum && <div className="grid grid-cols-2 gap-2 text-sm">
         <div className="glass rounded-2xl px-3 py-2"><div className="text-xs text-white/60">Rapporte</div><div className="text-xl font-bold tabular-nums">{gesamt}</div></div>
         <div className="glass rounded-2xl px-3 py-2"><div className="text-xs text-white/60">Noch nicht gesendet</div><div className={'text-xl font-bold tabular-nums ' + (offenTotal ? 'text-amber-300' : 'text-lime')}>{offenTotal}</div></div>
       </div>}
       <div className="flex gap-2">
-        {[[false, 'Alle Wochen'], [true, 'Nur unterschriebene Originale']].map(([v, l]) => (
+        {[[false, 'Alle Wochen'], [true, 'Nur Originale']].map(([v, l]) => (
           <button key={l} onClick={() => setNurOriginale(v)} className={'flex-1 rounded-xl py-2 text-sm border ' + (nurOriginale === v ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/65')}>{l}</button>
         ))}
       </div>

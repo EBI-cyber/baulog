@@ -6,8 +6,7 @@ import Kalender from './screens/Kalender'
 import Einstellungen from './screens/Einstellungen'
 import Lohn from './screens/Lohn'
 import Statistik from './screens/Statistik'
-import Rapporte from './screens/Rapporte'
-import Abrechnungen from './screens/Abrechnungen'
+import Archiv from './screens/Archiv'
 import Unterschreiben from './screens/Unterschreiben'
 import Durchschlag from './screens/Durchschlag'
 import Fragebogen from './screens/Fragebogen'
@@ -41,8 +40,9 @@ function Hauptlayout() {
               <Route path="/woche/:key" element={<Woche />} />
               <Route path="/lohn" element={<Lohn />} />
               <Route path="/statistik" element={<Statistik />} />
-              <Route path="/rapporte" element={<Rapporte />} />
-              <Route path="/abrechnungen" element={<Abrechnungen />} />
+              <Route path="/archiv" element={<Archiv />} />
+              <Route path="/rapporte" element={<Navigate to="/archiv?t=rapporte" replace />} />
+              <Route path="/abrechnungen" element={<Navigate to="/archiv?t=lohn" replace />} />
               <Route path="/einstellungen" element={<Einstellungen />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

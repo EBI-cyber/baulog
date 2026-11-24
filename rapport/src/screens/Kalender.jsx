@@ -152,7 +152,7 @@ export default function Kalender() {
         <span className="inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-mint" /> Rapport gesendet</span>
       </div>
 
-      <Link to="/rapporte" className="w-full glass rounded-2xl px-4 py-3 flex items-center gap-3 card-hover">
+      <Link to="/archiv?t=rapporte" className="w-full glass rounded-2xl px-4 py-3 flex items-center gap-3 card-hover">
         <FolderTree className="w-5 h-5 text-amber-300 shrink-0" />
         <span className="flex-1"><span className="font-semibold">Alle Rapporte</span><span className="block text-xs text-white/60">Ordner nach Jahr → Monat → KW, jede Datei zum Ansehen</span></span>
         <ChevronRight className="w-4 h-4 text-white/50" />

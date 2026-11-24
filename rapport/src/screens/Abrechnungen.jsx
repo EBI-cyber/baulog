@@ -21,7 +21,7 @@ const FARBEN = { netto: '#0891b2', sozial: '#8b5cf6', bvg: '#a78bfa', quellenste
 const kurz = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace('.0', '')}k` : String(Math.round(n)))
 
 /** Lohnabrechnungen als Baum + Jahresabschluss (Summen, Grafiken, Werte für die Steuererklärung) */
-export default function Abrechnungen() {
+export default function Abrechnungen({ eingebettet = false }) {
   const [einst] = useEinstellungen()
   const w = einst.waehrung
   const [jahr, setJahr] = useState(new Date().getFullYear())
@@ -88,8 +88,8 @@ export default function Abrechnungen() {
 
   return (
     <div className="space-y-5">
-      <Link to="/lohn" className="text-sm text-white/65 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Lohn</Link>
-      <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Lohnabrechnungen</h1>
+      {!eingebettet && <Link to="/lohn" className="text-sm text-white/65 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Lohn</Link>}
+      {!eingebettet && <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Lohnabrechnungen</h1>}
 
       <header className="flex items-center justify-between gap-2">
         <button onClick={() => setJahr(jahr - 1)} className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center" aria-label="Vorjahr"><ChevronLeft className="w-5 h-5" /></button>
