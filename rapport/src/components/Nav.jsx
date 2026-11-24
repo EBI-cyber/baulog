@@ -1,18 +1,19 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Clock, CalendarDays, Settings, Timer, Banknote, BarChart3 } from 'lucide-react'
+import { Clock, CalendarDays, Settings, Timer, Banknote, BarChart3, Archive } from 'lucide-react'
 
 const LINKS = [
   { to: '/', label: 'Heute', icon: Clock, end: true },
-  { to: '/kalender', label: 'Kalender', icon: CalendarDays, auch: '/woche' },
+  { to: '/kalender', label: 'Kalender', icon: CalendarDays, auch: ['/woche'] },
   { to: '/statistik', label: 'Statistik', icon: BarChart3 },
   { to: '/lohn', label: 'Lohn', icon: Banknote },
+  { to: '/archiv', label: 'Archiv', icon: Archive, auch: ['/rapporte', '/abrechnungen'] },
   { to: '/einstellungen', label: 'Einstellungen', kurz: 'Optionen', icon: Settings },
 ]
 
 export default function Nav() {
   const { pathname } = useLocation()
   // Wochenansicht gehört zum Kalender
-  const aktiv = (l, isActive) => isActive || (l.auch && pathname.startsWith(l.auch))
+  const aktiv = (l, isActive) => isActive || (l.auch || []).some((a) => pathname.startsWith(a))
   return (
     <>
       <aside className="hidden md:flex flex-col w-60 shrink-0 sticky top-0 h-[100dvh] p-5 gap-1 border-r border-white/5">
@@ -28,11 +29,11 @@ export default function Nav() {
         ) })}
       </aside>
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 glass border-x-0 border-b-0 rounded-none pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-        <div className="max-w-md mx-auto grid grid-cols-5">
+        <div className="max-w-md mx-auto grid grid-cols-6">
           {LINKS.map((l) => { const { to, label, kurz, icon: I, end } = l; return (
             <NavLink key={to} to={to} end={end} className={({ isActive }) =>
-              'flex flex-col items-center gap-1 text-[12px] font-medium py-1 ' + (aktiv(l, isActive) ? 'text-white' : 'text-white/65')}>
-              <I className="w-6 h-6" strokeWidth={1.9} /> {kurz || label}
+              'flex flex-col items-center gap-1 text-[11.5px] font-medium py-1 min-w-0 ' + (aktiv(l, isActive) ? 'text-white' : 'text-white/65')}>
+              <I className="w-6 h-6" strokeWidth={1.9} /> <span className="truncate max-w-full">{kurz || label}</span>
             </NavLink>
           ) })}
         </div>
