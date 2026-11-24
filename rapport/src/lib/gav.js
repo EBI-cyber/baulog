@@ -4,7 +4,7 @@
  * Standard — Werte, die im Einsatz ausgefüllt sind, gehen vor.
  *
  * Felder:
- *  ueberzeitGrenze/ueberzeitZuschlag — Überzeit (ArG Art. 9/13, Industrie 45 h/Woche): Zuschlag, wenn angeordnet
+ *  ueberzeitGrenze/ueberzeitZuschlag — Überzeit (ArG Art. 9/13, Industrie 45 h/Woche): Zuschlag immer (angeordnet oder geduldet)
  *  samstagNach5 — Samstagszuschlag nur, wenn in der Woche schon 5 Normalarbeitstage geleistet wurden
  *  krankStundenBasis 'vertrag' — Fehltage (Ferien, Feiertag, Krankheit, Unfall) mit der Tagessollzeit
  *  ueberstundenAusgleich 'jahr' — Überstunden innert eines Jahres mit Freizeit kompensieren, sonst ohne Zuschlag ausbezahlt
@@ -19,7 +19,7 @@ export const GAV = [
     },
     text: [
       'Überstunden (über der vertraglichen Wochenarbeitszeit) innert eines Jahres mit Freizeit gleicher Dauer kompensieren — sonst Auszahlung ohne Zuschlag.',
-      'Angeordnete Überzeit (über 45 h pro Woche, Arbeitsgesetz) mit 25 % Zuschlag in Geld oder Freizeit.',
+      'Überzeit (über 45 h pro Woche, Arbeitsgesetz; angeordnet oder geduldet) mit 25 % Zuschlag in Geld oder Freizeit — Freizeit nur mit deinem Einverständnis, nicht kompensiert → Auszahlung mit 25 %.',
       'Samstag ausnahmsweise: 25 % Zuschlag, wenn in der Woche schon 5 Normalarbeitstage geleistet wurden.',
       'Zweischichtbetrieb: CHF 1.50 pro Stunde (als „Zulage pro Std.“ im Einsatz eintragen, falls du Schicht arbeitest).',
       'Fehltage (Ferien, Feiertage, Krankheit, Unfall) zählen mit der Tagessollzeit.',

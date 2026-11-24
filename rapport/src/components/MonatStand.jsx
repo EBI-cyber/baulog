@@ -87,7 +87,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
     rechnung: [...r.ueberWochen.map((w) => [`Woche ${w.von.slice(8)}.${w.von.slice(5, 7)}.: ${dez(w.ist)} h − ${dez(w.grenze)} h`, w.ueber]), ['Überstunden total', r.ueber, true],
       [`Konto ${jahr}: aufgebaut seit 1. Januar`, konto.aufgebaut], ['− mit Freizeit kompensiert', -konto.kompensiert], [`= Guthaben ${jahr}`, konto.saldo, true]],
     grundlage: 'Pro Kalenderwoche: Arbeitszeit + bezahlte Abwesenheiten (Ferien, Krankheit … höchstens mit dem Tagessoll) über den Wochenstunden des Einsatzes. Eine Woche zählt zum Monat ihres Donnerstags. Zuschlag laut Vertrag (OR 321c: 25 %, sofern nichts anderes vereinbart).',
-    hinweis: gavFuer(einsatz) ? `${gavFuer(einsatz).name}: Überstunden innert eines Jahres mit Freizeit gleicher Dauer kompensieren (Abwesenheit „Überzeit kompensiert“ eintragen), sonst Auszahlung ohne Zuschlag. Zuschlag 25 % nur für angeordnete Überzeit über 45 h pro Woche.`
+    hinweis: gavFuer(einsatz) ? `${gavFuer(einsatz).name}: Überstunden innert eines Jahres mit Freizeit gleicher Dauer kompensieren (Abwesenheit „Überzeit kompensiert“ eintragen), sonst Auszahlung ohne Zuschlag. Überzeit über 45 h pro Woche mit 25 % Zuschlag.`
       : einsatz?.ueberstundenModus === 'keine' ? 'Dein Vertrag rechnet mit durchschnittlicher Arbeitszeit — dafür zahlt das Büro keinen automatischen Überstundenzuschlag pro Woche.' : '',
   })
 

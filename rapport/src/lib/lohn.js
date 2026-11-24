@@ -200,13 +200,13 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     }
     // GAV Betonwaren: Samstagszuschlag nur, wenn in der Woche schon 5 Normalarbeitstage (Mo–Fr) geleistet wurden
     const werktage = new Set(w.s.filter((s) => { const d = new Date(s.datum + 'T12:00').getDay(); return d >= 1 && d <= 5 && arbeitMs(s, jetzt) > 0 }).map((s) => s.datum)).size
-    // Überzeit (über der gesetzlichen Höchstarbeitszeit) gibt nur Zuschlag, wenn angeordnet (in der Woche markiert)
-    const angeordnet = w.s.some((s) => s.angeordnet)
+    // Überzeit (über der gesetzlichen Höchstarbeitszeit): Zuschlag immer — der Betrieb bestätigt die Stunden mit dem
+    // unterschriebenen Rapport (angeordnet oder geduldet, OR 321c). „angeordnet“ an der Schicht ist nur zusätzlicher Beleg.
     for (const s of [...w.s].sort((x, y) => x.start - y.start)) {
       const t = holeTopf(s.firma)
       const h = arbeitMs(s, jetzt) / 36e5
       const grenzeUZ = wert(t.einsatz, 'ueberzeitGrenze')
-      const ueberzeitStd = grenzeUZ > 0 && angeordnet ? Math.max(0, kumuliert + h - Math.max(grenzeUZ, kumuliert)) : 0
+      const ueberzeitStd = grenzeUZ > 0 ? Math.max(0, kumuliert + h - Math.max(grenzeUZ, kumuliert)) : 0
       // „durchschnittliche“ Arbeitszeit (z.B. Bellini) → keine automatischen Überstunden pro Woche
       const soll = t.einsatz?.ueberstundenModus === 'keine' ? 0 : zahl(t.einsatz?.wochenstunden) || zahl(einst?.wochenSoll)
       const ueberStd = soll ? Math.max(0, kumuliert + h - Math.max(soll, kumuliert)) : 0
@@ -230,7 +230,7 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     z(`Überstundenzuschlag ${wert(e, 'ueberstundenZuschlag')} %`, t.ueberStd * g * prozent(e, 'ueberstundenZuschlag'), { typ: 'ueber', text: std(t.ueberStd) })
     // Überzeit: Zuschlag nur soweit nicht schon ein Überstundenzuschlag auf denselben Stunden liegt
     const uzSatz = Math.max(0, wert(e, 'ueberzeitZuschlag') - (t.ueberStd > 0 ? wert(e, 'ueberstundenZuschlag') : 0))
-    z(`Überzeitzuschlag ${uzSatz} % (angeordnet, über ${wert(e, 'ueberzeitGrenze')} h/Woche)`, t.ueberzeitStd * g * uzSatz / 100, { typ: 'ueberzeit', text: std(t.ueberzeitStd) })
+    z(`Überzeitzuschlag ${uzSatz} % (über ${wert(e, 'ueberzeitGrenze')} h/Woche)`, t.ueberzeitStd * g * uzSatz / 100, { typ: 'ueberzeit', text: std(t.ueberzeitStd) })
     z(`Nachtzuschlag ${wert(e, 'nachtZuschlag')} % (${wert(e, 'nachtVon')}–${wert(e, 'nachtBis')} Uhr)`, t.nachtStd * g * prozent(e, 'nachtZuschlag'), { typ: 'nacht', text: std(t.nachtStd) })
     z(`Samstagszuschlag ${wert(e, 'samstagZuschlag')} %`, t.samstagStd * g * prozent(e, 'samstagZuschlag'), { typ: 'samstag', text: std(t.samstagStd) })
     z(`Sonntagszuschlag ${wert(e, 'sonntagZuschlag')} %`, t.sonntagStd * g * prozent(e, 'sonntagZuschlag'), { typ: 'sonntag', text: std(t.sonntagStd) })
