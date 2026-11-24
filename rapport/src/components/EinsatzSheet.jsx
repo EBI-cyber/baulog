@@ -170,6 +170,8 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose, ziel }) {
         if (r.angaben && typeof r.angaben === 'object') y.angaben = r.angaben
         y.klauseln = Array.isArray(r.klauseln) ? r.klauseln.filter((k) => k && (k.zitat || k.art)) : []
         if (r.karenztage != null) y.karenztage = String(r.karenztage)
+        if (r.krankStundenBasis === 'vertrag' || r.krankStundenBasis === 'durchschnitt') y.krankStundenBasis = r.krankStundenBasis
+        if (r.krankRegel) y.krankRegel = String(r.krankRegel).trim()
         if (r.lohnzahlung) y.lohnzahlung = String(r.lohnzahlung)
         if (r.einsatzdauerTage) { y.maxDauerTage = String(r.einsatzdauerTage); erkannt.push('maxDauerTage') }
         if (r.arbeitszeitDurchschnitt === true) y.ueberstundenModus = 'keine'
@@ -408,6 +410,14 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose, ziel }) {
         <Feld label="Lohn bei Schlechtwetter" einheit="%" {...zahlFeld('schlechtwetterFaktor')} />
       </div>
       <div className="text-xs text-white/60">Krankheit (GAV Personalverleih): die ersten {f.karenztage || LOHN_STANDARD.karenztage} Kalendertage pro Krankheitsfall sind Wartetage ohne Lohn, danach Krankentaggeld {f.krankFaktor || LOHN_STANDARD.krankFaktor} % des Lohns inkl. Ferien/Feiertag/13. ML, ohne AHV-Abzüge. Unfall: Unfalltag + 2 Tage 80 % vom Arbeitgeber, danach 80 % Unfalltaggeld.</div>
+      {f.krankRegel && <div className="text-xs text-white/75 rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2"><b>Im Vertrag:</b> „{f.krankRegel}“</div>}
+      <div className="text-sm text-white/75">Stunden pro Krankheitstag:</div>
+      <div className="grid grid-cols-2 gap-2">
+        {[['durchschnitt', 'Ø der letzten 3 Monate'], ['vertrag', 'Vertragliche Arbeitszeit']].map(([k, l]) => (
+          <button key={k} type="button" onClick={() => setF({ ...f, krankStundenBasis: k })}
+            className={'rounded-xl border px-3 py-2.5 text-sm ' + ((f.krankStundenBasis || 'durchschnitt') === k ? 'border-cyan-400/50 bg-cyan-400/10 font-semibold' : 'border-white/10 text-white/65')}>{l}</button>
+        ))}
+      </div>
 
       <Titel>Abzüge (Arbeitnehmer)</Titel>
       <div className="grid grid-cols-2 gap-3">
