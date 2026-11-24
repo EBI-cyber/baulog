@@ -13,7 +13,6 @@ import Sheet from '../components/Sheet'
 import Erfassen from '../components/Erfassen'
 import EinfuegenSheet from '../components/EinfuegenSheet'
 import MonatStand from '../components/MonatStand'
-import JahrStand from '../components/JahrStand'
 import SchichtZeile from '../components/SchichtZeile'
 import { AbsenzZeile, SpesenZeile } from '../components/Zeilen'
 
@@ -152,15 +151,9 @@ export default function Kalender() {
         <span className="inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-mint" /> Rapport gesendet</span>
       </div>
 
-      <Link to="/archiv?t=rapporte" className="w-full glass rounded-2xl px-4 py-3 flex items-center gap-3 card-hover">
-        <FolderTree className="w-5 h-5 text-amber-300 shrink-0" />
-        <span className="flex-1"><span className="font-semibold">Alle Rapporte</span><span className="block text-xs text-white/60">Ordner nach Jahr → Monat → KW, jede Datei zum Ansehen</span></span>
-        <ChevronRight className="w-4 h-4 text-white/50" />
-      </Link>
 
       <MonatStand jahr={jahr} mon={mon} wochen={wochen} schichten={schichten} absenzen={absenzen} spesen={spesen}
         einsaetze={einsaetze} status={status} kanton={kanton} einst={einst} monatsName={MONATE[mon]} />
-      <JahrStand jahr={jahr} kanton={kanton} einst={einst} />
 
       <button onClick={() => setEinfuegen(true)} className="w-full rounded-2xl py-3 bg-white/[0.06] border border-dashed border-white/15 text-white/60 text-sm inline-flex items-center justify-center gap-2">
         <ClipboardPaste className="w-4 h-4" /> Wochen einfügen (kopierte Links)
