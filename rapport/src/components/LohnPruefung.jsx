@@ -20,7 +20,7 @@ export default function LohnPruefung({ gespeichert, onClose }) {
   const ms = useMs()
   const w = einst.waehrung
   const [fotos, setFotos] = useState(gespeichert?.fotos || [])
-  const [schritt, setSchritt] = useState(gespeichert ? 'ergebnis' : 'fotos')
+  const [schritt, setSchritt] = useState(gespeichert?.pruefung?.length ? 'ergebnis' : 'fotos')
   const [ki, setKi] = useState(gespeichert?.daten || null)
   const [pruef, setPruef] = useState(gespeichert?.pruefung || [])
   const [auswahl, setAuswahl] = useState(() => new Set((gespeichert?.pruefung || []).filter((c) => c.status === 'abweichung').map((c) => c.id)))
@@ -53,7 +53,7 @@ export default function LohnPruefung({ gespeichert, onClose }) {
     setSchritt('ergebnis')
     // gleiche Prüfung aktualisieren statt doppelt speichern
     gespeichertId.current = await db.lohnabrechnungen.put({ ...(gespeichertId.current ? { id: gespeichertId.current } : {}), firma: einsatz?.firma || kiDaten.firma || '', buero: kiDaten.buero || einsatz?.buero || '',
-      von, bis, fotos, daten: { ...kiDaten, periodeVon: von, periodeBis: bis }, pruefung: p, erstellt: Date.now() })
+      von, bis, fotos, daten: { ...kiDaten, periodeVon: von, periodeBis: bis }, pruefung: p, nurArchiv: false, erstellt: Date.now() })
   }
 
   async function lesen() {

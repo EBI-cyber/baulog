@@ -58,7 +58,7 @@ export async function papierVermerken({ wKey, firma, bilder, ki, gesendetAn }) {
   const k = statusKey(wKey, firma)
   const alt = (await db.wochen.get(k)) || { key: k }
   await db.wochen.put({
-    ...alt, papierBilder: bilder.filter((b) => b.startsWith('data:image')), papierAm: Date.now(),
+    ...alt, papierBilder: bilder.filter((b) => b.startsWith('data:image')), papierPdf: bilder.filter((b) => b.startsWith('data:application/pdf')), papierAm: Date.now(),
     papierKi: { total: ki?.total ?? null, unterzeichner: ki?.unterzeichner || '', unterschriftBetrieb: !!ki?.unterschriftBetrieb, unterschriftDatum: ki?.unterschriftDatum || '' },
     ...(gesendetAn ? { gesendetAm: Date.now(), gesendetAn } : {}),
     ...(ki?.unterzeichner && !alt.firmaName ? { firmaName: ki.unterzeichner } : {}),

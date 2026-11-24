@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
-import { ChevronRight, FolderOpen, Folder, FileText, Clock3, Image as ImageIcon, CheckCircle2, CircleDashed, PenLine, CloudUpload, Loader2, Share2, Eye, ArrowLeft, CalendarDays } from 'lucide-react'
+import { ChevronRight, FolderOpen, Folder, FileText, Clock3, CheckCircle2, CircleDashed, PenLine, CloudUpload, Loader2, Share2, Eye, ArrowLeft, CalendarDays, FileImage, Plus, PenTool } from 'lucide-react'
 import { db } from '../lib/db'
 import { useEinstellungen } from '../lib/settings'
 import { ausKey, wochenStart, datumKurz, isoWoche, wochenKey } from '../lib/zeit'
 import { wochenMonat, gruppenPdf, zeitnachweisDatei } from '../lib/versand'
 import { gruppenLaden, rapportStatus } from '../lib/rapporte'
-import { fotosZuPdf } from '../lib/papierrapport'
 import { dateiName } from '../lib/pdf'
 import { teileDatei } from '../lib/teilen'
 import Sheet from '../components/Sheet'
+import OriginalSheet from '../components/OriginalSheet'
+import { hatOriginal, rapportOriginal, rapportOriginalSpeichern } from '../lib/originale'
+import { alsDataUrl } from '../lib/bild'
 
 const std = (h) => (Math.round(h * 100) / 100).toFixed(2)
 
@@ -27,6 +29,15 @@ export default function Rapporte() {
     return { [String(w.jahr)]: true, [`${w.jahr}|${wochenMonat(w)}`]: true }
   })
   const [datei, setDatei] = useState(null)
+  const [original, setOriginal] = useState(null)
+  const [nurOriginale, setNurOriginale] = useState(false)
+  async function originalDazu(e, wKey, firma) {
+    const files = [...(e.target.files || [])]; e.target.value = ''
+    if (!files.length) return
+    const dateien = []
+    for (const f of files) dateien.push(await alsDataUrl(f, 2400, 0.85))
+    await rapportOriginalSpeichern({ wKey, firma, dateien })
+  }
   const umschalten = (k) => setOffen((o) => ({ ...o, [k]: !o[k] }))
 
   const baum = useMemo(() => {
@@ -48,18 +59,20 @@ export default function Rapporte() {
       const j = (jahre[w.jahr] ||= { jahr: w.jahr, monate: {}, anzahl: 0, offen: 0 })
       const mName = wochenMonat(w)
       const m = (j.monate[mName] ||= { name: mName, wochen: {}, anzahl: 0, offen: 0 })
+      if (nurOriginale && !(hatOriginal(st) || st?.firmaBild)) continue
       const wk = (m.wochen[e.wKey] ||= { wKey: e.wKey, woche: w, firmen: [] })
-      const fertig = !!(st?.gesendetAm || st?.papierBilder?.length || st?.gespeichertAm)
-      wk.firmen.push({ ...e, tage: e.tage.size, st, fertig })
+      const fertig = !!(st?.gesendetAm || hatOriginal(st) || st?.gespeichertAm)
+      const orig = hatOriginal(st) ? 'papier' : st?.firmaBild ? 'digital' : null
+      wk.firmen.push({ ...e, tage: e.tage.size, st, fertig, orig })
       j.anzahl++; m.anzahl++
       if (!fertig && e.wKey < jetzt) { j.offen++; m.offen++ }
     }
-    return Object.values(jahre).sort((a, b) => b.jahr - a.jahr).map((j) => ({
-      ...j, monate: Object.values(j.monate).sort((a, b) => b.name.localeCompare(a.name)).map((m) => ({
+    return Object.values(jahre).filter((j) => j.anzahl).sort((a, b) => b.jahr - a.jahr).map((j) => ({
+      ...j, monate: Object.values(j.monate).filter((m) => m.anzahl).sort((a, b) => b.name.localeCompare(a.name)).map((m) => ({
         ...m, wochen: Object.values(m.wochen).sort((a, b) => b.wKey.localeCompare(a.wKey)),
       })),
     }))
-  }, [daten, einst.firma, jetzt])
+  }, [daten, einst.firma, jetzt, nurOriginale])
 
   async function oeffnen(wKey, firma, art) {
     setDatei({ laeuft: true, titel: '' })
@@ -70,8 +83,7 @@ export default function Rapporte() {
       const g = gruppen.find((x) => x.firma === firma) || gruppen[0]
       const st = (await rapportStatus(wKey, firma, !mehrere)) || {}
       let d
-      if (art === 'papier') d = { blob: fotosZuPdf(st.papierBilder), name: dateiName(einst, woche, mehrere ? firma : null, 'Rapport_unterschrieben') }
-      else if (art === 'zeit') d = zeitnachweisDatei(g, woche, mehrere)
+      if (art === 'zeit') d = zeitnachweisDatei(g, woche, mehrere)
       else d = gruppenPdf(g, woche, st, mehrere)
       setDatei({ ...d, url: URL.createObjectURL(d.blob), titel: art === 'zeit' ? 'Zeitnachweis' : art === 'papier' ? 'Papier-Rapport (Foto)' : 'Rapport', woche, firma })
     } catch (e) { setDatei({ fehler: e.message || String(e) }) }
@@ -84,11 +96,16 @@ export default function Rapporte() {
     <div className="space-y-4">
       <Link to="/kalender" className="text-sm text-white/65 inline-flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Kalender</Link>
       <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Rapporte</h1>
-      <div className="text-sm text-white/70">Alle Wochenrapporte, sortiert nach Jahr, Monat und Kalenderwoche. Antippen klappt auf; jede Datei wird aus deinen Einträgen frisch erstellt (mit den gespeicherten Unterschriften).</div>
+      <div className="text-sm text-white/70">Alle Wochenrapporte nach Jahr, Monat und KW. Grün = unterschriebenes Original: das Foto/PDF des Papier-Rapports bzw. der in der App unterschriebene Rapport. Fehlt es, „+ Original“ antippen und Foto oder PDF wählen.</div>
       {baum && <div className="grid grid-cols-2 gap-2 text-sm">
         <div className="glass rounded-2xl px-3 py-2"><div className="text-xs text-white/60">Rapporte</div><div className="text-xl font-bold tabular-nums">{gesamt}</div></div>
         <div className="glass rounded-2xl px-3 py-2"><div className="text-xs text-white/60">Noch nicht gesendet</div><div className={'text-xl font-bold tabular-nums ' + (offenTotal ? 'text-amber-300' : 'text-lime')}>{offenTotal}</div></div>
       </div>}
+      <div className="flex gap-2">
+        {[[false, 'Alle Wochen'], [true, 'Nur unterschriebene Originale']].map(([v, l]) => (
+          <button key={l} onClick={() => setNurOriginale(v)} className={'flex-1 rounded-xl py-2 text-sm border ' + (nurOriginale === v ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/65')}>{l}</button>
+        ))}
+      </div>
       {!baum && <div className="text-white/60 text-sm">Lade …</div>}
       {baum && !baum.length && <div className="text-white/60 text-sm">Noch keine Einträge.</div>}
 
@@ -129,10 +146,20 @@ export default function Rapporte() {
                                     {f.st?.firmaBild && <Chip ok icon={PenLine} text="vom Betrieb unterschrieben" />}
                                     {f.st?.abgelegtAm && <Chip ok icon={CloudUpload} text="in OneDrive" />}
                                   </div>
+                                  {f.orig === 'papier' && (
+                                    <button onClick={() => setOriginal({ titel: `Original KW ${w.woche.kw} · ${f.firma}`, ...rapportOriginal(f.st), name: dateiName(einst, w.woche, f.firma, 'Rapport_Original') })}
+                                      className="w-full rounded-xl py-3 px-3 bg-emerald-400/15 border border-emerald-400/30 text-emerald-200 font-semibold inline-flex items-center gap-2"><FileImage className="w-5 h-5" /> Original ansehen (Papier, unterschrieben)</button>
+                                  )}
+                                  {f.orig === 'digital' && (
+                                    <button onClick={() => oeffnen(w.wKey, f.firma, 'rapport')}
+                                      className="w-full rounded-xl py-3 px-3 bg-emerald-400/15 border border-emerald-400/30 text-emerald-200 font-semibold inline-flex items-center gap-2"><PenTool className="w-5 h-5" /> Rapport ansehen (digital unterschrieben)</button>
+                                  )}
+                                  {!f.orig && w.wKey !== jetzt && <div className="text-xs text-amber-200/90">Kein unterschriebenes Original — Papier-Rapport fotografieren oder PDF hinzufügen:</div>}
                                   <div className="grid grid-cols-2 gap-1.5">
-                                    <DateiKnopf icon={FileText} text="Rapport" onClick={() => oeffnen(w.wKey, f.firma, 'rapport')} />
+                                    {f.orig !== 'digital' && <DateiKnopf icon={FileText} text={f.orig ? 'Rapport (App)' : 'Rapport-Entwurf'} onClick={() => oeffnen(w.wKey, f.firma, 'rapport')} />}
                                     {f.stunden > 0 && <DateiKnopf icon={Clock3} text="Zeitnachweis" onClick={() => oeffnen(w.wKey, f.firma, 'zeit')} />}
-                                    {f.st?.papierBilder?.length > 0 && <DateiKnopf icon={ImageIcon} text="Papier-Foto" onClick={() => oeffnen(w.wKey, f.firma, 'papier')} />}
+                                    <label className="rounded-xl py-2.5 px-2 bg-white/[0.06] text-sm inline-flex items-center justify-center gap-1.5 cursor-pointer"><Plus className="w-4 h-4" /> {f.orig === 'papier' ? 'Seite dazu' : 'Original'}
+                                      <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={(e) => originalDazu(e, w.wKey, f.firma)} /></label>
                                     <Link to={`/woche/${w.wKey}`} className="rounded-xl py-2.5 px-2 bg-white/[0.06] text-sm inline-flex items-center justify-center gap-1.5"><CalendarDays className="w-4 h-4" /> Woche</Link>
                                   </div>
                                 </div>
@@ -150,6 +177,7 @@ export default function Rapporte() {
         ))}
       </div>
 
+      {original && <OriginalSheet {...original} onClose={() => setOriginal(null)} />}
       {datei && (
         <Sheet titel={datei.titel || 'Datei'} icon={FileText} onClose={() => { if (datei.url) URL.revokeObjectURL(datei.url); setDatei(null) }}>
           {datei.laeuft && <div className="text-sm text-white/70 inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Wird erstellt …</div>}
