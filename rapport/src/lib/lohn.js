@@ -88,7 +88,8 @@ const tagNr = (iso) => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 
  *   danach Krankentaggeld `krankFaktor` % (Standard 80) des Lohns inkl. Ferien/Feiertag/13. ML — Taggeld ist
  *   nicht AHV-pflichtig (keine Sozialabzüge, nur Quellensteuer).
  * Unfall: Unfalltag + 2 Tage zahlt der Arbeitgeber 80 % (OR 324b, AHV-pflichtig), danach Unfalltaggeld 80 % (UVG).
- * Rückgabe: Map Absenz → 'karenz' | 'lohn' | 'taggeld'
+ * Krankentaggeld gibt es nur mit Arztzeugnis (mind. ein Tag des Falls mit `zeugnis`), sonst 'ohneZeugnis' = unbezahlt.
+ * Rückgabe: Map Absenz → 'karenz' | 'lohn' | 'taggeld' | 'ohneZeugnis'
  */
 export function krankheitsTeile(absenzen, firmaFuer, einsatzFuer) {
   const out = new Map()
@@ -98,7 +99,12 @@ export function krankheitsTeile(absenzen, firmaFuer, einsatzFuer) {
     for (const [firma, liste] of Object.entries(nachFirma)) {
       const e = einsatzFuer(firma)
       const karenz = art === 'krank' ? Math.max(0, wert(e, 'karenztage')) : 3
-      let beginn = null, letzter = null
+      let beginn = null, letzter = null, fall = []
+      const fallAbschliessen = () => {
+        // Krankentaggeld nur mit Arztzeugnis: hat kein Tag des Falls ein Zeugnis, bleiben auch die Tage nach den Wartetagen unbezahlt
+        if (art === 'krank' && !fall.some((x) => x.zeugnis)) for (const x of fall) if (out.get(x) === 'taggeld') out.set(x, 'ohneZeugnis')
+        fall = []
+      }
       for (const a of [...liste].sort((x, y) => x.datum.localeCompare(y.datum))) {
         const n = tagNr(a.datum)
         let gleicherFall = letzter != null && n - letzter <= 1
@@ -106,11 +112,13 @@ export function krankheitsTeile(absenzen, firmaFuer, einsatzFuer) {
           gleicherFall = true
           for (let t = letzter + 1; t < n; t++) { const wt = new Date(t * 864e5).getUTCDay(); if (wt !== 0 && wt !== 6) { gleicherFall = false; break } }
         }
-        if (!gleicherFall) beginn = n
+        if (!gleicherFall) { fallAbschliessen(); beginn = n }
+        fall.push(a)
         letzter = n
         const imWarte = n - beginn < karenz
         out.set(a, art === 'krank' ? (imWarte ? 'karenz' : 'taggeld') : (imWarte ? 'lohn' : 'taggeld'))
       }
+      fallAbschliessen()
     }
   }
   return out
@@ -183,6 +191,7 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
       // Krankheit/Unfall: Wartetage ohne Lohn, Taggeld auf den Lohn inkl. Ferien/Feiertag/13. ML
       const basis = stundenSaetze(t.einsatz).total || t.stundenlohn
       if (teil === 'karenz') { z.karenzStd += zahl(a.stunden); z.karenzTage += 1 }
+      else if (teil === 'ohneZeugnis') { z.ohneStd = (z.ohneStd || 0) + zahl(a.stunden); z.ohneTage = (z.ohneTage || 0) + 1 }
       else if (teil === 'lohn') { z.lohnStd += zahl(a.stunden); z.betrag += zahl(a.stunden) * t.stundenlohn * z.faktor }
       else { z.taggeldStd += zahl(a.stunden); z.taggeld += zahl(a.stunden) * basis * z.faktor; z.betrag += zahl(a.stunden) * basis * z.faktor }
     }
@@ -224,6 +233,7 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
         const basis = stundenSaetze(e).total || g, pz = Math.round(a.faktor * 100)
         const teile = [
           a.karenzStd ? `${a.karenzTage} Wartetag${a.karenzTage === 1 ? '' : 'e'} (${std(a.karenzStd)}) unbezahlt` : '',
+          a.ohneStd ? `${a.ohneTage} Tag${a.ohneTage === 1 ? '' : 'e'} (${std(a.ohneStd)}) ohne Arztzeugnis unbezahlt — mit Zeugnis ${art === 'krank' ? 'Krankentaggeld' : 'Taggeld'} ${pz} %` : '',
           a.lohnStd ? `${std(a.lohnStd)} × ${g.toFixed(2)} × ${pz} % (Arbeitgeber, Unfalltag + 2 Tage)` : '',
           a.taggeldStd ? `${std(a.taggeldStd)} × ${basis.toFixed(2)} × ${pz} % ${art === 'krank' ? 'Krankentaggeld' : 'Unfalltaggeld'} (ohne AHV-Abzüge)` : '',
         ].filter(Boolean)

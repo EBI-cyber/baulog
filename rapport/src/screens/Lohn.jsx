@@ -180,7 +180,7 @@ export default function Lohn() {
               </div>
               {p.zeilen.filter((x) => !x.konto).map((x, i) => (
                 <Zeile key={i} w={w} betrag={x.betrag} info={x.info}
-                  label={x.art ? `${absenzArt(x.art).label} (${x.ausKonto ? 'aus Konto' : x.art === 'krank' || x.art === 'unfall' ? (x.taggeld ? 'Taggeld' : x.betrag ? 'Lohnfortzahlung' : 'Wartetage, unbezahlt') : 'Lohnfortzahlung'})` : x.label} />
+                  label={x.art ? `${absenzArt(x.art).label} (${x.ausKonto ? 'aus Konto' : x.art === 'krank' || x.art === 'unfall' ? (x.taggeld ? 'Taggeld' : x.betrag ? 'Lohnfortzahlung' : 'unbezahlt') : 'Lohnfortzahlung'})` : x.label} />
               ))}
               {p.zeilen.some((x) => x.konto) && (
                 <div className="mt-1 rounded-xl bg-white/[0.03] border border-dashed border-white/15 px-3 py-1">

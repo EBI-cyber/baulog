@@ -104,7 +104,7 @@ export default function AbsenzSheet({ absenz, datum, onClose }) {
       {(f.art === 'krank' || f.art === 'unfall') && (
         <div className="text-xs text-white/60 rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2">
           {f.art === 'krank'
-            ? 'Lohn bei Krankheit (GAV Personalverleih): die ersten 2 Kalendertage pro Krankheitsfall sind Wartetage ohne Lohn, ab dem 3. Tag zahlt die Krankentaggeld-Versicherung 80 % (ohne AHV-Abzüge). Die Stunden zählen trotzdem als entschuldigt, nicht als Minusstunden. Werte aus dem Einsatzvertrag gehen vor.'
+            ? 'Lohn bei Krankheit (GAV Personalverleih): die ersten 2 Kalendertage pro Krankheitsfall sind Wartetage ohne Lohn, ab dem 3. Tag zahlt die Krankentaggeld-Versicherung 80 % (ohne AHV-Abzüge) — aber nur mit Arztzeugnis. Ohne Zeugnis bleibt der ganze Krankheitsfall unbezahlt. Die Stunden zählen trotzdem als entschuldigt, nicht als Minusstunden. Werte aus dem Einsatzvertrag gehen vor.'
             : 'Unfall: Unfalltag + 2 Tage zahlt der Arbeitgeber 80 %, danach die Unfallversicherung 80 % Taggeld.'}
           {krank && <div className="mt-1.5 text-white/75">Stunden pro Tag: {krankBasisText(krank, tagesSoll(einst))}</div>}
           {krank && absenz && Math.abs(zahl(f.stunden) - vorschlag(f.art, f.halbtag)) > 0.01 && (
