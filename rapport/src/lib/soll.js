@@ -2,6 +2,7 @@ import { zahl } from './settings'
 import { feiertagAm } from './feiertage'
 import { absenzArt } from './arten'
 import { isoDatum, arbeitMs } from './zeit'
+import { krankheitsTeile } from './lohn'
 
 /**
  * Ist/Soll für [von, bis] (YYYY-MM-DD, bis höchstens heute).
@@ -14,6 +15,9 @@ export function sollIst({ von, bis, schichten, absenzen, einsaetze = [], einst, 
   const imZeitraum = (d) => d >= von && d <= bis
   const sch = schichten.filter((s) => imZeitraum(s.datum))
   const abw = absenzen.filter((a) => imZeitraum(a.datum))
+  // Krankheitstage ohne Lohn (Wartetage, ohne Arztzeugnis) zählen wie unbezahlte Tage: weder Ist noch Soll
+  const teile = krankheitsTeile(absenzen, (a) => a.firma || einst?.firma || '', (f) => einsaetze.find((e) => e.firma === f) || null)
+  const bezahlt = (a) => absenzArt(a.art).bezahlt && !['karenz', 'ohneZeugnis'].includes(teile.get(a))
   const arbeit = sch.reduce((s, x) => s + arbeitMs(x, jetzt), 0) / 36e5
   const firma = [...sch].sort((a, b) => a.start - b.start).pop()?.firma || einst.firma
   const einsatz = einsaetze.find((e) => e.firma === firma)
@@ -21,7 +25,7 @@ export function sollIst({ von, bis, schichten, absenzen, einsaetze = [], einst, 
   const tagSoll = (wochenStd || 40) / 5
   // nur bezahlte Abwesenheiten zählen zum Ist (unbezahlte Tage fallen dafür aus dem Soll) — und höchstens mit dem
   // Tagessoll: ein Krankheitstag mit Ø 8.46 h (Lohnausfallprinzip, nur für den Lohn) darf keine Überstunden erzeugen
-  const abwBezahlt = abw.filter((a) => absenzArt(a.art).bezahlt).reduce((s, a) => s + Math.min(zahl(a.stunden), tagSoll * (a.halbtag ? 0.5 : 1)), 0)
+  const abwBezahlt = abw.filter(bezahlt).reduce((s, a) => s + Math.min(zahl(a.stunden), tagSoll * (a.halbtag ? 0.5 : 1)), 0)
   const start = [von, einsatz?.beginn, ersterTag].filter(Boolean).sort().pop()
   const hatEintrag = (d) => sch.some((s) => s.datum === d && s.ende != null) || abw.some((a) => a.datum === d)
   let sollTage = 0
@@ -30,7 +34,7 @@ export function sollIst({ von, bis, schichten, absenzen, einsaetze = [], einst, 
     const iso = isoDatum(d)
     if (d.getDay() === 0 || d.getDay() === 6 || feiertagAm(kanton, iso)) continue
     if (iso === heuteIso && !hatEintrag(iso)) continue
-    const frei = abw.find((a) => a.datum === iso && !absenzArt(a.art).bezahlt && a.art !== 'kompensation')
+    const frei = abw.find((a) => a.datum === iso && !bezahlt(a) && a.art !== 'kompensation')
     if (frei) { sollTage += frei.halbtag ? 0.5 : 0; continue }
     sollTage += 1
     if (iso < heuteIso && !hatEintrag(iso)) luecken.push(new Date(d))
@@ -48,7 +52,7 @@ export function sollIst({ von, bis, schichten, absenzen, einsaetze = [], einst, 
     const a0 = isoDatum(mo), a1 = isoDatum(new Date(mo.getFullYear(), mo.getMonth(), mo.getDate() + 6, 12))
     const inW = (d) => d >= a0 && d <= a1
     const wArbeit = schichten.filter((x) => inW(x.datum)).reduce((t, x) => t + arbeitMs(x, jetzt), 0) / 36e5
-    const wAbw = absenzen.filter((x) => inW(x.datum) && absenzArt(x.art).bezahlt).reduce((t, x) => t + Math.min(zahl(x.stunden), tagSoll * (x.halbtag ? 0.5 : 1)), 0)
+    const wAbw = absenzen.filter((x) => inW(x.datum) && bezahlt(x)).reduce((t, x) => t + Math.min(zahl(x.stunden), tagSoll * (x.halbtag ? 0.5 : 1)), 0)
     if (wArbeit + wAbw <= 0) continue
     ueberWochen.push({ von: a0, bis: a1, ist: wArbeit + wAbw, grenze: wochenStd || 40, ueber: Math.max(0, wArbeit + wAbw - (wochenStd || 40)) })
   }
