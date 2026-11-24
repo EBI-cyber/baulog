@@ -3,6 +3,7 @@ import { absenzArt } from './arten'
 import { zahl } from './settings'
 import { feiertagAm } from './feiertage'
 import { quellensteuerPflichtig, tarif } from './profil'
+import { mitGav } from './gav'
 
 /**
  * Lohnschätzung für Temporärarbeit (Schweiz), Aufbau wie GAV Personalverleih:
@@ -17,7 +18,7 @@ export const LOHN_STANDARD = {
   feiertagProzent: '', ferienProzent: '8.33', dreizehnterProzent: '8.33',
   ueberstundenZuschlag: '25', nachtVon: '23', nachtBis: '6', nachtZuschlag: '25',
   samstagZuschlag: '', sonntagZuschlag: '50', feiertagArbeitZuschlag: '50',
-  zulageStunde: '', mittagszulage: '', krankFaktor: '80', karenztage: '2', schlechtwetterFaktor: '0',
+  zulageStunde: '', mittagszulage: '', krankFaktor: '80', karenztage: '2', ueberzeitGrenze: '', ueberzeitZuschlag: '25', schlechtwetterFaktor: '0',
   ahv: '5.3', alv: '1.1', nbu: '', ktg: '', bvg: '', bvgKoordStunde: '', gav: '',
   // genaue Ansätze pro Stunde laut Lohnabrechnung (überschreiben die %-Rechnung) und Faktor der Netto-Rückstellung
   ferienAnsatz: '', feiertagAnsatz: '', dreizehnterAnsatz: '', ferienRueckFaktor: '', feiertagRueckFaktor: '', dreizehnterRueckFaktor: '', far: '', parifonds: '', quellensteuer: '',
@@ -158,7 +159,7 @@ export function sonderStunden(s, jetzt = Date.now(), e = null) {
 
 const leerTopf = (einsatz) => ({
   einsatz, firma: einsatz?.firma || 'Ohne Einsatzvertrag', stundenlohn: zahl(einsatz?.stundenlohn),
-  grundStd: 0, wochenStd: {}, ueberStd: 0, nachtStd: 0, samstagStd: 0, sonntagStd: 0, feiertagStd: 0, tage: new Set(), absenzen: {},
+  grundStd: 0, wochenStd: {}, ueberStd: 0, ueberzeitStd: 0, nachtStd: 0, samstagStd: 0, sonntagStd: 0, feiertagStd: 0, tage: new Set(), absenzen: {},
 })
 
 /**
@@ -166,7 +167,7 @@ const leerTopf = (einsatz) => ({
  * Rückgabe: { posten: [...je Einsatz], brutto, abzuege, netto, spesen, auszahlung, fehlendeLoehne }
  */
 export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], einsaetze = [], einst, von, bis, jetzt = Date.now() }) {
-  const nachFirma = Object.fromEntries(einsaetze.map((e) => [e.firma, e]))
+  const nachFirma = Object.fromEntries(einsaetze.map((e) => [e.firma, mitGav(e)]))
   const imZeitraum = (d) => (!von || d >= von) && (!bis || d <= bis)
   const topf = {}
   const holeTopf = (firma) => {
@@ -197,17 +198,23 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
       else if (teil === 'lohn') { z.lohnStd += zahl(a.stunden); z.betrag += zahl(a.stunden) * t.stundenlohn * z.faktor }
       else { z.taggeldStd += zahl(a.stunden); z.taggeld += zahl(a.stunden) * basis * z.faktor; z.betrag += zahl(a.stunden) * basis * z.faktor }
     }
+    // GAV Betonwaren: Samstagszuschlag nur, wenn in der Woche schon 5 Normalarbeitstage (Mo–Fr) geleistet wurden
+    const werktage = new Set(w.s.filter((s) => { const d = new Date(s.datum + 'T12:00').getDay(); return d >= 1 && d <= 5 && arbeitMs(s, jetzt) > 0 }).map((s) => s.datum)).size
+    // Überzeit (über der gesetzlichen Höchstarbeitszeit) gibt nur Zuschlag, wenn angeordnet (in der Woche markiert)
+    const angeordnet = w.s.some((s) => s.angeordnet)
     for (const s of [...w.s].sort((x, y) => x.start - y.start)) {
       const t = holeTopf(s.firma)
       const h = arbeitMs(s, jetzt) / 36e5
+      const grenzeUZ = wert(t.einsatz, 'ueberzeitGrenze')
+      const ueberzeitStd = grenzeUZ > 0 && angeordnet ? Math.max(0, kumuliert + h - Math.max(grenzeUZ, kumuliert)) : 0
       // „durchschnittliche“ Arbeitszeit (z.B. Bellini) → keine automatischen Überstunden pro Woche
       const soll = t.einsatz?.ueberstundenModus === 'keine' ? 0 : zahl(t.einsatz?.wochenstunden) || zahl(einst?.wochenSoll)
       const ueberStd = soll ? Math.max(0, kumuliert + h - Math.max(soll, kumuliert)) : 0
       kumuliert += h
       if (!imZeitraum(s.datum)) continue
       const x = sonderStunden(s, jetzt, t.einsatz)
-      t.grundStd += h; t.ueberStd += ueberStd; t.wochenStd[s.wocheKey] = (t.wochenStd[s.wocheKey] || 0) + h
-      t.nachtStd += x.nacht; t.samstagStd += x.samstag; t.sonntagStd += x.sonntag; t.feiertagStd += x.feiertag
+      t.grundStd += h; t.ueberStd += ueberStd; t.ueberzeitStd += ueberzeitStd; t.wochenStd[s.wocheKey] = (t.wochenStd[s.wocheKey] || 0) + h
+      t.nachtStd += x.nacht; t.samstagStd += t.einsatz?.samstagNach5 && werktage < 5 ? 0 : x.samstag; t.sonntagStd += x.sonntag; t.feiertagStd += x.feiertag
       if (h > 0) t.tage.add(s.datum)
     }
   }
@@ -221,6 +228,9 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     const grund = Object.values(t.wochenStd).reduce((a, h) => a + rp(h * g), 0)
     z('Grundlohn', grund, { typ: 'grund', text: `${std(t.grundStd)} × ${g.toFixed(2)}`, immer: true })
     z(`Überstundenzuschlag ${wert(e, 'ueberstundenZuschlag')} %`, t.ueberStd * g * prozent(e, 'ueberstundenZuschlag'), { typ: 'ueber', text: std(t.ueberStd) })
+    // Überzeit: Zuschlag nur soweit nicht schon ein Überstundenzuschlag auf denselben Stunden liegt
+    const uzSatz = Math.max(0, wert(e, 'ueberzeitZuschlag') - (t.ueberStd > 0 ? wert(e, 'ueberstundenZuschlag') : 0))
+    z(`Überzeitzuschlag ${uzSatz} % (angeordnet, über ${wert(e, 'ueberzeitGrenze')} h/Woche)`, t.ueberzeitStd * g * uzSatz / 100, { typ: 'ueberzeit', text: std(t.ueberzeitStd) })
     z(`Nachtzuschlag ${wert(e, 'nachtZuschlag')} % (${wert(e, 'nachtVon')}–${wert(e, 'nachtBis')} Uhr)`, t.nachtStd * g * prozent(e, 'nachtZuschlag'), { typ: 'nacht', text: std(t.nachtStd) })
     z(`Samstagszuschlag ${wert(e, 'samstagZuschlag')} %`, t.samstagStd * g * prozent(e, 'samstagZuschlag'), { typ: 'samstag', text: std(t.samstagStd) })
     z(`Sonntagszuschlag ${wert(e, 'sonntagZuschlag')} %`, t.sonntagStd * g * prozent(e, 'sonntagZuschlag'), { typ: 'sonntag', text: std(t.sonntagStd) })
