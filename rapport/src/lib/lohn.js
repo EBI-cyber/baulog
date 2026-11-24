@@ -16,7 +16,7 @@ export const LOHN_STANDARD = {
   feiertagProzent: '', ferienProzent: '8.33', dreizehnterProzent: '8.33',
   ueberstundenZuschlag: '25', nachtVon: '23', nachtBis: '6', nachtZuschlag: '25',
   samstagZuschlag: '', sonntagZuschlag: '50', feiertagArbeitZuschlag: '50',
-  zulageStunde: '', mittagszulage: '', krankFaktor: '80', schlechtwetterFaktor: '0',
+  zulageStunde: '', mittagszulage: '', krankFaktor: '80', karenztage: '2', schlechtwetterFaktor: '0',
   ahv: '5.3', alv: '1.1', nbu: '', ktg: '', bvg: '', bvgKoordStunde: '', gav: '',
   // genaue Ansätze pro Stunde laut Lohnabrechnung (überschreiben die %-Rechnung) und Faktor der Netto-Rückstellung
   ferienAnsatz: '', feiertagAnsatz: '', dreizehnterAnsatz: '', ferienRueckFaktor: '', feiertagRueckFaktor: '', dreizehnterRueckFaktor: '', far: '', parifonds: '', quellensteuer: '',
@@ -79,6 +79,43 @@ export function absenzFaktor(art, e) {
   }
 }
 
+const tagNr = (iso) => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 864e5)
+
+/**
+ * Krankheit/Unfall nach GAV Personalverleih bzw. UVG, aufgeteilt in Krankheitsfälle (pro Firma):
+ * aufeinanderfolgende Tage gehören zum selben Fall (dazwischen nur Samstag/Sonntag).
+ * Krankheit: die ersten `karenztage` (Standard 2) Kalendertage ab Beginn sind Wartetage ohne Lohn,
+ *   danach Krankentaggeld `krankFaktor` % (Standard 80) des Lohns inkl. Ferien/Feiertag/13. ML — Taggeld ist
+ *   nicht AHV-pflichtig (keine Sozialabzüge, nur Quellensteuer).
+ * Unfall: Unfalltag + 2 Tage zahlt der Arbeitgeber 80 % (OR 324b, AHV-pflichtig), danach Unfalltaggeld 80 % (UVG).
+ * Rückgabe: Map Absenz → 'karenz' | 'lohn' | 'taggeld'
+ */
+export function krankheitsTeile(absenzen, firmaFuer, einsatzFuer) {
+  const out = new Map()
+  for (const art of ['krank', 'unfall']) {
+    const nachFirma = {}
+    for (const a of absenzen.filter((x) => x.art === art)) (nachFirma[firmaFuer(a)] ||= []).push(a)
+    for (const [firma, liste] of Object.entries(nachFirma)) {
+      const e = einsatzFuer(firma)
+      const karenz = art === 'krank' ? Math.max(0, wert(e, 'karenztage')) : 3
+      let beginn = null, letzter = null
+      for (const a of [...liste].sort((x, y) => x.datum.localeCompare(y.datum))) {
+        const n = tagNr(a.datum)
+        let gleicherFall = letzter != null && n - letzter <= 1
+        if (letzter != null && n - letzter > 1) {
+          gleicherFall = true
+          for (let t = letzter + 1; t < n; t++) { const wt = new Date(t * 864e5).getUTCDay(); if (wt !== 0 && wt !== 6) { gleicherFall = false; break } }
+        }
+        if (!gleicherFall) beginn = n
+        letzter = n
+        const imWarte = n - beginn < karenz
+        out.set(a, art === 'krank' ? (imWarte ? 'karenz' : 'taggeld') : (imWarte ? 'lohn' : 'taggeld'))
+      }
+    }
+  }
+  return out
+}
+
 const ueber = (a0, a1, b0, b1) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0))
 
 /**
@@ -130,6 +167,7 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
   const firmaFuer = (a) => a.firma || schichten.find((s) => s.wocheKey === a.wocheKey)?.firma || einst?.firma || ''
 
   // Wochenweise: Absenzen füllen das Soll zuerst, darüber hinaus gearbeitete Stunden = Überstunden
+  const teile = krankheitsTeile(absenzen, firmaFuer, (f) => nachFirma[f] || null)
   const wochen = {}
   for (const s of schichten) (wochen[s.wocheKey] ||= { s: [], a: [] }).s.push(s)
   for (const a of absenzen) (wochen[a.wocheKey] ||= { s: [], a: [] }).a.push(a)
@@ -138,9 +176,15 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     for (const a of w.a) {
       if (!imZeitraum(a.datum)) continue
       const t = holeTopf(firmaFuer(a))
-      const z = (t.absenzen[a.art] ||= { std: 0, betrag: 0, faktor: absenzFaktor(a.art, t.einsatz) })
+      const z = (t.absenzen[a.art] ||= { std: 0, betrag: 0, faktor: absenzFaktor(a.art, t.einsatz), karenzStd: 0, karenzTage: 0, lohnStd: 0, taggeldStd: 0, taggeld: 0 })
       z.std += zahl(a.stunden)
-      z.betrag += zahl(a.stunden) * t.stundenlohn * z.faktor
+      const teil = teile.get(a)
+      if (!teil) { z.betrag += zahl(a.stunden) * t.stundenlohn * z.faktor; continue }
+      // Krankheit/Unfall: Wartetage ohne Lohn, Taggeld auf den Lohn inkl. Ferien/Feiertag/13. ML
+      const basis = stundenSaetze(t.einsatz).total || t.stundenlohn
+      if (teil === 'karenz') { z.karenzStd += zahl(a.stunden); z.karenzTage += 1 }
+      else if (teil === 'lohn') { z.lohnStd += zahl(a.stunden); z.betrag += zahl(a.stunden) * t.stundenlohn * z.faktor }
+      else { z.taggeldStd += zahl(a.stunden); z.taggeld += zahl(a.stunden) * basis * z.faktor; z.betrag += zahl(a.stunden) * basis * z.faktor }
     }
     for (const s of [...w.s].sort((x, y) => x.start - y.start)) {
       const t = holeTopf(s.firma)
@@ -176,6 +220,16 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     for (const [art, a] of Object.entries(t.absenzen)) {
       const ausKonto = (art === 'ferien' || art === 'feiertag') && modus(e, art) === 'konto'
       if (ausKonto) konten[art].bezug += a.betrag
+      if (art === 'krank' || art === 'unfall') {
+        const basis = stundenSaetze(e).total || g, pz = Math.round(a.faktor * 100)
+        const teile = [
+          a.karenzStd ? `${a.karenzTage} Wartetag${a.karenzTage === 1 ? '' : 'e'} (${std(a.karenzStd)}) unbezahlt` : '',
+          a.lohnStd ? `${std(a.lohnStd)} × ${g.toFixed(2)} × ${pz} % (Arbeitgeber, Unfalltag + 2 Tage)` : '',
+          a.taggeldStd ? `${std(a.taggeldStd)} × ${basis.toFixed(2)} × ${pz} % ${art === 'krank' ? 'Krankentaggeld' : 'Unfalltaggeld'} (ohne AHV-Abzüge)` : '',
+        ].filter(Boolean)
+        zeilen.push({ art, label: art, betrag: rp(a.betrag), taggeld: rp(a.taggeld), info: teile.join(' · ') })
+        continue
+      }
       zeilen.push({ art, label: art, betrag: rp(a.betrag), ausKonto, info: `${std(a.std)} × ${Math.round(a.faktor * 100)} %${ausKonto ? ' · aus dem Konto' : ''}` })
     }
     // Entschädigungen wie im Vertrag: pro gearbeitete Stunde; laufend → im Bruttolohn, Konto → angespart
@@ -198,14 +252,17 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
       zeilen.push({ k, label, betrag, konto, info: `${h} h × ${satz.toFixed(2)}${konto ? ' · angespart, nicht ausbezahlt' : ''}` })
     }
     const brutto = rp(zeilen.reduce((a, x) => a + (x.konto ? 0 : x.betrag), 0))
+    // Kranken-/Unfalltaggeld ist kein AHV-Lohn: keine Sozialabzüge darauf, nur Quellensteuer
+    const taggeld = rp(zeilen.reduce((a, x) => a + (x.taggeld || 0), 0))
+    const ahvLohn = rp(brutto - taggeld)
     // BVG auf den koordinierten Lohn: Brutto − Koordinationsabzug pro Stunde (steht auf der Abrechnung als Basis)
-    const bvgBasis = wert(e, 'bvgKoordStunde') > 0 ? rp(Math.max(0, brutto - t.grundStd * wert(e, 'bvgKoordStunde'))) : brutto
+    const bvgBasis = wert(e, 'bvgKoordStunde') > 0 ? rp(Math.max(0, ahvLohn - t.grundStd * wert(e, 'bvgKoordStunde'))) : ahvLohn
     // Quellensteuer hängt von der Person ab (Fragebogen), nicht vom Einsatz
     const p = einst?.profil
     const qst = quellensteuerPflichtig(p) ? (zahl(p.qstSatz) || zahl(einst?.qstAuto?.satz)) : p?.status ? 0 : wert(e, 'quellensteuer')
     const abzuege = ABZUEGE.map(([k, label]) => {
       const pr = k === 'quellensteuer' ? qst : wert(e, k)
-      const basis = k === 'bvg' ? bvgBasis : brutto
+      const basis = k === 'bvg' ? bvgBasis : k === 'quellensteuer' ? brutto : ahvLohn
       return { k, label: k === 'quellensteuer' && quellensteuerPflichtig(p) ? `${label} (${tarif(p)}, ${p.wohnkanton || '?'}${!zahl(p.qstSatz) && einst?.qstAuto ? `, Tabelle ${einst.qstAuto.jahr}` : ''})` : label, prozent: pr, basis, betrag: rp(basis * pr / 100) }
     }).filter((a) => a.prozent > 0)
     const abzugTotal = rp(abzuege.reduce((a, x) => a + x.betrag, 0))
@@ -220,7 +277,7 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
     }
     // nicht AHV-pflichtig, kommt zur Auszahlung
     const mittag = rp(t.tage.size * wert(e, 'mittagszulage'))
-    return { ...t, tage: t.tage.size, zeilen, brutto, abzuege, abzugTotal, netto: rp(brutto - abzugTotal), mittag, konten, rueckstellung: rp(rueckstellung) }
+    return { ...t, tage: t.tage.size, zeilen, brutto, abzuege, abzugTotal, netto: rp(brutto - abzugTotal), mittag, konten, rueckstellung: rp(rueckstellung), taggeld }
   }).filter((p) => p.grundStd > 0 || p.zeilen.length > 1)
 
   const spesenSumme = rp(spesen.filter((x) => imZeitraum(x.datum)).reduce((a, x) => a + zahl(x.betrag), 0))

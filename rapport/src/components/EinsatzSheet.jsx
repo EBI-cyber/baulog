@@ -403,9 +403,11 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose, ziel }) {
         <Feld label="Arbeit an Feiertagen" einheit="%" {...zahlFeld('feiertagArbeitZuschlag')} />
         <Feld label="Zulage pro Std." einheit={w} {...zahlFeld('zulageStunde')} placeholder="Schicht, Schmutz …" />
         <Feld label="Mittagszulage / Tag" einheit={w} {...zahlFeld('mittagszulage')} />
-        <Feld label="Lohn bei Krankheit" einheit="%" {...zahlFeld('krankFaktor')} />
+        <Feld label="Lohn bei Krankheit" einheit="%" {...zahlFeld('krankFaktor')} placeholder={LOHN_STANDARD.krankFaktor} />
+        <Feld label="Wartetage bei Krankheit" einheit="Tage" inputMode="numeric" value={f.karenztage || ''} onChange={set('karenztage')} placeholder={LOHN_STANDARD.karenztage} />
         <Feld label="Lohn bei Schlechtwetter" einheit="%" {...zahlFeld('schlechtwetterFaktor')} />
       </div>
+      <div className="text-xs text-white/60">Krankheit (GAV Personalverleih): die ersten {f.karenztage || LOHN_STANDARD.karenztage} Kalendertage pro Krankheitsfall sind Wartetage ohne Lohn, danach Krankentaggeld {f.krankFaktor || LOHN_STANDARD.krankFaktor} % des Lohns inkl. Ferien/Feiertag/13. ML, ohne AHV-Abzüge. Unfall: Unfalltag + 2 Tage 80 % vom Arbeitgeber, danach 80 % Unfalltaggeld.</div>
 
       <Titel>Abzüge (Arbeitnehmer)</Titel>
       <div className="grid grid-cols-2 gap-3">
@@ -420,7 +422,6 @@ export default function EinsatzSheet({ einsatz, vorgabe, onClose, ziel }) {
         <Feld breit label="GAV" value={f.gavName} onChange={set('gavName')} />
         <Feld breit label="Kündigungsfrist" value={f.kuendigungsfrist} onChange={set('kuendigungsfrist')} />
         <Feld label="Lohnzahlung (Termin)" value={f.lohnzahlung || ''} onChange={set('lohnzahlung')} />
-        <Feld label="Wartetage bei Krankheit" inputMode="numeric" value={f.karenztage || ''} onChange={set('karenztage')} />
         <Feld breit label="Spesen / Zulagen" value={f.spesenInfo} onChange={set('spesenInfo')} />
         <Feld breit label="Bemerkungen" value={f.bemerkungen} onChange={set('bemerkungen')} />
       </div>
