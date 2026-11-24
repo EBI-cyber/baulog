@@ -1,7 +1,7 @@
 import { arbeitMs, wochenTage, isoDatum } from './zeit'
 import { sonderStunden, LOHN_STANDARD } from './lohn'
 import { zahl } from './settings'
-import { absenzArt } from './arten'
+import { absenzArt, angerechnet } from './arten'
 
 /**
  * Tageswerte für das Rapport-Formular (Wochenraster wie Arbeitsrapport der Temporärbüros):
@@ -21,7 +21,7 @@ export function rapportTage({ woche, schichten, absenzen = [], spesen = [], eins
     if (t) t.absenzen.push({ label: art.label + (a.halbtag ? ' ½' : ''), kurz: (art.kurz || art.label) + (a.halbtag ? ' ½' : ''), std: zahl(a.stunden) })
   }
   const soll = e?.ueberstundenModus === 'keine' ? 0 : zahl(e?.wochenstunden) || zahl(einst?.wochenSoll)
-  let kumuliert = absenzen.reduce((x, a) => x + zahl(a.stunden), 0)
+  let kumuliert = absenzen.reduce((x, a) => x + angerechnet(a), 0)
   for (const s of [...schichten].filter((x) => x.ende != null).sort((a, b) => a.start - b.start)) {
     const t = nach[s.datum]
     if (!t) continue

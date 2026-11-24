@@ -1,3 +1,4 @@
+import { angerechnet } from '../lib/arten'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import { Gauge, Clock, TrendingUp, TrendingDown, Banknote, CalendarOff, Wallet, AlertTriangle, CheckCircle2, ChevronRight, CalendarClock, PiggyBank, FileCheck2, XCircle, Camera } from 'lucide-react'
@@ -44,7 +45,7 @@ export default function MonatStand({ jahr, mon, wochen, schichten, absenzen, spe
     // nur Tage dieses Monats (Wochen am Monatsrand zählen anteilig) → Summe passt zum Monat
     const ws = schichten.filter((s) => s.wocheKey === key && s.datum >= mVon && s.datum <= mBis)
     const wa = absenzen.filter((a) => a.wocheKey === key && a.datum >= mVon && a.datum <= mBis)
-    const h = ws.reduce((s, x) => s + arbeitMs(x, jetzt), 0) / 36e5 + wa.reduce((s, a) => s + zahl(a.stunden), 0)
+    const h = ws.reduce((s, x) => s + arbeitMs(x, jetzt), 0) / 36e5 + wa.reduce((s, a) => s + angerechnet(a), 0)
     const firmen = [...new Set(ws.filter((s) => s.ende != null).map((s) => s.firma))]
     const gesendet = firmen.length > 0 && firmen.every((f) => status.some((x) => (x.key === `${key}|${f}` || x.key === key) && x.gesendetAm))
     const vorbei = tagIso(wt[6]) < heuteIso

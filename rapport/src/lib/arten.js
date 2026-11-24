@@ -19,6 +19,8 @@ export const ABSENZEN = [
   { id: 'kein_einsatz', kurz: 'Kein Einsatz', label: 'Kein Einsatz', hinweis: 'Betrieb hat keine Arbeit', icon: Ban, farbe: 'stone', bezahlt: false },
 ]
 export const absenzArt = (id) => ABSENZEN.find((a) => a.id === id) || ABSENZEN[0]
+/** Angerechnete Stunden einer Abwesenheit: nur bezahlte Arten zählen (unbezahlte fallen aus dem Soll) */
+export const angerechnet = (a) => (absenzArt(a.art).bezahlt ? parseFloat(String(a.stunden ?? '').replace(',', '.')) || 0 : 0)
 
 // Tailwind-Klassen pro Farbe (ausgeschrieben, damit Tailwind sie findet)
 export const FARBE = {

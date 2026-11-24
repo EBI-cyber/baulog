@@ -15,7 +15,8 @@ export function sollIst({ von, bis, schichten, absenzen, einsaetze = [], einst, 
   const sch = schichten.filter((s) => imZeitraum(s.datum))
   const abw = absenzen.filter((a) => imZeitraum(a.datum))
   const arbeit = sch.reduce((s, x) => s + arbeitMs(x, jetzt), 0) / 36e5
-  const abwBezahlt = abw.reduce((s, a) => s + zahl(a.stunden), 0)
+  // nur angerechnete (bezahlte) Abwesenheiten zählen zum Ist — unbezahlte Tage fallen dafür aus dem Soll (sonst doppelt)
+  const abwBezahlt = abw.filter((a) => absenzArt(a.art).bezahlt).reduce((s, a) => s + zahl(a.stunden), 0)
   const firma = [...sch].sort((a, b) => a.start - b.start).pop()?.firma || einst.firma
   const einsatz = einsaetze.find((e) => e.firma === firma)
   const wochenStd = zahl(einsatz?.wochenstunden) || zahl(einst.wochenSoll)
