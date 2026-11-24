@@ -86,6 +86,7 @@ export default function KrankSheet({ onClose }) {
           {polier?.tel && <a href={whatsappLink(polier.tel, nachricht)} target="_blank" rel="noreferrer" className="w-full rounded-2xl py-3 bg-[#25D366]/15 border border-[#25D366]/40 text-[#7ee2a8] font-semibold inline-flex items-center justify-center gap-2"><MessageCircle className="w-5 h-5" /> WhatsApp an {polier.name}</a>}
           {!fertig.mail?.ok && einsatz?.bueroEmail && <a href={`mailto:${einsatz.bueroEmail}?subject=${encodeURIComponent(`Krankmeldung ${einst.name}`)}&body=${encodeURIComponent(nachricht)}`} className="w-full rounded-2xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2"><Mail className="w-5 h-5" /> E-Mail öffnen</a>}
           <div className="text-sm text-white/70 flex gap-2"><Camera className="w-4 h-4 shrink-0 mt-0.5" /> Arztzeugnis: meist ab dem 3. Krankheitstag nötig (siehe Vertrag). Unter „Woche“ die Abwesenheit öffnen und „Arztzeugnis vorhanden“ abhaken.</div>
+          <div className="text-sm text-white/70">Lohn: Tag 1 und 2 sind Wartetage ohne Lohn, ab dem 3. Tag 80 % Krankentaggeld — so rechnet die App.</div>
           <button onClick={onClose} className="w-full rounded-2xl py-3 bg-white/10 font-semibold">Schliessen</button>
         </>
       )}

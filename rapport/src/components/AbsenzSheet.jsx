@@ -86,6 +86,13 @@ export default function AbsenzSheet({ absenz, datum, onClose }) {
         <div className="text-xs text-white/55 mt-1">{art.bezahlt ? 'Vorschlag = Tagessoll aus den Einstellungen.' : 'Wird normalerweise nicht angerechnet.'}</div>
       </div>
 
+      {(f.art === 'krank' || f.art === 'unfall') && (
+        <div className="text-xs text-white/60 rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2">
+          {f.art === 'krank'
+            ? 'Lohn bei Krankheit (GAV Personalverleih): die ersten 2 Kalendertage pro Krankheitsfall sind Wartetage ohne Lohn, ab dem 3. Tag zahlt die Krankentaggeld-Versicherung 80 % (ohne AHV-Abzüge). Die Stunden zählen trotzdem als entschuldigt, nicht als Minusstunden. Anpassbar im Einsatz.'
+            : 'Unfall: Unfalltag + 2 Tage zahlt der Arbeitgeber 80 %, danach die Unfallversicherung 80 % Taggeld.'}
+        </div>
+      )}
       {art.zeugnis && (
         <label className="flex items-center gap-3 text-sm bg-white/[0.04] rounded-xl px-3 py-2.5">
           <input type="checkbox" checked={!!f.zeugnis} onChange={(e) => setF({ ...f, zeugnis: e.target.checked })} className="w-5 h-5 accent-cyan-400" />
