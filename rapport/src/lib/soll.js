@@ -15,12 +15,13 @@ export function sollIst({ von, bis, schichten, absenzen, einsaetze = [], einst, 
   const sch = schichten.filter((s) => imZeitraum(s.datum))
   const abw = absenzen.filter((a) => imZeitraum(a.datum))
   const arbeit = sch.reduce((s, x) => s + arbeitMs(x, jetzt), 0) / 36e5
-  // nur angerechnete (bezahlte) Abwesenheiten zählen zum Ist — unbezahlte Tage fallen dafür aus dem Soll (sonst doppelt)
-  const abwBezahlt = abw.filter((a) => absenzArt(a.art).bezahlt).reduce((s, a) => s + zahl(a.stunden), 0)
   const firma = [...sch].sort((a, b) => a.start - b.start).pop()?.firma || einst.firma
   const einsatz = einsaetze.find((e) => e.firma === firma)
   const wochenStd = zahl(einsatz?.wochenstunden) || zahl(einst.wochenSoll)
   const tagSoll = (wochenStd || 40) / 5
+  // nur bezahlte Abwesenheiten zählen zum Ist (unbezahlte Tage fallen dafür aus dem Soll) — und höchstens mit dem
+  // Tagessoll: ein Krankheitstag mit Ø 8.46 h (Lohnausfallprinzip, nur für den Lohn) darf keine Überstunden erzeugen
+  const abwBezahlt = abw.filter((a) => absenzArt(a.art).bezahlt).reduce((s, a) => s + Math.min(zahl(a.stunden), tagSoll * (a.halbtag ? 0.5 : 1)), 0)
   const start = [von, einsatz?.beginn, ersterTag].filter(Boolean).sort().pop()
   const hatEintrag = (d) => sch.some((s) => s.datum === d && s.ende != null) || abw.some((a) => a.datum === d)
   let sollTage = 0
