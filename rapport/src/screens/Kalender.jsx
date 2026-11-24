@@ -6,7 +6,7 @@ import { db } from '../lib/db'
 import { useEinstellungen, zahl } from '../lib/settings'
 import { feiertagAm } from '../lib/feiertage'
 import { kantonFuer } from '../lib/kanton'
-import { absenzArt, FARBE } from '../lib/arten'
+import { absenzArt, FARBE, angerechnet } from '../lib/arten'
 import { std } from '../lib/woche'
 import { isoWoche, wochenKey, wochenTage, isoDatum, TAGE_LANG, datumLang, arbeitMs } from '../lib/zeit'
 import Sheet from '../components/Sheet'
@@ -63,7 +63,7 @@ export default function Kalender() {
     const abw = absenzen.filter((a) => a.datum === d)
     const sp = spesen.filter((x) => x.datum === d)
     const arbeit = sch.reduce((s, x) => s + arbeitMs(x, jetzt), 0) / 36e5
-    const abwStd = abw.reduce((s, a) => s + zahl(a.stunden), 0)
+    const abwStd = abw.reduce((s, a) => s + angerechnet(a), 0)
     return { sch, abw, sp, arbeit, abwStd, laeuft: sch.some((x) => x.ende == null), feiertag: feiertagAm(kanton, d) }
   }
   const wocheGesendet = (key) => {

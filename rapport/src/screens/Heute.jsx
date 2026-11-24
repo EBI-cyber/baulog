@@ -1,3 +1,4 @@
+import { angerechnet } from '../lib/arten'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -134,7 +135,7 @@ export default function Heute() {
 
   const fertig = (heuteListe || []).filter((s) => s.ende != null)
   const summeHeute = (heuteListe || []).reduce((a, s) => a + arbeitMs(s, jetzt), 0)
-    + (absenzen || []).reduce((a, x) => a + zahl(x.stunden) * 3600000, 0)
+    + (absenzen || []).reduce((a, x) => a + angerechnet(x) * 3600000, 0)
 
   return (
     <div className="space-y-5">

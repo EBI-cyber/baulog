@@ -1,4 +1,5 @@
 import { arbeitMs, isoDatum } from './zeit'
+import { absenzArt } from './arten'
 import { zahl } from './settings'
 import { feiertagAm } from './feiertage'
 import { quellensteuerPflichtig, tarif } from './profil'
@@ -181,7 +182,7 @@ export function lohnBerechnen({ schichten = [], absenzen = [], spesen = [], eins
   for (const s of schichten) (wochen[s.wocheKey] ||= { s: [], a: [] }).s.push(s)
   for (const a of absenzen) (wochen[a.wocheKey] ||= { s: [], a: [] }).a.push(a)
   for (const w of Object.values(wochen)) {
-    let kumuliert = w.a.reduce((x, a) => x + zahl(a.stunden), 0)
+    let kumuliert = w.a.filter((a) => absenzArt(a.art).bezahlt).reduce((x, a) => x + zahl(a.stunden), 0)
     for (const a of w.a) {
       if (!imZeitraum(a.datum)) continue
       const t = holeTopf(firmaFuer(a))

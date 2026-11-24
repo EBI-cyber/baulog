@@ -1,5 +1,5 @@
 import { arbeitMs } from './zeit'
-import { absenzArt } from './arten'
+import { absenzArt, angerechnet } from './arten'
 import { zahl } from './settings'
 
 /** Alle Wochenzahlen an einem Ort (für Bildschirm und PDF). Stunden als Zahl. */
@@ -10,7 +10,7 @@ export function wochenRechnung({ schichten = [], absenzen = [], spesen = [], ein
     const k = absenzArt(x.art).label
     nachArt[k] = (nachArt[k] || 0) + (x.halbtag ? 0.5 : 1)
   }
-  const absenzStd = absenzen.reduce((a, x) => a + zahl(x.stunden), 0)
+  const absenzStd = absenzen.reduce((a, x) => a + angerechnet(x), 0)
   const total = arbeit + absenzStd
   const soll = zahl(einst?.wochenSoll)
   return {
