@@ -98,7 +98,7 @@ export default function AbsenzSheet({ absenz, datum, onClose }) {
       <div>
         <label className="block text-xs text-white/65 mb-1">Angerechnete Stunden pro Tag</label>
         <input inputMode="decimal" value={f.stunden} onChange={(e) => setF({ ...f, stunden: e.target.value })} className="eingabe" />
-        <div className="text-xs text-white/55 mt-1">{art.bezahlt ? 'Vorschlag = Tagessoll aus den Einstellungen.' : 'Wird normalerweise nicht angerechnet.'}</div>
+        <div className="text-xs text-white/55 mt-1">{krankArt(f.art) ? 'Vorschlag = Ø deiner gearbeiteten Stunden (siehe unten).' : art.bezahlt ? 'Vorschlag = Tagessoll aus den Einstellungen.' : 'Wird normalerweise nicht angerechnet.'}</div>
       </div>
 
       {(f.art === 'krank' || f.art === 'unfall') && (
