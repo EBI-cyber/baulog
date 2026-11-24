@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ChevronLeft, ChevronRight, FolderOpen, Folder, FileCheck2, CheckCircle2, XCircle, FileText, Info, Receipt, ScanSearch } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, FolderOpen, Folder, FileCheck2, CheckCircle2, XCircle, FileText, Info, Receipt, ScanSearch, FileImage, Plus, Archive } from 'lucide-react'
 import { db } from '../lib/db'
 import { useEinstellungen, zahl } from '../lib/settings'
 import { chf } from '../lib/lohn'
@@ -12,6 +12,9 @@ import { jahresabschlussPdf } from '../lib/pdf'
 import { teileDatei } from '../lib/teilen'
 import LohnPruefung from '../components/LohnPruefung'
 import LohnDetailSheet from '../components/LohnDetailSheet'
+import OriginalSheet from '../components/OriginalSheet'
+import { teilen as originalTeilen, abrechnungOriginalSpeichern } from '../lib/originale'
+import { alsDataUrl } from '../lib/bild'
 
 // Farben wie in der Statistik (netto / Sozialabzüge), dazu Quellensteuer und Übrige
 const FARBEN = { netto: '#0891b2', sozial: '#8b5cf6', bvg: '#a78bfa', quellensteuer: '#f59e0b', uebrige: '#64748b' }
@@ -25,6 +28,18 @@ export default function Abrechnungen() {
   const [pruefung, setPruefung] = useState(null)
   const [detail, setDetail] = useState(null)
   const [offen, setOffen] = useState({})
+  const [original, setOriginal] = useState(null)
+  const [ablegen, setAblegen] = useState(null) // { monat, buero, dateien, laeuft }
+  async function ablegenDateien(e) {
+    const files = [...(e.target.files || [])]; e.target.value = ''
+    const neu = []
+    for (const f of files) neu.push(await alsDataUrl(f, 2400, 0.85))
+    setAblegen((a) => ({ ...a, dateien: [...(a.dateien || []), ...neu] }))
+  }
+  async function ablegenSpeichern() {
+    await abrechnungOriginalSpeichern({ monat: ablegen.monat, buero: ablegen.buero, firma: einst.firma, dateien: ablegen.dateien })
+    setAblegen(null)
+  }
   const alle = useLiveQuery(() => db.lohnabrechnungen.toArray(), [], null)
   const daten = useLiveQuery(async () => ({
     schichten: (await db.schichten.toArray()).filter((s) => s.ende != null),
@@ -161,6 +176,23 @@ export default function Abrechnungen() {
         <button onClick={() => setPruefung(true)} className="w-full glass rounded-2xl px-4 py-3 flex items-center gap-3 text-left">
           <ScanSearch className="w-5 h-5 text-cyan-300 shrink-0" /><span className="flex-1 font-semibold">Neue Lohnabrechnung prüfen</span><ChevronRight className="w-4 h-4 text-white/50" />
         </button>
+        <button onClick={() => setAblegen({ monat: new Date().toISOString().slice(0, 7), buero: '', dateien: [] })} className="w-full glass rounded-2xl px-4 py-3 flex items-center gap-3 text-left">
+          <Archive className="w-5 h-5 text-amber-300 shrink-0" /><span className="flex-1"><span className="font-semibold">Original ablegen (ohne Prüfung)</span><span className="block text-xs text-white/60">z.B. alte Abrechnungen — Foto oder PDF, später prüfbar</span></span><ChevronRight className="w-4 h-4 text-white/50" />
+        </button>
+        {ablegen && (
+          <div className="glass rounded-2xl p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs text-white/65">Monat<input type="month" value={ablegen.monat} onChange={(e) => setAblegen({ ...ablegen, monat: e.target.value })} className="mt-1 w-full rounded-xl bg-white/10 px-3 py-2.5 text-sm text-white" /></label>
+              <label className="text-xs text-white/65">Büro<input value={ablegen.buero} onChange={(e) => setAblegen({ ...ablegen, buero: e.target.value })} placeholder="z.B. Bellini" className="mt-1 w-full rounded-xl bg-white/10 px-3 py-2.5 text-sm text-white" /></label>
+            </div>
+            <label className="w-full rounded-xl py-3 bg-white/10 font-semibold inline-flex items-center justify-center gap-2 cursor-pointer"><Plus className="w-5 h-5" /> {ablegen.dateien.length ? `${ablegen.dateien.length} Datei(en) — weitere` : 'Foto oder PDF wählen'}
+              <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={ablegenDateien} /></label>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setAblegen(null)} className="rounded-xl py-2.5 bg-white/[0.06] text-sm">Abbrechen</button>
+              <button onClick={ablegenSpeichern} disabled={!ablegen.dateien.length || !ablegen.monat} className="rounded-xl py-2.5 btn-grad text-sm font-bold disabled:opacity-40">Ablegen</button>
+            </div>
+          </div>
+        )}
         {!baum.length && <div className="text-sm text-white/60 px-1">Noch keine Lohnabrechnung gespeichert.</div>}
         {baum.map(([j, mon]) => {
           const jk = 'j' + j, jo = offen[jk] ?? +j === jahr
@@ -177,20 +209,28 @@ export default function Abrechnungen() {
                         {liste.map((a) => {
                           const x = abrechnungWerte(a)
                           const n = (a.pruefung || []).filter((c) => c.status === 'abweichung' && c.id !== 'auszahlung').length
+                          const orig = originalTeilen(a.fotos || [])
                           return (
-                            <button key={a.id} onClick={() => setPruefung(a)} className="w-full text-left rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-1">
+                            <div key={a.id} className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
                               <div className="flex items-center gap-2">
                                 <FileCheck2 className="w-4 h-4 text-cyan-300 shrink-0" />
                                 <span className="flex-1 font-semibold truncate">{a.buero || 'Lohnabrechnung'}</span>
-                                {n ? <span className="text-xs text-ember inline-flex items-center gap-1"><XCircle className="w-3.5 h-3.5" />{n}</span> : <CheckCircle2 className="w-4 h-4 text-lime" />}
+                                {a.nurArchiv ? <span className="text-xs text-white/60">nur abgelegt</span> : n ? <span className="text-xs text-ember inline-flex items-center gap-1"><XCircle className="w-3.5 h-3.5" />{n} Abweichung{n > 1 ? 'en' : ''}</span> : <CheckCircle2 className="w-4 h-4 text-lime" />}
                               </div>
                               <div className="text-xs text-white/60">{a.von.split('-').reverse().join('.')} – {a.bis.split('-').reverse().join('.')}{a.firma ? ` · ${a.firma}` : ''}</div>
-                              <div className="grid grid-cols-3 gap-1 text-xs tabular-nums">
+                              {!a.nurArchiv && <div className="grid grid-cols-3 gap-1 text-xs tabular-nums">
                                 <span><span className="text-white/55">brutto </span>{x.brutto.toFixed(2)}</span>
                                 <span><span className="text-white/55">netto </span>{x.netto.toFixed(2)}</span>
                                 <span><span className="text-white/55">aus. </span>{x.auszahlung.toFixed(2)}</span>
+                              </div>}
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {(orig.bilder.length + orig.pdfs.length) > 0
+                                  ? <button onClick={() => setOriginal({ titel: `Lohnabrechnung ${MONATE[m]} ${j}`, ...orig, name: `Lohnabrechnung_${j}-${String(+m + 1).padStart(2, '0')}_${(a.buero || '').replace(/[^\w]+/g, '_')}.pdf` })}
+                                    className="rounded-xl py-2.5 px-2 bg-emerald-400/15 border border-emerald-400/30 text-emerald-200 text-sm font-semibold inline-flex items-center justify-center gap-1.5"><FileImage className="w-4 h-4" /> Original</button>
+                                  : <span className="text-xs text-white/50 self-center">kein Original gespeichert</span>}
+                                <button onClick={() => setPruefung(a)} className="rounded-xl py-2.5 px-2 bg-white/[0.06] text-sm inline-flex items-center justify-center gap-1.5"><ScanSearch className="w-4 h-4" /> {a.nurArchiv ? 'Jetzt prüfen' : 'Prüfung'}</button>
                               </div>
-                            </button>
+                            </div>
                           )
                         })}
                       </div>}
@@ -205,6 +245,7 @@ export default function Abrechnungen() {
 
       <div className="text-xs text-white/55 flex gap-2"><Info className="w-4 h-4 shrink-0" /> Ohne Gewähr, keine Steuerberatung. Massgebend sind der Lohnausweis des Büros und die Wegleitung deines Kantons.</div>
 
+      {original && <OriginalSheet {...original} onClose={() => setOriginal(null)} />}
       <LohnDetailSheet d={detail} w={w} onClose={() => setDetail(null)} />
       {pruefung && <LohnPruefung gespeichert={pruefung === true ? null : pruefung} onClose={() => setPruefung(null)} />}
     </div>

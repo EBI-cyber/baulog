@@ -20,7 +20,7 @@ const leer = () => ({ brutto: 0, netto: 0, spesen: 0, rueck: 0, vorschuesse: 0, 
 export function eindeutig(liste) {
   const m = {}
   for (const a of liste || []) {
-    const k = `${a.von}|${a.bis}|${(a.buero || '').toLowerCase()}`
+    const k = `${a.von}|${a.bis}|${(a.buero || '').toLowerCase()}|${a.nurArchiv ? 'archiv' : ''}`
     if (!m[k] || (a.erstellt || 0) > (m[k].erstellt || 0)) m[k] = a
   }
   return Object.values(m).sort((a, b) => a.bis.localeCompare(b.bis))
@@ -59,7 +59,7 @@ function schaetzung(daten, einst, qstTarif, von, bis) {
  * fehlt sie, die Schätzung der App (markiert). Rückgabe { monate: [...12], total, totalAbrechnung, abrechnungen }
  */
 export function jahresabschluss({ jahr, abrechnungen, daten, einst, qstTarif, heute = isoDatum(new Date()) }) {
-  const liste = eindeutig(abrechnungen).filter((a) => +a.bis.slice(0, 4) === jahr)
+  const liste = eindeutig((abrechnungen || []).filter((a) => zahl(a.daten?.brutto) > 0)).filter((a) => +a.bis.slice(0, 4) === jahr)
   const monate = MONATE.map((name, m) => {
     const key = `${jahr}-${String(m + 1).padStart(2, '0')}`
     const von = `${key}-01`, bis = isoDatum(new Date(jahr, m + 1, 0))
