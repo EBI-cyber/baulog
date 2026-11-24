@@ -149,6 +149,83 @@ export default function Heute() {
         </Link>
       </header>
 
+      {/* Stempeluhr */}
+      <section className="glass rounded-4xl p-6 text-center space-y-5">
+        {!laufend ? (
+          <>
+            {firma && !wechseln ? (
+              // Aktueller Einsatz ist voreingestellt — nur Start drücken
+              <button onClick={() => setWechseln(true)} className="w-full text-left rounded-2xl bg-white/[0.05] border border-white/10 px-4 py-3 flex items-center gap-3">
+                <IconChip icon={Building2} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold leading-snug break-words">{firma}</div>
+                  <div className="text-xs text-white/65 line-clamp-2">{[aktiverEinsatz?.buero || einst.buero, aktiverEinsatz?.baustelle, aktiverEinsatz?.einsatzort, aktiverEinsatz?.funktion].filter(Boolean).join(' · ') || 'Einsatz'}</div>
+                </div>
+                <span className="shrink-0 text-xs text-white/60">Wechseln</span>
+              </button>
+            ) : (
+              <div className="text-left space-y-2">
+                <div className="text-xs text-white/65 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Einsatzbetrieb wählen</div>
+                <FirmaWahl firmen={einst.firmen} wert={firma} onWahl={(f) => { setEinst({ firma: f }); setWechseln(false) }}
+                  onNeu={(n) => { setEinst({ firmen: [...einst.firmen, n], firma: n }); setWechseln(false) }} />
+              </div>
+            )}
+            <button onClick={start} disabled={!firma}
+              className="mx-auto w-44 h-44 rounded-full btn-grad shadow-glow flex flex-col items-center justify-center gap-1 font-extrabold text-xl active:scale-95 transition disabled:opacity-40">
+              <Play className="w-12 h-12" strokeWidth={2.2} fill="currentColor" />
+              Start
+            </button>
+            {!firma && <div className="text-sm text-white/65">Zuerst eine Firma wählen oder hinzufügen.</div>}
+            <button onClick={() => setKrank(true)} className="text-sm text-white/65 inline-flex items-center gap-1.5"><Thermometer className="w-4 h-4" /> Krank melden</button>
+          </>
+        ) : (
+          <>
+            {jetzt - laufend.start > 12 * 3600000 && !weiterGearbeitet && (
+              <div className="rounded-2xl p-4 text-left space-y-3 bg-amber-400/10 border border-amber-400/35">
+                <div className="flex gap-2 font-semibold"><AlarmClock className="w-5 h-5 text-amber-300 shrink-0" /> Feierabend vergessen? Die Uhr läuft seit {TAGE_LANG[new Date(laufend.start).getDay()]} {uhr(laufend.start)}.</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {['16:00', '16:30', '17:00', '17:30'].map((z) => (
+                    <button key={z} onClick={() => setEndeZeit(z)} className={'px-3 py-1.5 rounded-xl text-sm border ' + (endeZeit === z ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/70')}>{z}</button>
+                  ))}
+                  <input type="time" value={endeZeit} onChange={(e) => setEndeZeit(e.target.value)} className="eingabe w-28 py-1.5" />
+                </div>
+                <button onClick={nachtraeglichBeenden} className="w-full rounded-2xl py-3 btn-grad font-bold">Feierabend um {endeZeit} eintragen</button>
+                <button onClick={() => setWeiterGearbeitet(true)} className="w-full text-sm text-white/65">Nein, ich arbeite noch (Nachtschicht)</button>
+              </div>
+            )}
+            <button onClick={() => bearbeite(laufend)} className="inline-flex items-center gap-1.5 text-sm text-white/60">
+              <Building2 className="w-4 h-4" /> {laufend.firma} · seit {uhr(laufend.start)} <Pencil className="w-3.5 h-3.5 text-white/55" />
+            </button>
+            <div>
+              <div className={'text-6xl font-extrabold tabular-nums tracking-tight ' + (pausiert ? 'text-white/60' : 'grad-text')}>
+                {hms(arbeitMs(laufend, jetzt))}
+              </div>
+              <div className="text-sm text-white/65 mt-1 inline-flex items-center gap-1.5">
+                <Coffee className="w-4 h-4" /> Pause {hm(pauseMs(laufend, jetzt))}
+                {pausiert && <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-amber-400/15 text-amber-300 border border-amber-400/30">Pause läuft</span>}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {pausiert ? (
+                <button onClick={weiter} className="rounded-3xl py-5 font-bold text-lg btn-grad inline-flex items-center justify-center gap-2 active:scale-95 transition">
+                  <Play className="w-6 h-6" fill="currentColor" /> Weiter
+                </button>
+              ) : (
+                <button onClick={pause} className="rounded-3xl py-5 font-bold text-lg bg-white/10 inline-flex items-center justify-center gap-2 active:scale-95 transition">
+                  <Pause className="w-6 h-6" fill="currentColor" /> Pause
+                </button>
+              )}
+              <button onClick={stopp}
+                className={'rounded-3xl py-5 font-bold text-lg inline-flex items-center justify-center gap-2 active:scale-95 transition ' +
+                  (stoppFrage ? 'bg-ember text-white' : 'bg-ember/15 text-ember border border-ember/30')}>
+                <Square className="w-5 h-5" fill="currentColor" /> {stoppFrage ? 'Sicher?' : 'Feierabend'}
+              </button>
+            </div>
+            {stoppFrage && <div className="text-xs text-white/65 -mt-2">Nochmal tippen zum Beenden</div>}
+          </>
+        )}
+      </section>
+
       {!profilFertig(einst.profil) ? (
         <Link to="/fragebogen" className="rounded-3xl p-4 flex items-center gap-3 card-hover bg-aqua/10 border border-aqua/30">
           <IconChip icon={ClipboardList} variant="grad" />
@@ -228,82 +305,6 @@ export default function Heute() {
         )
       })()}
 
-      {/* Stempeluhr */}
-      <section className="glass rounded-4xl p-6 text-center space-y-5">
-        {!laufend ? (
-          <>
-            {firma && !wechseln ? (
-              // Aktueller Einsatz ist voreingestellt — nur Start drücken
-              <button onClick={() => setWechseln(true)} className="w-full text-left rounded-2xl bg-white/[0.05] border border-white/10 px-4 py-3 flex items-center gap-3">
-                <IconChip icon={Building2} size="w-9 h-9" iconClass="w-[18px] h-[18px]" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold leading-snug break-words">{firma}</div>
-                  <div className="text-xs text-white/65 line-clamp-2">{[aktiverEinsatz?.buero || einst.buero, aktiverEinsatz?.baustelle, aktiverEinsatz?.einsatzort, aktiverEinsatz?.funktion].filter(Boolean).join(' · ') || 'Einsatz'}</div>
-                </div>
-                <span className="shrink-0 text-xs text-white/60">Wechseln</span>
-              </button>
-            ) : (
-              <div className="text-left space-y-2">
-                <div className="text-xs text-white/65 flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Einsatzbetrieb wählen</div>
-                <FirmaWahl firmen={einst.firmen} wert={firma} onWahl={(f) => { setEinst({ firma: f }); setWechseln(false) }}
-                  onNeu={(n) => { setEinst({ firmen: [...einst.firmen, n], firma: n }); setWechseln(false) }} />
-              </div>
-            )}
-            <button onClick={start} disabled={!firma}
-              className="mx-auto w-44 h-44 rounded-full btn-grad shadow-glow flex flex-col items-center justify-center gap-1 font-extrabold text-xl active:scale-95 transition disabled:opacity-40">
-              <Play className="w-12 h-12" strokeWidth={2.2} fill="currentColor" />
-              Start
-            </button>
-            {!firma && <div className="text-sm text-white/65">Zuerst eine Firma wählen oder hinzufügen.</div>}
-            <button onClick={() => setKrank(true)} className="text-sm text-white/65 inline-flex items-center gap-1.5"><Thermometer className="w-4 h-4" /> Krank melden</button>
-          </>
-        ) : (
-          <>
-            {jetzt - laufend.start > 12 * 3600000 && !weiterGearbeitet && (
-              <div className="rounded-2xl p-4 text-left space-y-3 bg-amber-400/10 border border-amber-400/35">
-                <div className="flex gap-2 font-semibold"><AlarmClock className="w-5 h-5 text-amber-300 shrink-0" /> Feierabend vergessen? Die Uhr läuft seit {TAGE_LANG[new Date(laufend.start).getDay()]} {uhr(laufend.start)}.</div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {['16:00', '16:30', '17:00', '17:30'].map((z) => (
-                    <button key={z} onClick={() => setEndeZeit(z)} className={'px-3 py-1.5 rounded-xl text-sm border ' + (endeZeit === z ? 'btn-grad border-transparent font-semibold' : 'border-white/15 text-white/70')}>{z}</button>
-                  ))}
-                  <input type="time" value={endeZeit} onChange={(e) => setEndeZeit(e.target.value)} className="eingabe w-28 py-1.5" />
-                </div>
-                <button onClick={nachtraeglichBeenden} className="w-full rounded-2xl py-3 btn-grad font-bold">Feierabend um {endeZeit} eintragen</button>
-                <button onClick={() => setWeiterGearbeitet(true)} className="w-full text-sm text-white/65">Nein, ich arbeite noch (Nachtschicht)</button>
-              </div>
-            )}
-            <button onClick={() => bearbeite(laufend)} className="inline-flex items-center gap-1.5 text-sm text-white/60">
-              <Building2 className="w-4 h-4" /> {laufend.firma} · seit {uhr(laufend.start)} <Pencil className="w-3.5 h-3.5 text-white/55" />
-            </button>
-            <div>
-              <div className={'text-6xl font-extrabold tabular-nums tracking-tight ' + (pausiert ? 'text-white/60' : 'grad-text')}>
-                {hms(arbeitMs(laufend, jetzt))}
-              </div>
-              <div className="text-sm text-white/65 mt-1 inline-flex items-center gap-1.5">
-                <Coffee className="w-4 h-4" /> Pause {hm(pauseMs(laufend, jetzt))}
-                {pausiert && <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-amber-400/15 text-amber-300 border border-amber-400/30">Pause läuft</span>}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {pausiert ? (
-                <button onClick={weiter} className="rounded-3xl py-5 font-bold text-lg btn-grad inline-flex items-center justify-center gap-2 active:scale-95 transition">
-                  <Play className="w-6 h-6" fill="currentColor" /> Weiter
-                </button>
-              ) : (
-                <button onClick={pause} className="rounded-3xl py-5 font-bold text-lg bg-white/10 inline-flex items-center justify-center gap-2 active:scale-95 transition">
-                  <Pause className="w-6 h-6" fill="currentColor" /> Pause
-                </button>
-              )}
-              <button onClick={stopp}
-                className={'rounded-3xl py-5 font-bold text-lg inline-flex items-center justify-center gap-2 active:scale-95 transition ' +
-                  (stoppFrage ? 'bg-ember text-white' : 'bg-ember/15 text-ember border border-ember/30')}>
-                <Square className="w-5 h-5" fill="currentColor" /> {stoppFrage ? 'Sicher?' : 'Feierabend'}
-              </button>
-            </div>
-            {stoppFrage && <div className="text-xs text-white/65 -mt-2">Nochmal tippen zum Beenden</div>}
-          </>
-        )}
-      </section>
 
       {lohnHeute && (lohnHeute.brutto > 0 || lohnMonat?.brutto > 0) && (
         <Link to="/lohn" className="glass rounded-3xl p-4 grid grid-cols-2 gap-3 card-hover">

@@ -50,7 +50,7 @@ export default function Lohn() {
   const [einsatzNeu, setEinsatzNeu] = useState(null)
   const [pruefung, setPruefung] = useState(null) // true = neu | gespeicherter Datensatz
   const [detail, setDetail] = useState(null)
-  const geprueft = useLiveQuery(() => db.lohnabrechnungen.orderBy('von').reverse().limit(12).toArray(), [], [])
+  const geprueft = useLiveQuery(() => db.lohnabrechnungen.orderBy('von').reverse().limit(40).toArray(), [], [])
   const laufend = useLiveQuery(laufendeSchicht, [], null)
   const [jetzt, setJetzt] = useState(Date.now())
   useEffect(() => {
@@ -80,34 +80,6 @@ export default function Lohn() {
     <div className="space-y-5">
       <h1 className="text-3xl md:text-4xl font-extrabold grad-text tracking-tight">Lohn</h1>
 
-      <button onClick={() => setPruefung(true)} className="w-full glass rounded-3xl p-4 flex items-center gap-3 card-hover text-left">
-        <IconChip icon={ScanSearch} variant="grad" />
-        <div className="min-w-0">
-          <div className="font-bold">Lohnabrechnung prüfen</div>
-          <div className="text-sm text-white/70">Foto machen — die App vergleicht jede Zeile mit deinen Rapporten</div>
-        </div>
-      </button>
-      {(geprueft || []).length > 0 && (
-        <div className="space-y-1.5">
-          {geprueft.slice(0, 4).map((g) => {
-            const n = (g.pruefung || []).filter((c) => c.status === 'abweichung' && c.id !== 'auszahlung').length
-            return (
-              <button key={g.id} onClick={() => setPruefung(g)} className="w-full text-left rounded-2xl px-3 py-2 bg-white/[0.04] border border-white/10 flex items-center gap-2 text-sm">
-                {n ? <XCircle className="w-4 h-4 text-ember shrink-0" /> : <CheckCircle2 className="w-4 h-4 text-lime shrink-0" />}
-                <span className="flex-1 truncate">Abrechnung {g.von.split('-').reverse().join('.')}–{g.bis.split('-').reverse().join('.')} {g.buero ? `· ${g.buero}` : ''}</span>
-                <span className={'text-xs shrink-0 ' + (n ? 'text-ember' : 'text-white/65')}>{n ? `${n} Abweichung${n > 1 ? 'en' : ''}` : 'stimmt'}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      <Link to="/archiv?t=lohn" className="w-full glass rounded-2xl px-4 py-3 flex items-center gap-3 card-hover">
-        <FolderTree className="w-5 h-5 text-amber-300 shrink-0" />
-        <span className="flex-1"><span className="font-semibold">Alle Abrechnungen & Jahresabschluss</span><span className="block text-xs text-white/60">Ordner nach Jahr/Monat, Jahressummen, Grafiken, Werte für die Steuererklärung</span></span>
-        <ChevronRight className="w-4 h-4 text-white/50" />
-      </Link>
-
       <div className="flex gap-2">
         {[['monat', 'Monat'], ['woche', 'Woche']].map(([m, l]) => (
           <button key={m} onClick={() => setModus(m)}
@@ -123,6 +95,26 @@ export default function Lohn() {
         </div>
         <button onClick={() => blaettern(1)} className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center shrink-0" aria-label="Weiter"><ChevronRight className="w-5 h-5" /></button>
       </header>
+
+      {(() => {
+        // Lohnabrechnung zum gewählten Zeitraum: Status oder Aufforderung
+        const ab = (geprueft || []).filter((g) => !g.nurArchiv && g.von <= z.bis && g.bis >= z.von).sort((x, y) => (y.erstellt || 0) - (x.erstellt || 0))[0]
+        const n = ab ? (ab.pruefung || []).filter((c) => c.status === 'abweichung' && c.id !== 'auszahlung').length : 0
+        return (
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <button onClick={() => setPruefung(ab || true)} className={'rounded-2xl px-4 py-3 flex items-center gap-3 text-left border ' + (ab ? (n ? 'bg-ember/10 border-ember/30' : 'bg-emerald-400/10 border-emerald-400/30') : 'glass')}>
+              {ab ? (n ? <XCircle className="w-5 h-5 text-ember shrink-0" /> : <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />) : <ScanSearch className="w-5 h-5 text-cyan-300 shrink-0" />}
+              <span className="min-w-0 text-sm">
+                <span className="font-semibold block">{ab ? `Abrechnung ${z.titel}: ${n ? `${n} Abweichung${n > 1 ? 'en' : ''}` : 'stimmt'}` : 'Lohnabrechnung prüfen'}</span>
+                <span className="text-white/60 block truncate">{ab ? 'antippen für den Vergleich' : 'Foto oder PDF — Vergleich mit deinen Rapporten'}</span>
+              </span>
+            </button>
+            <Link to="/archiv?t=lohn" className="rounded-2xl px-3 bg-white/[0.06] border border-white/10 flex flex-col items-center justify-center text-xs text-white/70 gap-1" aria-label="Alle Abrechnungen im Archiv">
+              <FolderTree className="w-5 h-5 text-amber-300" /> Archiv
+            </Link>
+          </div>
+        )
+      })()}
 
       {lohn && (
         <>
