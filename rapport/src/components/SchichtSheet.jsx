@@ -105,7 +105,7 @@ export default function SchichtSheet({ schicht, datum, onClose }) {
           <input value={f.notiz} onChange={set('notiz')} placeholder="z.B. Baustelle, Tätigkeit" className="eingabe" />
           <label className="mt-3 flex items-start gap-2 text-sm">
             <input type="checkbox" checked={f.angeordnet} onChange={(e) => setF({ ...f, angeordnet: e.target.checked })} className="w-5 h-5 mt-0.5 accent-cyan-400 shrink-0" />
-            <span>Länger bleiben <b>angeordnet</b> (Vorarbeiter/Chef hat Mehrarbeit verlangt)<span className="block text-xs text-white/60">Wichtig für den Überzeit-Zuschlag: Stunden über 45 pro Woche gibt es nur mit Zuschlag, wenn sie angeordnet waren.</span></span>
+            <span>Länger bleiben <b>angeordnet</b> (Vorarbeiter/Chef hat Mehrarbeit verlangt)<span className="block text-xs text-white/60">Beleg für den Überzeit-Zuschlag (25 % über 45 h pro Woche) — steht im Zeitnachweis, den der Polier unterschreibt.</span></span>
           </label>
           {f.angeordnet && <input value={f.angeordnetVon} onChange={set('angeordnetVon')} placeholder="Angeordnet von (Name)" className="eingabe mt-2" />}
         </div>
