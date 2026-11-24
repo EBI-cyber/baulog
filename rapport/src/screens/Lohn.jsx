@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ChevronLeft, ChevronRight, Briefcase, AlertTriangle, FileText, Info, ScanSearch, CheckCircle2, XCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Briefcase, AlertTriangle, FileText, Info, ScanSearch, CheckCircle2, XCircle, FolderTree } from 'lucide-react'
 import { laufendeSchicht } from '../lib/db'
 import { useEinstellungen } from '../lib/settings'
 import { useLohn } from '../lib/useLohn'
@@ -101,6 +101,12 @@ export default function Lohn() {
           })}
         </div>
       )}
+
+      <Link to="/abrechnungen" className="w-full glass rounded-2xl px-4 py-3 flex items-center gap-3 card-hover">
+        <FolderTree className="w-5 h-5 text-amber-300 shrink-0" />
+        <span className="flex-1"><span className="font-semibold">Alle Abrechnungen & Jahresabschluss</span><span className="block text-xs text-white/60">Ordner nach Jahr/Monat, Jahressummen, Grafiken, Werte für die Steuererklärung</span></span>
+        <ChevronRight className="w-4 h-4 text-white/50" />
+      </Link>
 
       <div className="flex gap-2">
         {[['monat', 'Monat'], ['woche', 'Woche']].map(([m, l]) => (

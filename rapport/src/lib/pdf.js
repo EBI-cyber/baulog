@@ -5,6 +5,7 @@ import { zahl } from './settings'
 import { wochenRechnung, std } from './woche'
 import { unterzeichnerText, blockschrift } from './unterschreiber'
 import { rapportTage } from './rapporttage'
+import * as jahresabschlussHilfe from './jahresabschluss'
 
 const sauber = (t) => String(t || '').trim().replace(/\s+/g, '_').replace(/[^\wäöüÄÖÜß-]/g, '')
 /** Dateiname mit KW vorne — so stehen Rapport und Zeitnachweis einer Woche im Ordner nebeneinander */
@@ -538,5 +539,47 @@ function rapportFormularPdf({ einst, woche, schichten, absenzen = [], spesen = [
   const kontakt = [einst?.buero, e?.bueroTel || einst?.bueroTel, e?.bueroEmail].filter(Boolean).join('  |  ')
   label(kontakt, L, 205, 8.5)
   label(`Erstellt am ${datumLang(new Date())} ${uhr(Date.now())}${e?.einsatznummer ? ` · Einsatz-Nr. ${e.einsatznummer}` : ''}`, R, 205, 7.5, { align: 'right' })
+  return doc.output('blob')
+}
+
+/** Jahresabschluss Lohn (aus den Lohnabrechnungen) — Vorbereitung Steuererklärung */
+export function jahresabschlussPdf({ einst, jahr, ja }) {
+  const { gruppen, lohnausweis, GRUPPEN } = jahresabschlussHilfe
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const L = 15, R = 195, w = einst.waehrung
+  const geld = (n) => `${n < 0 ? '- ' : ''}${w} ${Math.abs(n || 0).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const t = ja.total, g = gruppen(t)
+  let y = 22
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(`Jahresabschluss Lohn ${jahr}`, L, y)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
+  y += 7; doc.text(`${einst.name || ''} · erstellt ${datumLang(new Date())} · ${ja.abrechnungen.length} Lohnabrechnung(en)`, L, y)
+  const zeile = (a, b, fett, info) => {
+    doc.setFont('helvetica', fett ? 'bold' : 'normal'); doc.setFontSize(fett ? 10.5 : 9.5)
+    doc.text(a, L + 2, y); if (info) { doc.setTextColor(120); doc.setFontSize(8.5); doc.text(info, L + 110, y); doc.setTextColor(0); doc.setFontSize(fett ? 10.5 : 9.5) }
+    if (b !== null && b !== undefined) doc.text(geld(b), R, y, { align: 'right' }); y += fett ? 7 : 5.5
+  }
+  const titel = (s) => { y += 6; doc.setFillColor(235, 245, 248); doc.rect(L, y - 5, R - L, 8, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text(s, L + 2, y); y += 8 }
+  titel('Übersicht')
+  zeile('Bruttolohn', t.brutto, true)
+  for (const [k, l] of GRUPPEN) if (g[k]) zeile(`− ${l}`, -g[k])
+  zeile('Nettolohn', t.netto, true)
+  zeile('Spesen (steuerfrei)', t.spesen)
+  if (t.rueck) zeile('Zurückbehalten (Guthaben beim Büro)', -t.rueck)
+  if (t.stunden) zeile(`Stunden: ${t.stunden.toFixed(2)} h · netto pro Stunde`, t.netto / t.stunden)
+  titel('Für die Steuererklärung (Aufbau Lohnausweis, Formular 11)')
+  for (const z of lohnausweis(t)) zeile(`${z.ziffer.padEnd(5)} ${z.text}`, z.betrag, z.fett)
+  if (g.uebrige) zeile('Nicht unter Ziffer 9/10: übrige Abzüge (KTG, GAV …)', g.uebrige)
+  titel('Monat für Monat')
+  doc.setFontSize(8.5); doc.setFont('helvetica', 'bold')
+  const sp = [L + 2, L + 40, L + 75, L + 105, L + 135, R]
+  ;['Monat', 'Brutto', 'Abzüge', 'davon QST', 'Netto', 'Quelle'].forEach((h, i) => doc.text(h, sp[i], y, i && i < 5 ? { align: 'right' } : i === 5 ? { align: 'right' } : undefined))
+  y += 5; doc.setFont('helvetica', 'normal')
+  for (const x of ja.monate.filter((m) => m.brutto)) {
+    const ab = x.brutto - x.netto
+    ;[x.name, x.brutto.toFixed(2), ab.toFixed(2), (x.abzug.quellensteuer || 0).toFixed(2), x.netto.toFixed(2), x.quelle === 'abrechnung' ? 'Abrechnung' : 'Schätzung'].forEach((v, i) => doc.text(v, sp[i], y, i && i < 5 ? { align: 'right' } : i === 5 ? { align: 'right' } : undefined))
+    y += 5
+  }
+  doc.setFontSize(8); doc.setTextColor(110)
+  doc.text(doc.splitTextToSize('Zusammengestellt aus den fotografierten Lohnabrechnungen (Monate ohne Abrechnung: Schätzung der App). Ohne Gewähr, keine Steuerberatung — massgebend ist der Lohnausweis des Arbeitgebers.', R - L), L, 285)
   return doc.output('blob')
 }

@@ -7,6 +7,7 @@ import Einstellungen from './screens/Einstellungen'
 import Lohn from './screens/Lohn'
 import Statistik from './screens/Statistik'
 import Rapporte from './screens/Rapporte'
+import Abrechnungen from './screens/Abrechnungen'
 import Unterschreiben from './screens/Unterschreiben'
 import Durchschlag from './screens/Durchschlag'
 import Fragebogen from './screens/Fragebogen'
@@ -41,6 +42,7 @@ function Hauptlayout() {
               <Route path="/lohn" element={<Lohn />} />
               <Route path="/statistik" element={<Statistik />} />
               <Route path="/rapporte" element={<Rapporte />} />
+              <Route path="/abrechnungen" element={<Abrechnungen />} />
               <Route path="/einstellungen" element={<Einstellungen />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
